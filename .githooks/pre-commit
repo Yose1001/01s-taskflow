@@ -1,0 +1,23 @@
+#!/bin/bash
+# Pre-commit checks. Enable with: git config core.hooksPath .githooks
+set -e
+export PATH="$HOME/.local/go/bin:$HOME/go/bin:$HOME/.local/node/bin:$PATH"
+cd "$(git rev-parse --show-toplevel)"
+
+if git diff --cached --name-only | grep -q '^backend/.*\.go$'; then
+  echo "[pre-commit] gofmt / go vet"
+  unformatted=$(cd backend && gofmt -l .)
+  if [ -n "$unformatted" ]; then
+    echo "Files need gofmt:"; echo "$unformatted"; exit 1
+  fi
+  (cd backend && go vet ./...)
+fi
+
+if git diff --cached --name-only | grep -q '^frontend/'; then
+  echo "[pre-commit] frontend lint / format check"
+  (cd frontend && pnpm -s lint && pnpm -s format:check)
+fi
+
+if git diff --cached --name-only | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$' | grep -q .; then
+  echo "Refusing to commit a .env file."; exit 1
+fi

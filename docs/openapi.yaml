@@ -1,0 +1,576 @@
+openapi: 3.0.3
+info:
+  title: TaskFlow API
+  version: 0.2.0
+  description: |
+    REST API ของ TaskFlow (ฉบับร่างรออนุมัติ)
+
+    - ข้อผิดพลาดทุกกรณีคืน `code` (เช่น `not_found`, `email_taken`, `validation_failed`) ให้ frontend แปลตามภาษาที่ผู้ใช้เลือก
+      ฟิลด์ `message` เป็นภาษาอังกฤษสำหรับนักพัฒนาเท่านั้น
+    - ข้อมูลที่ถูกลบอยู่ในถังขยะ 30 วัน (ดูฟิลด์ `purgeAt`) แล้วถูกลบถาวรโดยอัตโนมัติ
+    - Request body เป็น JSON object เดียว ไม่เกิน 1 MiB ห้ามมีฟิลด์ที่ไม่รู้จัก (ผิดคืน 400 `bad_request`, ใหญ่เกินคืน 413)
+    - `POST /auth/login` จำกัด 10 ครั้ง/นาที และ `POST /auth/register` 5 ครั้ง/นาที ต่อ IP เกินคืน 429 `rate_limited` พร้อม `Retry-After`
+    - ล็อกอินผิดทุกกรณี (ไม่มีอีเมล / รหัสผิด) คืนข้อความเดียวกัน `invalid_credentials`
+servers:
+  - url: http://localhost:8080/api/v1
+tags:
+  - name: Auth
+  - name: Projects
+  - name: Members
+  - name: Tasks
+
+paths:
+  /ready:
+    get:
+      summary: Readiness probe (ตรวจว่าเชื่อมฐานข้อมูลได้; 503 ถ้าเชื่อมไม่ได้)
+      security: []
+      responses:
+        "200":
+          description: พร้อมให้บริการ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ready }
+        "503":
+          description: ฐานข้อมูลเชื่อมต่อไม่ได้ (ไม่เปิดเผยรายละเอียด)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: unavailable }
+
+  /health:
+    get:
+      summary: Liveness probe (ไม่แตะฐานข้อมูล)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: สมัครสมาชิก
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: สร้างสำเร็จ
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: เข้าสู่ระบบ
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: สำเร็จ
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /me:
+    get:
+      tags: [Auth]
+      summary: ข้อมูลผู้ใช้ปัจจุบัน
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      tags: [Auth]
+      summary: ตั้งค่าส่วนตัว (ชื่อที่แสดง ภาษา ธีม)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserSettingsPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: รายการโปรเจกต์ที่ฉันเป็นสมาชิก (trashed=true = ถังขยะ เฉพาะที่ฉันเป็น Owner)
+      parameters:
+        - { name: trashed, in: query, schema: { type: boolean, default: false } }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Project" }
+                  total: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Projects]
+      summary: สร้างโปรเจกต์ (ผู้สร้างเป็น Owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectInput" }
+      responses:
+        "201":
+          description: สร้างสำเร็จ
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /projects/{projectId}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [Projects]
+      summary: ดูโปรเจกต์
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Projects]
+      summary: แก้ไขโปรเจกต์ (Owner เท่านั้น)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+    delete:
+      tags: [Projects]
+      summary: ย้ายโปรเจกต์ไปถังขยะ เก็บ 30 วัน (Owner เท่านั้น)
+      responses:
+        "204": { description: ย้ายไปถังขยะแล้ว }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/restore:
+    post:
+      tags: [Projects]
+      summary: กู้คืนโปรเจกต์จากถังขยะ (Owner เท่านั้น ภายใน 30 วัน)
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: กู้คืนแล้ว
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/members:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [Members]
+      summary: รายชื่อสมาชิก
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Member" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Members]
+      summary: เพิ่มสมาชิกด้วยอีเมล (Owner เท่านั้น)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "201":
+          description: เพิ่มแล้ว
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Member" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /projects/{projectId}/members/{userId}:
+    delete:
+      tags: [Members]
+      summary: ลบสมาชิก (Owner เท่านั้น; ลบ Owner ไม่ได้)
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: ลบแล้ว }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/tasks:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [Tasks]
+      summary: รายการงานในโปรเจกต์ (กรองได้; trashed=true = ถังขยะของโปรเจกต์)
+      parameters:
+        - { name: trashed, in: query, schema: { type: boolean, default: false } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/TaskStatus" } }
+        - { name: priority, in: query, schema: { $ref: "#/components/schemas/Priority" } }
+        - { name: assigneeId, in: query, schema: { type: string, format: uuid } }
+        - { name: q, in: query, description: ค้นหาในชื่องาน, schema: { type: string, maxLength: 100 } }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Task" }
+                  total: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Tasks]
+      summary: สร้างงาน
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskInput" }
+      responses:
+        "201":
+          description: สร้างสำเร็จ
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /tasks/{taskId}:
+    parameters:
+      - $ref: "#/components/parameters/TaskId"
+    get:
+      tags: [Tasks]
+      summary: ดูงาน
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Tasks]
+      summary: แก้ไขงาน (ส่งเฉพาะฟิลด์ที่เปลี่ยน)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+    delete:
+      tags: [Tasks]
+      summary: ย้ายงานไปถังขยะ เก็บ 30 วัน (สมาชิกทุกคน)
+      responses:
+        "204": { description: ย้ายไปถังขยะแล้ว }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /tasks/{taskId}/restore:
+    post:
+      tags: [Tasks]
+      summary: กู้คืนงานจากถังขยะ (สมาชิกทุกคน ภายใน 30 วัน)
+      description: ถ้าผู้รับผิดชอบเดิมไม่ได้เป็นสมาชิกแล้ว `assigneeId` จะถูกล้างเป็น null
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: กู้คืนแล้ว
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /tasks/{taskId}/move:
+    post:
+      tags: [Tasks]
+      summary: ย้ายงานข้ามคอลัมน์/เรียงลำดับใหม่ (drag-and-drop)
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: "#/components/schemas/TaskStatus" }
+                beforeTaskId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: วางหน้างานนี้ (null = ท้ายคอลัมน์)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  responses:
+    Unauthorized:
+      description: ไม่ได้ล็อกอินหรือ token ไม่ถูกต้อง
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: ไม่มีสิทธิ์ทำรายการ (เป็นสมาชิกแต่ไม่ใช่ Owner)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: ไม่พบ หรือไม่ใช่สมาชิกโปรเจกต์ (ไม่เปิดเผยว่ามีอยู่จริง)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: ข้อมูลซ้ำ
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Validation:
+      description: ข้อมูลไม่ถูกต้อง
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: รหัสข้อผิดพลาดที่ frontend ใช้แปลเป็นไทย/อังกฤษ
+          enum: [unauthorized, invalid_credentials, forbidden, not_found, email_taken, already_member, validation_failed, bad_request, rate_limited, internal_error]
+          example: not_found
+        message: { type: string, description: ภาษาอังกฤษ สำหรับนักพัฒนา }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        locale: { type: string, enum: [th, en] }
+        theme: { type: string, enum: [light, dark, system] }
+        createdAt: { type: string, format: date-time }
+    UserSettingsPatch:
+      type: object
+      minProperties: 1
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        locale: { type: string, enum: [th, en] }
+        theme: { type: string, enum: [light, dark, system] }
+    RegisterRequest:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email: { type: string, format: email }
+        password:
+          type: string
+          minLength: 8
+          description: |
+            อย่างน้อย 8 ตัวอักษร และไม่เกิน **72 ไบต์** (UTF-8) ตามข้อจำกัดของ bcrypt
+            ตัวอักษรไทย 1 ตัวใช้ 3 ไบต์ จึงใส่รหัสผ่านไทยได้ไม่เกิน 24 ตัว
+            ฟิลด์ผิดคืน `fields.password` = `password_too_short` หรือ `password_too_long`
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    TokenResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, example: Bearer }
+        expiresIn: { type: integer, example: 3600 }
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        ownerId: { type: string, format: uuid }
+        myRole: { type: string, enum: [owner, member] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        deletedAt: { type: string, format: date-time, nullable: true }
+        purgeAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: เวลาที่จะถูกลบถาวร (deletedAt + 30 วัน) มีค่าเฉพาะรายการในถังขยะ
+    ProjectInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+    Member:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        role: { type: string, enum: [owner, member] }
+        joinedAt: { type: string, format: date-time }
+    TaskStatus:
+      type: string
+      enum: [todo, in_progress, review, done]
+    Priority:
+      type: string
+      enum: [low, medium, high]
+    Task:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        priority: { $ref: "#/components/schemas/Priority" }
+        assigneeId: { type: string, format: uuid, nullable: true }
+        createdBy: { type: string, format: uuid }
+        dueDate: { type: string, format: date, nullable: true }
+        position: { type: number, format: double }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        deletedAt: { type: string, format: date-time, nullable: true }
+        purgeAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: เวลาที่จะถูกลบถาวร (deletedAt + 30 วัน) มีค่าเฉพาะงานในถังขยะ
+    TaskInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 5000 }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        priority: { $ref: "#/components/schemas/Priority" }
+        assigneeId: { type: string, format: uuid, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+    TaskPatch:
+      type: object
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 5000 }
+        priority: { $ref: "#/components/schemas/Priority" }
+        assigneeId: { type: string, format: uuid, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+
+security:
+  - bearerAuth: []

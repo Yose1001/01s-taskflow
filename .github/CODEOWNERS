@@ -1,0 +1,6 @@
+# Security-sensitive areas require review from the owner.
+* @Yose1001
+/backend/internal/middleware/ @Yose1001
+/backend/internal/service/ @Yose1001
+/backend/migrations/ @Yose1001
+/.github/ @Yose1001

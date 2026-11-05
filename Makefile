@@ -1,0 +1,46 @@
+.PHONY: help db-up db-down migrate-up migrate-down run-backend run-frontend test test-backend test-frontend lint lint-backend lint-frontend fmt
+
+help: ## Show available commands
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
+
+db-up: ## Start local Postgres (Docker)
+	docker compose up -d db
+
+db-down: ## Stop local Postgres
+	docker compose down
+
+run-backend: ## Run the Go API on :8080 (reads .env)
+	@test -f .env || { echo "Missing .env: run 'cp .env.example .env' and set JWT_SECRET"; exit 1; }
+	set -a && . ./.env && set +a && cd backend && go run ./cmd/api
+
+migrate-up: ## Apply DB migrations (needs the 'migrate' CLI and .env)
+	@test -f .env || { echo "Missing .env"; exit 1; }
+	set -a && . ./.env && set +a && migrate -path backend/migrations -database "$$DATABASE_URL" up
+
+migrate-down: ## Roll back the last DB migration
+	@test -f .env || { echo "Missing .env"; exit 1; }
+	set -a && . ./.env && set +a && migrate -path backend/migrations -database "$$DATABASE_URL" down 1
+
+run-frontend: ## Run the React dev server on :5173
+	cd frontend && pnpm dev
+
+test: test-backend test-frontend ## Run all tests
+
+test-backend: ## Go tests
+	cd backend && go test ./... -race -cover
+
+test-frontend: ## Frontend tests
+	cd frontend && pnpm test
+
+lint: lint-backend lint-frontend ## Run all linters
+
+lint-backend: ## go vet (+ golangci-lint if installed)
+	cd backend && go vet ./...
+	@command -v golangci-lint >/dev/null && (cd backend && golangci-lint run) || echo "golangci-lint not installed, skipped"
+
+lint-frontend: ## ESLint
+	cd frontend && pnpm lint
+
+fmt: ## Format code
+	cd backend && gofmt -w .
+	cd frontend && pnpm format

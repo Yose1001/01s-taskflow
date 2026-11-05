@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "golang.go",
+    "oxc.oxc-vscode",
+    "esbenp.prettier-vscode",
+    "redhat.vscode-yaml",
+    "bierner.markdown-mermaid",
+    "ms-azuretools.vscode-docker"
+  ]
+}
