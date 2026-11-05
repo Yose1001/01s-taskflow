@@ -157,6 +157,12 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "validation failed", ve.Fields)
 	case errors.Is(err, model.ErrEmailTaken):
 		httpx.WriteError(w, http.StatusConflict, "email_taken", "email already registered", nil)
+	case errors.Is(err, model.ErrNotFound):
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "not found", nil)
+	case errors.Is(err, service.ErrForbidden):
+		httpx.WriteError(w, http.StatusForbidden, "forbidden", "you do not have permission to do this", nil)
+	case errors.Is(err, model.ErrAlreadyMember):
+		httpx.WriteError(w, http.StatusConflict, "already_member", "user is already a member", nil)
 	case errors.Is(err, service.ErrInvalidCredentials):
 		httpx.WriteError(w, http.StatusUnauthorized, "invalid_credentials", "invalid email or password", nil)
 	case errors.Is(err, service.ErrUnauthorized):
