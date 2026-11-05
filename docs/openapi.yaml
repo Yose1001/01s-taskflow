@@ -271,6 +271,10 @@ paths:
     get:
       tags: [Tasks]
       summary: รายการงานในโปรเจกต์ (กรองได้; trashed=true = ถังขยะของโปรเจกต์)
+      description: |
+        เรียงตามคอลัมน์ (todo, in_progress, review, done) แล้วตาม `position` ในคอลัมน์นั้น
+        (`position` ใช้เทียบได้เฉพาะภายในคอลัมน์เดียวกัน) ถังขยะเรียงตามเวลาที่ลบ ใหม่สุดก่อน
+        ค้นหา `q` เป็นการหาข้อความในชื่อ ไม่สนตัวพิมพ์เล็ก/ใหญ่ และอักขระ `%` `_` ถือเป็นตัวอักษรธรรมดา
       parameters:
         - { name: trashed, in: query, schema: { type: boolean, default: false } }
         - { name: status, in: query, schema: { $ref: "#/components/schemas/TaskStatus" } }
@@ -364,6 +368,11 @@ paths:
     post:
       tags: [Tasks]
       summary: ย้ายงานข้ามคอลัมน์/เรียงลำดับใหม่ (drag-and-drop)
+      description: |
+        `beforeTaskId` ต้องเป็นงานที่ยังไม่ถูกลบ อยู่ในโปรเจกต์เดียวกัน และอยู่ในคอลัมน์ปลายทาง
+        และต้องไม่ใช่งานนี้เอง มิฉะนั้นคืน 422 (`fields.beforeTaskId` = `invalid_before_task`)
+        ถ้าส่ง null หรือไม่ส่ง งานจะไปอยู่ท้ายคอลัมน์
+        สถานะ (`status`) เปลี่ยนได้ทางนี้เท่านั้น ส่ง `status` ผ่าน PATCH จะถูกปฏิเสธ (400)
       parameters:
         - $ref: "#/components/parameters/TaskId"
       requestBody:

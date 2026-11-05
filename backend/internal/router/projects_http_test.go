@@ -31,12 +31,15 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projects := service.NewProjects(repository.NewProjectRepo(tx), users, 30,
-		service.WithProjectsClock(func() time.Time { return e.now }))
+	projectRepo := repository.NewProjectRepo(tx)
+	clock := func() time.Time { return e.now }
+	projects := service.NewProjects(projectRepo, users, 30, service.WithProjectsClock(clock))
+	tasks := service.NewTasks(repository.NewTaskRepo(tx), projectRepo, 30, service.WithTasksClock(clock))
 
 	e.h = New(Deps{
 		Auth:         handler.NewAuth(auth),
 		Projects:     handler.NewProjects(projects),
+		Tasks:        handler.NewTasks(tasks),
 		Authenticate: middleware.Authenticate(auth),
 	})
 	return e
