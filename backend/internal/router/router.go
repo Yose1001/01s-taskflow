@@ -23,6 +23,7 @@ type Deps struct {
 	DB       Pinger
 	Auth     *handler.Auth
 	Projects *handler.Projects
+	Tasks    *handler.Tasks
 
 	// Authenticate protects routes that need a logged-in user.
 	Authenticate Middleware
@@ -58,6 +59,18 @@ func New(d Deps) http.Handler {
 		mux.Handle("GET /api/v1/projects/{projectId}/members", authn(http.HandlerFunc(p.ListMembers)))
 		mux.Handle("POST /api/v1/projects/{projectId}/members", authn(http.HandlerFunc(p.AddMember)))
 		mux.Handle("DELETE /api/v1/projects/{projectId}/members/{userId}", authn(http.HandlerFunc(p.RemoveMember)))
+	}
+
+	// Task routes also require a logged-in user.
+	if d.Tasks != nil && d.Authenticate != nil {
+		t, authn := d.Tasks, d.Authenticate
+		mux.Handle("GET /api/v1/projects/{projectId}/tasks", authn(http.HandlerFunc(t.List)))
+		mux.Handle("POST /api/v1/projects/{projectId}/tasks", authn(http.HandlerFunc(t.Create)))
+		mux.Handle("GET /api/v1/tasks/{taskId}", authn(http.HandlerFunc(t.Get)))
+		mux.Handle("PATCH /api/v1/tasks/{taskId}", authn(http.HandlerFunc(t.Update)))
+		mux.Handle("DELETE /api/v1/tasks/{taskId}", authn(http.HandlerFunc(t.Delete)))
+		mux.Handle("POST /api/v1/tasks/{taskId}/restore", authn(http.HandlerFunc(t.Restore)))
+		mux.Handle("POST /api/v1/tasks/{taskId}/move", authn(http.HandlerFunc(t.Move)))
 	}
 	return mux
 }

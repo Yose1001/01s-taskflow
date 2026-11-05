@@ -47,12 +47,15 @@ func main() {
 	}
 
 	userRepo := repository.NewUserRepo(pool)
-	projectSvc := service.NewProjects(repository.NewProjectRepo(pool), userRepo, cfg.TrashRetentionDays)
+	projectRepo := repository.NewProjectRepo(pool)
+	projectSvc := service.NewProjects(projectRepo, userRepo, cfg.TrashRetentionDays)
+	taskSvc := service.NewTasks(repository.NewTaskRepo(pool), projectRepo, cfg.TrashRetentionDays)
 
 	handler := router.New(router.Deps{
 		DB:            pool,
 		Auth:          handlerpkg.NewAuth(authSvc),
 		Projects:      handlerpkg.NewProjects(projectSvc),
+		Tasks:         handlerpkg.NewTasks(taskSvc),
 		Authenticate:  middleware.Authenticate(authSvc),
 		LoginLimit:    middleware.NewRateLimiter(10, time.Minute).Middleware,
 		RegisterLimit: middleware.NewRateLimiter(5, time.Minute).Middleware,
