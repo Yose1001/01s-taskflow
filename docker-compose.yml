@@ -1,4 +1,4 @@
-name: taskflow # คงชื่อ compose project ไว้ ไม่ขึ้นกับชื่อโฟลเดอร์ (01-taskflow)
+name: taskflow # คงชื่อ compose project ไว้ ไม่ขึ้นกับชื่อโฟลเดอร์ของโปรเจกต์
 
 services:
   db:
