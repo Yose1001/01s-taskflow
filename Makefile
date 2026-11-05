@@ -26,8 +26,8 @@ run-frontend: ## Run the React dev server on :5173
 
 test: test-backend test-frontend ## Run all tests
 
-test-backend: ## Go tests
-	cd backend && go test ./... -race -cover
+test-backend: ## Go tests (uses the local DB from .env when present: run 'make db-up' and 'make migrate-up' first)
+	@if [ -f .env ]; then set -a && . ./.env && set +a && cd backend && TEST_DATABASE_URL="$$DATABASE_URL" go test ./... -race -cover -count=1; else cd backend && go test ./... -race -cover -count=1; fi
 
 test-frontend: ## Frontend tests
 	cd frontend && pnpm test

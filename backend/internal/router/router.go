@@ -20,8 +20,9 @@ type Middleware func(http.Handler) http.Handler
 
 // Deps are everything the router needs. Nil optional fields disable that feature (used in tests).
 type Deps struct {
-	DB   Pinger
-	Auth *handler.Auth
+	DB       Pinger
+	Auth     *handler.Auth
+	Projects *handler.Projects
 
 	// Authenticate protects routes that need a logged-in user.
 	Authenticate Middleware
@@ -43,6 +44,20 @@ func New(d Deps) http.Handler {
 			mux.Handle("GET /api/v1/me", d.Authenticate(http.HandlerFunc(d.Auth.Me)))
 			mux.Handle("PATCH /api/v1/me", d.Authenticate(http.HandlerFunc(d.Auth.UpdateMe)))
 		}
+	}
+
+	// Every project route requires a logged-in user. Without Authenticate they are not registered at all.
+	if d.Projects != nil && d.Authenticate != nil {
+		p, authn := d.Projects, d.Authenticate
+		mux.Handle("POST /api/v1/projects", authn(http.HandlerFunc(p.Create)))
+		mux.Handle("GET /api/v1/projects", authn(http.HandlerFunc(p.List)))
+		mux.Handle("GET /api/v1/projects/{projectId}", authn(http.HandlerFunc(p.Get)))
+		mux.Handle("PATCH /api/v1/projects/{projectId}", authn(http.HandlerFunc(p.Update)))
+		mux.Handle("DELETE /api/v1/projects/{projectId}", authn(http.HandlerFunc(p.Delete)))
+		mux.Handle("POST /api/v1/projects/{projectId}/restore", authn(http.HandlerFunc(p.Restore)))
+		mux.Handle("GET /api/v1/projects/{projectId}/members", authn(http.HandlerFunc(p.ListMembers)))
+		mux.Handle("POST /api/v1/projects/{projectId}/members", authn(http.HandlerFunc(p.AddMember)))
+		mux.Handle("DELETE /api/v1/projects/{projectId}/members/{userId}", authn(http.HandlerFunc(p.RemoveMember)))
 	}
 	return mux
 }
