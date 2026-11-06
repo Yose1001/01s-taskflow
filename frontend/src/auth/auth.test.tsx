@@ -20,6 +20,7 @@ const wrongPassword = {
 function server(extra: Routes = {}) {
   return mockApi({
     'POST /auth/login': () => LOGIN_OK,
+    'GET /projects': () => ({ body: { items: [], total: 0 } }), // the page shown right after signing in
     'GET /me': (req) =>
       req.headers.get('Authorization') === `Bearer ${TOKEN}` ? { body: ME } : unauthorized,
     ...extra,

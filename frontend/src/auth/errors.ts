@@ -23,6 +23,10 @@ export const KNOWN_FIELD_CODES = [
   'password_too_long',
   'invalid_display_name',
   'email_taken',
+  'invalid_name',
+  'description_too_long',
+  'nothing_to_update',
+  'cannot_remove_owner',
 ] as const
 
 const known = new Set<string>(KNOWN_ERROR_CODES)
