@@ -1,4 +1,4 @@
-import type { Role, User } from '../api/types'
+import type { Role, Task, User } from '../api/types'
 import { LOGIN_OK, ME, TOKEN, mockApi, type Handler, type RecordedRequest } from './mockApi'
 
 // A small in-memory stand-in for the real API with the same rules the Go backend enforces
@@ -76,10 +76,39 @@ export function project(
   }
 }
 
+const STATUS_ORDER = ['todo', 'in_progress', 'review', 'done']
+
+/** Builds a task. Positions follow the creation order unless given. */
+export function task(
+  id: string,
+  title: string,
+  opts: Partial<Omit<Task, 'id' | 'title'>> & { project?: string } = {},
+): Task {
+  const { project, ...rest } = opts
+  return {
+    id,
+    projectId: project ?? opts.projectId ?? 'p1',
+    title,
+    description: '',
+    status: 'todo',
+    priority: 'medium',
+    assigneeId: null,
+    createdBy: ME.id,
+    dueDate: null,
+    position: 1024,
+    createdAt: '2026-02-01T00:00:00Z',
+    updatedAt: '2026-02-01T00:00:00Z',
+    deletedAt: null,
+    purgeAt: null,
+    ...rest,
+  }
+}
+
 interface Options {
   /** Who is signed in. */
   me?: User
   projects?: FakeProject[]
+  tasks?: Task[]
   /** Accounts that exist and can be invited by email. */
   knownUsers?: Array<typeof BOB>
   /** Extra or replacement routes (for example to force an error). */
@@ -94,6 +123,7 @@ const err = (status: number, code: string, fields?: Record<string, string>) => (
 export function fakeBackend(options: Options = {}) {
   const me = options.me ?? ME
   const projects = options.projects ?? []
+  const tasks = options.tasks ?? []
   const knownUsers = options.knownUsers ?? [BOB, CAROL]
   let nextId = 100
 
@@ -214,11 +244,175 @@ export function fakeBackend(options: Options = {}) {
       if (target.role === 'owner')
         return err(422, 'validation_failed', { userId: 'cannot_remove_owner' })
       p.members = p.members.filter((m) => m !== target)
+      // Like the real API: their tasks stay, but nobody is responsible for them any more.
+      for (const t of tasks)
+        if (t.projectId === p.id && t.assigneeId === target.userId) t.assigneeId = null
       return { status: 204 }
     },
+    ...taskRoutes(),
     ...options.routes,
   }
 
+  // ---- tasks: any member of the project may do anything; everyone else gets 404 ----
+  function taskRoutes(): Record<string, Handler> {
+    const taskView = (t: Task): Task => ({
+      ...t,
+      purgeAt: t.deletedAt ? new Date(Date.parse(t.deletedAt) + 30 * DAY).toISOString() : null,
+    })
+    const memberOf = (projectId: string) => active(projectId)
+    const activeTask = (id: string) => {
+      const t = tasks.find((x) => x.id === id)
+      return t && !t.deletedAt && memberOf(t.projectId) ? t : undefined
+    }
+    const isMember = (projectId: string, userId: string) =>
+      projects.find((p) => p.id === projectId)?.members.some((m) => m.userId === userId) ?? false
+    const columnOf = (projectId: string, status: string, exceptId?: string) =>
+      tasks
+        .filter(
+          (t) =>
+            t.projectId === projectId && t.status === status && !t.deletedAt && t.id !== exceptId,
+        )
+        .sort((a, b) => a.position - b.position)
+
+    function checkFields(
+      projectId: string,
+      body: Record<string, unknown>,
+      creating: boolean,
+    ): Record<string, string> {
+      const fields: Record<string, string> = {}
+      if (creating || body.title !== undefined) {
+        const title = String(body.title ?? '').trim()
+        const len = Array.from(title).length
+        // eslint-disable-next-line no-control-regex
+        if (len < 1 || len > 200 || /[\u0000-\u001f\u007f]/.test(title))
+          fields.title = 'invalid_title'
+      }
+      if (body.description !== undefined && Array.from(String(body.description)).length > 5000)
+        fields.description = 'description_too_long'
+      if (body.status !== undefined && !STATUS_ORDER.includes(String(body.status)))
+        fields.status = 'invalid_status'
+      if (body.priority !== undefined && !['low', 'medium', 'high'].includes(String(body.priority)))
+        fields.priority = 'invalid_priority'
+      if (body.assigneeId !== undefined && body.assigneeId !== null) {
+        if (!isMember(projectId, String(body.assigneeId))) fields.assigneeId = 'not_a_member'
+      }
+      if (body.dueDate !== undefined && body.dueDate !== null) {
+        const d = String(body.dueDate)
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d)))
+          fields.dueDate = 'invalid_date'
+      }
+      return fields
+    }
+
+    return {
+      'GET /projects/:id/tasks': (req) => {
+        const p = active(req.params.id!)
+        if (!p) return err(404, 'not_found')
+        const q = req.query
+        const trashed = q.get('trashed') === 'true'
+        const size = Math.min(100, Math.max(1, Number(q.get('pageSize') ?? 20)))
+        const page = Math.max(1, Number(q.get('page') ?? 1))
+        const needle = (q.get('q') ?? '').toLowerCase()
+        let list = tasks.filter((t) => t.projectId === p.id && (t.deletedAt !== null) === trashed)
+        if (q.get('status')) list = list.filter((t) => t.status === q.get('status'))
+        if (q.get('priority')) list = list.filter((t) => t.priority === q.get('priority'))
+        if (q.get('assigneeId')) list = list.filter((t) => t.assigneeId === q.get('assigneeId'))
+        if (needle) list = list.filter((t) => t.title.toLowerCase().includes(needle))
+        list = trashed
+          ? list.sort((a, b) => Date.parse(b.deletedAt!) - Date.parse(a.deletedAt!))
+          : list.sort(
+              (a, b) =>
+                STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) ||
+                a.position - b.position,
+            )
+        return {
+          body: {
+            items: list.slice((page - 1) * size, page * size).map(taskView),
+            total: list.length,
+          },
+        }
+      },
+      'POST /projects/:id/tasks': (req) => {
+        const p = active(req.params.id!)
+        if (!p) return err(404, 'not_found')
+        const body = req.body as Record<string, unknown>
+        const fields = checkFields(p.id, body, true)
+        if (Object.keys(fields).length) return err(422, 'validation_failed', fields)
+        const status = (body.status as Task['status'] | undefined) ?? 'todo'
+        const last = columnOf(p.id, status).at(-1)
+        const created = task(`t${nextId++}`, String(body.title).trim(), {
+          project: p.id,
+          status,
+          description: (body.description as string | undefined) ?? '',
+          priority: (body.priority as Task['priority'] | undefined) ?? 'medium',
+          assigneeId: (body.assigneeId as string | null | undefined) ?? null,
+          dueDate: (body.dueDate as string | null | undefined) ?? null,
+          position: last ? last.position + 1024 : 1024,
+          createdBy: me.id,
+        })
+        tasks.push(created)
+        return { status: 201, body: taskView(created) }
+      },
+      'GET /tasks/:id': (req) => {
+        const t = activeTask(req.params.id!)
+        return t ? { body: taskView(t) } : err(404, 'not_found')
+      },
+      'PATCH /tasks/:id': (req) => {
+        const t = activeTask(req.params.id!)
+        if (!t) return err(404, 'not_found')
+        const body = req.body as Record<string, unknown>
+        if ('status' in body || 'position' in body) return err(400, 'bad_request') // only /move changes these
+        const known = ['title', 'description', 'priority', 'assigneeId', 'dueDate'].filter(
+          (k) => k in body,
+        )
+        if (known.length === 0) return err(422, 'validation_failed', { body: 'nothing_to_update' })
+        const fields = checkFields(t.projectId, body, false)
+        if (Object.keys(fields).length) return err(422, 'validation_failed', fields)
+        if (body.title !== undefined) t.title = String(body.title).trim()
+        if (body.description !== undefined) t.description = String(body.description)
+        if (body.priority !== undefined) t.priority = body.priority as Task['priority']
+        if (body.assigneeId !== undefined) t.assigneeId = body.assigneeId as string | null
+        if (body.dueDate !== undefined) t.dueDate = body.dueDate as string | null
+        return { body: taskView(t) }
+      },
+      'DELETE /tasks/:id': (req) => {
+        const t = activeTask(req.params.id!)
+        if (!t) return err(404, 'not_found')
+        t.deletedAt = new Date().toISOString()
+        return { status: 204 }
+      },
+      'POST /tasks/:id/restore': (req) => {
+        const t = tasks.find((x) => x.id === req.params.id && x.deletedAt && memberOf(x.projectId))
+        if (!t) return err(404, 'not_found')
+        t.deletedAt = null
+        if (t.assigneeId && !isMember(t.projectId, t.assigneeId)) t.assigneeId = null
+        return { body: taskView(t) }
+      },
+      'POST /tasks/:id/move': (req) => {
+        const t = activeTask(req.params.id!)
+        if (!t) return err(404, 'not_found')
+        const body = req.body as { status?: string; beforeTaskId?: string | null }
+        if (!STATUS_ORDER.includes(String(body.status)))
+          return err(422, 'validation_failed', { status: 'invalid_status' })
+        const status = body.status as Task['status']
+        const others = columnOf(t.projectId, status, t.id)
+        let position: number
+        if (body.beforeTaskId == null) {
+          position = others.length ? others.at(-1)!.position + 1024 : 1024
+        } else {
+          const before = others.find((x) => x.id === body.beforeTaskId)
+          if (!before || body.beforeTaskId === t.id)
+            return err(422, 'validation_failed', { beforeTaskId: 'invalid_before_task' })
+          const prev = others[others.indexOf(before) - 1]
+          position = ((prev?.position ?? 0) + before.position) / 2
+        }
+        t.status = status
+        t.position = position
+        return { body: taskView(t) }
+      },
+    }
+  }
+
   const api = mockApi(routes)
-  return { ...api, projects, me }
+  return { ...api, projects, tasks, me }
 }

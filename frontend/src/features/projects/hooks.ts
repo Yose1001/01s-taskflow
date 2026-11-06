@@ -11,6 +11,7 @@ import {
   updateProject,
 } from '../../api/projects'
 import { useAuth } from '../../auth/context'
+import { taskKeys } from '../tasks/hooks'
 
 export const PAGE_SIZE = 12
 
@@ -77,6 +78,7 @@ export function useDeleteProject() {
     onSuccess: (_data, projectId) => {
       qc.removeQueries({ queryKey: keys.detail(projectId) })
       qc.removeQueries({ queryKey: keys.members(projectId) })
+      qc.removeQueries({ queryKey: taskKeys.all(projectId) })
       return qc.invalidateQueries({ queryKey: keys.lists }) // active list and trash both change
     },
   })
@@ -105,6 +107,11 @@ export function useRemoveMember(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (userId: string) => removeMember(request, projectId, userId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.members(projectId) }),
+    // Tasks assigned to the removed person become unassigned, so the board must reload too.
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: keys.members(projectId) }),
+        qc.invalidateQueries({ queryKey: taskKeys.all(projectId) }),
+      ]),
   })
 }

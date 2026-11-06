@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
+import type { TaskPriority, TaskStatus } from '../api/types'
 
-export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done'
-export type TaskPriority = 'low' | 'medium' | 'high'
+export type { TaskPriority, TaskStatus }
 
 // Status is never shown by color alone: every badge also has an icon shape and a text label.
 const STATUS_STYLE: Record<TaskStatus, { icon: string; classes: string }> = {

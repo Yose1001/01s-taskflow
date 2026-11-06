@@ -27,6 +27,13 @@ export const KNOWN_FIELD_CODES = [
   'description_too_long',
   'nothing_to_update',
   'cannot_remove_owner',
+  'invalid_title',
+  'task_description_too_long', // our own code: the API's description_too_long means 2000 for projects, 5000 for tasks
+  'invalid_status',
+  'invalid_priority',
+  'invalid_assignee',
+  'not_a_member',
+  'invalid_date',
 ] as const
 
 const known = new Set<string>(KNOWN_ERROR_CODES)
