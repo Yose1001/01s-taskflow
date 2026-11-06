@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down migrate-up migrate-down run-backend run-frontend test test-backend test-frontend lint lint-backend lint-frontend fmt
+.PHONY: help db-up db-down migrate-up migrate-down run-backend run-frontend test test-backend test-frontend test-e2e lint lint-backend lint-frontend fmt
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -31,6 +31,9 @@ test-backend: ## Go tests (uses the local DB from .env when present: run 'make d
 
 test-frontend: ## Frontend tests
 	cd frontend && pnpm test
+
+test-e2e: ## End-to-end tests in a real browser (own database "taskflow_e2e"; needs 'make db-up' and e2e/ deps)
+	cd e2e && pnpm test
 
 lint: lint-backend lint-frontend ## Run all linters
 

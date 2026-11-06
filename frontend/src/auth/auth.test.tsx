@@ -262,6 +262,37 @@ describe('logout and session end', () => {
     expect(topBar.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument()
   })
 
+  it('after a log out, the next login starts at home, not on the page that was just left', async () => {
+    server()
+    const user = userEvent.setup()
+    renderApp(<AppRoutes />, { route: '/projects/trash' })
+    await logIn(user)
+    // Visiting a page while signed out and then logging in brings the person to that page...
+    expect(await screen.findByRole('heading', { level: 1, name: 'Trash' })).toBeInTheDocument()
+
+    // ...but after choosing to log out, the next person (maybe someone else) starts fresh.
+    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await screen.findByRole('heading', { level: 1, name: 'Log in' })
+    await logIn(user)
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Hello, Alice' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Trash' })).not.toBeInTheDocument()
+  })
+
+  it('after the session EXPIRES, logging in again does bring the person back to where they were', async () => {
+    server({ 'PATCH /me': () => unauthorized })
+    const user = userEvent.setup()
+    renderApp(<AppRoutes />, { route: '/projects/trash' })
+    await logIn(user)
+    await screen.findByRole('heading', { level: 1, name: 'Trash' })
+
+    await user.click(screen.getByRole('button', { name: 'Dark' })) // an authenticated call that gets a 401
+    await screen.findByText('Your session ended. Please log in again.')
+    await logIn(user)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Trash' })).toBeInTheDocument()
+  })
+
   it('ends the session with an explanation when the server says the token is no longer valid (401)', async () => {
     server({ 'PATCH /me': () => unauthorized })
     const user = userEvent.setup()

@@ -405,6 +405,28 @@ describe('project page', () => {
     expect(await screen.findByRole('link', { name: /Website/ })).toBeInTheDocument()
   })
 
+  it("does not leave one person's messages on screen for the next person who logs in", async () => {
+    fakeBackend({ projects: [project('p1', 'Website'), project('p2', 'Other')] })
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Move to trash' }),
+    )
+    expect(await screen.findByText('"Website" moved to the trash.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await screen.findByRole('heading', { level: 1, name: 'Log in' })
+    expect(screen.queryByText('"Website" moved to the trash.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Email'), 'alice@example.com')
+    await user.type(screen.getByLabelText('Password'), 'correct horse')
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    await screen.findByRole('link', { name: /Other/ })
+    expect(screen.queryByText('"Website" moved to the trash.')).not.toBeInTheDocument()
+  })
+
   it('shows an error inside the delete dialog when deleting fails', async () => {
     fakeBackend({
       projects: [project('p1', 'Website')],

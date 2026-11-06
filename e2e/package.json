@@ -1,0 +1,20 @@
+{
+  "name": "e2e",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "description": "End-to-end tests: a real browser drives the real web app, API and database.",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "db": "bash scripts/prepare-db.sh",
+    "test": "bash scripts/prepare-db.sh && playwright test",
+    "test:ui": "bash scripts/prepare-db.sh && playwright test --ui",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}

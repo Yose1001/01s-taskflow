@@ -17,6 +17,44 @@ func setValid(t *testing.T) {
 	t.Setenv("JWT_TTL_MINUTES", "")
 	t.Setenv("TRASH_RETENTION_DAYS", "")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "")
+	t.Setenv("LOGIN_RATE_LIMIT_PER_MINUTE", "")
+	t.Setenv("REGISTER_RATE_LIMIT_PER_MINUTE", "")
+}
+
+func TestRateLimitDefaultsAndOverrides(t *testing.T) {
+	setValid(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.LoginRateLimit != 10 || cfg.RegisterRateLimit != 5 {
+		t.Errorf("defaults = %d/%d, want 10/5", cfg.LoginRateLimit, cfg.RegisterRateLimit)
+	}
+
+	t.Setenv("LOGIN_RATE_LIMIT_PER_MINUTE", "500")
+	t.Setenv("REGISTER_RATE_LIMIT_PER_MINUTE", "300")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.LoginRateLimit != 500 || cfg.RegisterRateLimit != 300 {
+		t.Errorf("overrides = %d/%d, want 500/300", cfg.LoginRateLimit, cfg.RegisterRateLimit)
+	}
+}
+
+func TestRateLimitRejectsBadValues(t *testing.T) {
+	for _, env := range []string{"LOGIN_RATE_LIMIT_PER_MINUTE", "REGISTER_RATE_LIMIT_PER_MINUTE"} {
+		for _, bad := range []string{"0", "-3", "ten", "1.5"} {
+			t.Run(env+"="+bad, func(t *testing.T) {
+				setValid(t)
+				t.Setenv(env, bad)
+				_, err := Load()
+				if err == nil || !strings.Contains(err.Error(), env) {
+					t.Errorf("Load() error = %v, want mention of %s", err, env)
+				}
+			})
+		}
+	}
 }
 
 func TestLoadDefaults(t *testing.T) {

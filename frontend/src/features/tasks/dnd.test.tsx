@@ -27,9 +27,20 @@ vi.mock('@dnd-kit/core', async (importOriginal) => {
 type Rect = { top: number; height: number }
 
 /** What dnd-kit hands the board when a drag ends. */
-function dropOn(activeId: string, overId: string | null, dragged: Rect | null = null) {
+function dropOn(
+  activeId: string,
+  overId: string | null,
+  dragged: Rect | null = null,
+  /** Where the mouse/finger was let go (viewport y). Leave out for a keyboard drop (no pointer). */
+  pointerY: number | null = null,
+) {
+  const active = { id: activeId, rect: { current: { translated: dragged, initial: null } } }
+  // A drag starts, the mouse/finger moves (not for the keyboard), then the card is let go.
+  act(() => caught.props!.onDragStart!({ active } as never))
+  if (pointerY !== null)
+    act(() => void window.dispatchEvent(new MouseEvent('pointermove', { clientY: pointerY })))
   const event = {
-    active: { id: activeId, rect: { current: { translated: dragged, initial: null } } },
+    active,
     over: overId === null ? null : { id: overId, rect: { top: 0, height: 100 } },
   }
   act(() => caught.props!.onDragEnd!(event as never))
@@ -109,6 +120,21 @@ describe('dropping a card', () => {
     await waitFor(() => expect(moves(api, 't2')).toHaveLength(1))
     expect(moves(api, 't2')[0]).toEqual({ status: 'in_progress', beforeTaskId: null })
     expect(titlesIn(/^In progress/)).toEqual(['Build header', 'Write copy'])
+  })
+
+  it('with a mouse, the pointer decides top or bottom half (not where the big moved card sits)', async () => {
+    const { api } = await openBoard()
+    // The moved card's middle is low (150) but the pointer was let go on the top half (20) of the target.
+    dropOn('t2', 't4', { top: 100, height: 100 }, 20)
+    await waitFor(() => expect(moves(api, 't2')).toHaveLength(1))
+    expect(moves(api, 't2')[0]).toEqual({ status: 'in_progress', beforeTaskId: 't4' })
+  })
+
+  it('with a mouse, letting go on the lower half puts the card behind the target', async () => {
+    const { api } = await openBoard()
+    dropOn('t2', 't4', { top: 0, height: 10 }, 90)
+    await waitFor(() => expect(moves(api, 't2')).toHaveLength(1))
+    expect(moves(api, 't2')[0]).toEqual({ status: 'in_progress', beforeTaskId: null })
   })
 
   it('onto an empty column: goes in as its only card', async () => {

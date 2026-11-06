@@ -20,6 +20,11 @@ type Config struct {
 	JWTTTL             time.Duration
 	CORSAllowedOrigins []string
 	TrashRetentionDays int
+	// LoginRateLimit and RegisterRateLimit are the most requests one client address may make
+	// to the login / sign-up endpoint per minute. Raise them only for tests (many users share
+	// one address there); keep the defaults in production.
+	LoginRateLimit    int
+	RegisterRateLimit int
 }
 
 // Load reads configuration from the environment, applying defaults
@@ -32,6 +37,8 @@ func Load() (Config, error) {
 		JWTTTL:             60 * time.Minute,
 		CORSAllowedOrigins: splitList(os.Getenv("CORS_ALLOWED_ORIGINS")),
 		TrashRetentionDays: 30,
+		LoginRateLimit:     10,
+		RegisterRateLimit:  5,
 	}
 
 	var errs []error
@@ -56,6 +63,23 @@ func Load() (Config, error) {
 			errs = append(errs, fmt.Errorf("TRASH_RETENTION_DAYS must be a positive integer, got %q", v))
 		} else {
 			cfg.TrashRetentionDays = n
+		}
+	}
+
+	for _, limit := range []struct {
+		env string
+		dst *int
+	}{
+		{"LOGIN_RATE_LIMIT_PER_MINUTE", &cfg.LoginRateLimit},
+		{"REGISTER_RATE_LIMIT_PER_MINUTE", &cfg.RegisterRateLimit},
+	} {
+		if v := os.Getenv(limit.env); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				errs = append(errs, fmt.Errorf("%s must be a positive integer, got %q", limit.env, v))
+			} else {
+				*limit.dst = n
+			}
 		}
 	}
 
