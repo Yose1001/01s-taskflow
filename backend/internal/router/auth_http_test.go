@@ -180,7 +180,7 @@ func TestMeAndUpdateFlow(t *testing.T) {
 	tok := registerAndLogin(t, h)
 
 	r := do(t, h, "GET", "/api/v1/me", tok, "")
-	if r.code != 200 || r.body["email"] != "user@example.com" || r.body["theme"] != "system" || r.body["locale"] != "en" {
+	if r.code != 200 || r.body["email"] != "user@example.com" || r.body["theme"] != "light" || r.body["locale"] != "en" {
 		t.Fatalf("GET /me: %d %s", r.code, r.raw)
 	}
 
@@ -202,6 +202,7 @@ func TestUpdateMeRejectsBadInput(t *testing.T) {
 	for name, body := range map[string]string{
 		"bad locale":       `{"locale":"fr"}`,
 		"bad theme":        `{"theme":"neon"}`,
+		"old system theme": `{"theme":"system"}`, // removed: only light and dark exist
 		"empty object":     `{}`,
 		"blank name":       `{"displayName":"  "}`,
 		"cannot set email": `{"email":"evil@example.com"}`,

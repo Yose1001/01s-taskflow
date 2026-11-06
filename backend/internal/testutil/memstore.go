@@ -32,7 +32,7 @@ func (s *MemUserStore) Create(_ context.Context, email, hash, name string) (mode
 	s.seq++
 	u := model.User{
 		ID: fmt.Sprintf("00000000-0000-0000-0000-%012d", s.seq), Email: email, PasswordHash: hash,
-		DisplayName: name, Locale: "en", Theme: "system", CreatedAt: time.Now().UTC(),
+		DisplayName: name, Locale: "en", Theme: "light", CreatedAt: time.Now().UTC(),
 	}
 	s.users[u.ID] = u
 	return u, nil

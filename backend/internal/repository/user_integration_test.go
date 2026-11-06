@@ -41,7 +41,7 @@ func TestUserRepoCreateAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if u.ID == "" || u.Locale != "en" || u.Theme != "system" || u.CreatedAt.IsZero() {
+	if u.ID == "" || u.Locale != "en" || u.Theme != "light" || u.CreatedAt.IsZero() {
 		t.Errorf("defaults not applied: %+v", u)
 	}
 

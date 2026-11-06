@@ -1,11 +1,12 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach, beforeEach } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 import i18n from '../i18n'
 import { resetMatchMedia } from './matchMedia'
 
 beforeEach(async () => {
   localStorage.clear()
+  sessionStorage.clear()
   resetMatchMedia()
   document.documentElement.setAttribute('data-theme', 'light')
   await i18n.changeLanguage('en')
@@ -14,4 +15,5 @@ beforeEach(async () => {
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllGlobals() // remove any fake fetch a test installed
 })

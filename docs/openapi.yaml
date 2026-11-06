@@ -470,7 +470,7 @@ components:
         email: { type: string, format: email }
         displayName: { type: string }
         locale: { type: string, enum: [th, en] }
-        theme: { type: string, enum: [light, dark, system] }
+        theme: { type: string, enum: [light, dark] }
         createdAt: { type: string, format: date-time }
     UserSettingsPatch:
       type: object
@@ -478,7 +478,7 @@ components:
       properties:
         displayName: { type: string, minLength: 1, maxLength: 80 }
         locale: { type: string, enum: [th, en] }
-        theme: { type: string, enum: [light, dark, system] }
+        theme: { type: string, enum: [light, dark] }
     RegisterRequest:
       type: object
       required: [email, password, displayName]

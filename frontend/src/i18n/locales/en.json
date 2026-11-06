@@ -3,6 +3,11 @@
     "name": "TaskFlow",
     "tagline": "Your team's tasks in one calm place"
   },
+  "nav": {
+    "login": "Log in",
+    "signup": "Sign up",
+    "logout": "Log out"
+  },
   "theme": {
     "label": "Theme",
     "light": "Light",
@@ -12,6 +17,52 @@
     "label": "Language",
     "th": "ไทย",
     "en": "English"
+  },
+  "auth": {
+    "loginTitle": "Log in",
+    "loginIntro": "Welcome back. Enter your email and password.",
+    "signupTitle": "Create your account",
+    "signupIntro": "It takes a minute. Your language and theme come with you.",
+    "email": "Email",
+    "password": "Password",
+    "displayName": "Your name",
+    "passwordHint": "At least 8 characters.",
+    "showPassword": "Show",
+    "hidePassword": "Hide",
+    "loginButton": "Log in",
+    "loggingIn": "Logging in...",
+    "signupButton": "Sign up",
+    "signingUp": "Creating account...",
+    "noAccount": "No account yet?",
+    "haveAccount": "Already have an account?",
+    "sessionExpired": "Your session ended. Please log in again."
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Cannot reach the server. Check your connection and try again.",
+    "unauthorized": "Please log in to continue.",
+    "invalid_credentials": "The email or password is incorrect.",
+    "forbidden": "You do not have permission to do this.",
+    "not_found": "We could not find what you were looking for.",
+    "email_taken": "This email is already registered.",
+    "already_member": "This person is already a member.",
+    "validation_failed": "Please check the highlighted fields.",
+    "bad_request": "The request was not understood. Please try again.",
+    "rate_limited": "Too many attempts. Please wait {{seconds}} seconds and try again."
+  },
+  "fieldErrors": {
+    "required": "This field is required.",
+    "invalid": "This value is not valid.",
+    "invalid_email": "Enter a valid email address.",
+    "password_too_short": "Use at least 8 characters.",
+    "password_too_long": "This password is too long (72 bytes at most; each Thai letter counts as 3).",
+    "invalid_display_name": "Enter a name of 1 to 80 characters.",
+    "email_taken": "This email is already registered."
+  },
+  "dashboard": {
+    "hello": "Hello, {{name}}",
+    "projectsTitle": "Your projects",
+    "comingSoon": "Your projects will appear here soon."
   },
   "status": {
     "todo": "To do",

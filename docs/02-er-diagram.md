@@ -15,7 +15,7 @@ erDiagram
         text password_hash
         text display_name
         text locale "th | en (default en)"
-        text theme "light | dark | system (default system)"
+        text theme "light | dark (default light)"
         timestamptz created_at
     }
     projects {
