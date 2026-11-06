@@ -50,6 +50,9 @@ function parseFields(value: unknown): Record<string, string> {
   return out
 }
 
+/** Calls the API as the signed-in user (provided by useAuth). Feature code never sees the token. */
+export type RequestFn = <T>(path: string, options?: Omit<ApiOptions, 'token'>) => Promise<T>
+
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { method = 'GET', body, token, signal } = options
 

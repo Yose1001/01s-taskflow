@@ -1,4 +1,9 @@
-import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import {
+  useState,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 const INPUT =
@@ -56,6 +61,32 @@ export function TextField({ id, label, error, hint, ...input }: FieldProps) {
   return (
     <Frame id={id} label={label} error={error} hint={hint}>
       <input
+        {...input}
+        id={id}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id, error, hint)}
+        className={`${INPUT} ${error ? 'border-danger-fg' : 'border-border'}`}
+      />
+    </Frame>
+  )
+}
+
+export function TextAreaField({
+  id,
+  label,
+  error,
+  hint,
+  ...input
+}: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id' | 'className'> & {
+  id: string
+  label: string
+  error?: string | undefined
+  hint?: string | undefined
+}) {
+  return (
+    <Frame id={id} label={label} error={error} hint={hint}>
+      <textarea
+        rows={4}
         {...input}
         id={id}
         aria-invalid={error ? true : undefined}

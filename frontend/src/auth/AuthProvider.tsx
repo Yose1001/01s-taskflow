@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fetchMe, loginUser, registerUser, updateMe } from '../api/auth'
@@ -26,12 +27,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const tokenRef = useRef<string | null>(null)
   const timerRef = useRef<number | undefined>(undefined)
 
-  const endSession = useCallback((expired: boolean) => {
-    window.clearTimeout(timerRef.current)
-    tokenRef.current = null
-    setUser(null)
-    setSessionExpired(expired)
-  }, [])
+  const queryClient = useQueryClient()
+
+  const endSession = useCallback(
+    (expired: boolean) => {
+      window.clearTimeout(timerRef.current)
+      tokenRef.current = null
+      // Everything fetched for this person is thrown away, so the next person to sign in on this
+      // browser can never see it (not even for a moment).
+      queryClient.clear()
+      setUser(null)
+      setSessionExpired(expired)
+    },
+    [queryClient],
+  )
 
   const startSession = useCallback(
     (token: string, expiresInSeconds: number, me: User) => {

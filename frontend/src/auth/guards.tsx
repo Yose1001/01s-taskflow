@@ -20,8 +20,9 @@ export function GuestOnly() {
   if (user) {
     // Only an internal path from the router's own state is used: never a value from the URL (no open redirect).
     const from = (location.state as FromState | null)?.from
-    const target =
-      from && from.pathname.startsWith('/') && !from.pathname.startsWith('//') ? from.pathname : '/'
+    const internal = from && from.pathname.startsWith('/') && !from.pathname.startsWith('//')
+    // Keep the query string too, so a deep link like /?page=2 comes back exactly as it was.
+    const target = internal ? from.pathname + (from.search ?? '') : '/'
     return <Navigate to={target} replace />
   }
   return <Outlet />
