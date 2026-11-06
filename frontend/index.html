@@ -1,10 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>TaskFlow</title>
+    <!--
+      Pick the theme BEFORE the first paint so a dark-mode user never sees a white flash.
+      Keep in sync with src/theme/theme.ts (same storage key 'tf-theme').
+    -->
+    <script>
+      ;(function () {
+        var theme = 'light'
+        try {
+          var pref = localStorage.getItem('tf-theme')
+          var dark =
+            pref === 'dark' ||
+            (pref !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          theme = dark ? 'dark' : 'light'
+        } catch (e) {}
+        document.documentElement.setAttribute('data-theme', theme)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
