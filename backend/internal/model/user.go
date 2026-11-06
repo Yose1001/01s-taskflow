@@ -15,7 +15,7 @@ var (
 // Allowed values for user preferences (must match the CHECK constraints in the schema).
 var (
 	Locales = []string{"th", "en"}
-	Themes  = []string{"light", "dark", "system"}
+	Themes  = []string{"light", "dark"}
 )
 
 // User is an account. PasswordHash must never be sent to clients.
