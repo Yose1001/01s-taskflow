@@ -89,9 +89,9 @@
   --color-danger-bg: var(--danger-bg);
   --color-danger-fg: var(--danger-fg);
 
-  /* Sarabun is bundled with the app (see main.tsx). The rest are fallbacks while it loads or if it fails. */
+  /* Prompt is bundled with the app (see main.tsx). The rest are fallbacks while it loads or if it fails. */
   --font-sans:
-    'Sarabun', ui-sans-serif, system-ui, 'Segoe UI', 'Leelawadee UI', 'Noto Sans Thai', sans-serif;
+    'Prompt', ui-sans-serif, system-ui, 'Segoe UI', 'Leelawadee UI', 'Noto Sans Thai', sans-serif;
 }
 
 html {

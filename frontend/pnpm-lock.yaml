@@ -166,7 +166,7 @@ importers:
 
   .:
     dependencies:
-      '@fontsource/sarabun':
+      '@fontsource/prompt':
         specifier: ^5.3.0
         version: 5.3.0
       '@tanstack/react-query':
@@ -311,8 +311,8 @@ packages:
       '@noble/hashes':
         optional: true
 
-  '@fontsource/sarabun@5.3.0':
-    resolution: {integrity: sha512-8GWxnEIG9g/2JlZxU+APaVwipcLMkZkBps9N1tEyBxXWaJEnAtHpuaDYmFVG7lzTgr28orG7//htD/rfxDlfFg==}
+  '@fontsource/prompt@5.3.0':
+    resolution: {integrity: sha512-cU4VVn7G0wSI3pu3a7tynpTQ5hk3Lm9nEjTOBLhVYsqbOlvVIj6Tc1f3450BOGSpDiPOxmYGj/D7rE/z/TYPJg==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -1446,7 +1446,7 @@ snapshots:
 
   '@exodus/bytes@1.16.0': {}
 
-  '@fontsource/sarabun@5.3.0': {}
+  '@fontsource/prompt@5.3.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
