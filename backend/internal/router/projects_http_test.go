@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/Yose1001/taskflow/backend/internal/handler"
 	"github.com/Yose1001/taskflow/backend/internal/middleware"
 	"github.com/Yose1001/taskflow/backend/internal/repository"
@@ -18,13 +20,14 @@ import (
 type env struct {
 	t   *testing.T
 	h   http.Handler
-	now time.Time // fake clock used by the project service
+	tx  pgx.Tx    // the transaction everything runs in (for direct database checks)
+	now time.Time // fake clock used by the services
 }
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	tx := testutil.NewTx(t)
-	e := &env{t: t, now: time.Now().UTC().Truncate(time.Second)}
+	e := &env{t: t, tx: tx, now: time.Now().UTC().Truncate(time.Second)}
 
 	users := repository.NewUserRepo(tx)
 	auth, err := service.NewAuth(users, secret, time.Hour, service.WithBcryptCost(4))

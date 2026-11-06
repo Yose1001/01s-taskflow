@@ -15,9 +15,17 @@ import (
 	"github.com/Yose1001/taskflow/backend/internal/database"
 	handlerpkg "github.com/Yose1001/taskflow/backend/internal/handler"
 	"github.com/Yose1001/taskflow/backend/internal/middleware"
+	"github.com/Yose1001/taskflow/backend/internal/purge"
 	"github.com/Yose1001/taskflow/backend/internal/repository"
 	"github.com/Yose1001/taskflow/backend/internal/router"
 	"github.com/Yose1001/taskflow/backend/internal/service"
+)
+
+const (
+	purgeInterval  = 24 * time.Hour
+	purgeBatchSize = 500
+	// purgeLockKey is an arbitrary application-wide number for the PostgreSQL advisory lock.
+	purgeLockKey int64 = 7_283_001
 )
 
 func main() {
@@ -70,6 +78,19 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
+	// Permanently delete trash older than the retention period: at startup, then once a day.
+	// The advisory lock lets several server instances share one database without purging twice.
+	purger, err := purge.New(repository.NewPurgeRepo(pool), cfg.TrashRetentionDays, purgeBatchSize)
+	if err != nil {
+		logger.Error("cannot start purge job", "error", err)
+		os.Exit(1)
+	}
+	purgeDone := make(chan struct{})
+	go func() {
+		defer close(purgeDone)
+		purge.Schedule(ctx, purgeInterval, database.NewLocker(pool, purgeLockKey), purger, logger)
+	}()
+
 	go func() {
 		logger.Info("server starting", "addr", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -86,5 +107,12 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("graceful shutdown failed", "error", err)
 		os.Exit(1)
+	}
+
+	// Let a running purge finish its current batch before the database pool closes.
+	select {
+	case <-purgeDone:
+	case <-shutdownCtx.Done():
+		logger.Warn("purge job did not stop in time")
 	}
 }
