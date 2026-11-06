@@ -1,0 +1,51 @@
+# Filled in by the nginx image at start-up: ${API_UPSTREAM} comes from the environment.
+server {
+    listen 8080;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # The browser only ever talks to this server (same origin), so the API needs no CORS settings.
+    location /api/ {
+        proxy_pass http://${API_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        # Append the address we received the request from. The API trusts this header only for
+        # requests that come from a proxy listed in its TRUSTED_PROXIES setting.
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # The API gives up on a request after 30 s, so waiting longer here would never help.
+        proxy_read_timeout 35s;
+        client_max_body_size 1m;
+        include /etc/nginx/snippets/security-headers.conf;
+    }
+
+    # Built files have a content hash in their name, so they can be cached "forever".
+    location /assets/ {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        include /etc/nginx/snippets/security-headers.conf;
+    }
+
+    # For the container healthcheck and load balancers.
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # Any other path is a page of the React app (client-side routing), so give it index.html.
+    # no-cache = always ask the server, so a new release is picked up straight away.
+    location / {
+        try_files $uri /index.html;
+        add_header Cache-Control "no-cache";
+        include /etc/nginx/snippets/security-headers.conf;
+    }
+}
