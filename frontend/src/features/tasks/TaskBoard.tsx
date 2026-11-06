@@ -206,7 +206,11 @@ export function TaskBoard({ projectId }: { projectId: string }) {
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveId(null)}
       >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <p className="text-sm text-muted md:hidden" aria-hidden="true">
+          {t('tasks.swipeHint')}
+        </p>
+        {/* Phones: one column at a time, swipe sideways. Tablets: 2 x 2. Wide screens: all four. */}
+        <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-4">
           {STATUSES.map((status) => (
             <Column
               key={status}
@@ -300,7 +304,7 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
   return (
     <section
       aria-label={t('tasks.columnLabel', { column: name, count: tasks.length })}
-      className="rounded-2xl border border-border bg-surface-2 p-3"
+      className="w-[85%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 md:w-auto"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2">
@@ -351,9 +355,23 @@ interface FilterBarProps {
 
 function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps) {
   const { t } = useTranslation()
+  // On phones the filters fold away behind one button, so the board is visible without scrolling.
+  // They start open when the address already has filters in it.
+  const [open, setOpen] = useState(() => hasFilters(filters))
+  const active = [filters.q, filters.priority, filters.assignee].filter(Boolean).length
   return (
     <div className="space-y-2">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="task-filters"
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-full border border-border bg-surface px-3 py-1 text-sm font-medium sm:hidden"
+      >
+        {active > 0 ? t('tasks.filtersCount', { count: active }) : t('tasks.filters')}
+        <span aria-hidden="true"> {open ? '▴' : '▾'}</span>
+      </button>
+      <div id="task-filters" className={`${open ? 'grid' : 'hidden'} gap-3 sm:grid sm:grid-cols-3`}>
         <TextField
           id="filter-q"
           type="search"

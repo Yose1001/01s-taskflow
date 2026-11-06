@@ -139,6 +139,9 @@ export function fakeBackend(options: Options = {}) {
     updatedAt: p.updatedAt,
     deletedAt: p.deletedAt,
     purgeAt: p.deletedAt ? new Date(Date.parse(p.deletedAt) + 30 * DAY).toISOString() : null,
+    taskCount: tasks.filter((t) => t.projectId === p.id && !t.deletedAt).length,
+    doneCount: tasks.filter((t) => t.projectId === p.id && !t.deletedAt && t.status === 'done')
+      .length,
   })
   // The API answers 404 for "does not exist" and for "you are not a member": it never says which.
   const find = (id: string) => projects.find((p) => p.id === id && roleOf(p) !== undefined)

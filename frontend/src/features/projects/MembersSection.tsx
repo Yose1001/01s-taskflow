@@ -56,8 +56,9 @@ export function MembersSection({ projectId, isOwner }: { projectId: string; isOw
 
   return (
     <section
+      id="members"
       aria-labelledby="members-title"
-      className="rounded-2xl border border-border bg-surface p-5"
+      className="scroll-mt-20 rounded-2xl border border-border bg-surface p-5"
     >
       <h2 id="members-title" className="text-lg font-semibold">
         {t('members.title')}

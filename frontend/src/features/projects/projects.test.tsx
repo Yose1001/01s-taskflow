@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '../../App'
-import { BOB, CAROL, fakeBackend, project, type FakeProject } from '../../test/fakeBackend'
+import { BOB, CAROL, fakeBackend, project, task, type FakeProject } from '../../test/fakeBackend'
 import { ME } from '../../test/mockApi'
 import { renderApp } from '../../test/render'
 
@@ -47,11 +47,32 @@ describe('project list', () => {
     expect(within(shared).getByText('No description')).toBeInTheDocument()
   })
 
-  it('shows a friendly empty state with a way to create the first project', async () => {
+  it('welcomes a new person with three steps and a way to create the first project', async () => {
     fakeBackend()
-    await openSignedIn(userEvent.setup())
+    const user = userEvent.setup()
+    await openSignedIn(user)
     expect(await screen.findByText('You have no projects yet.')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'New project' })).toHaveLength(2) // header and empty state
+    const welcome = screen.getByRole('region', { name: 'Welcome to TaskFlow!' })
+    expect(within(welcome).getAllByRole('listitem')).toHaveLength(3)
+    await user.click(within(welcome).getByRole('button', { name: 'Create your first project' }))
+    expect(await screen.findByRole('dialog', { name: 'New project' })).toBeInTheDocument()
+  })
+
+  it('shows how far along each project is', async () => {
+    fakeBackend({
+      projects: [project('p1', 'Half done'), project('p2', 'Empty')],
+      tasks: [
+        task('t1', 'one', { project: 'p1', status: 'done' }),
+        task('t2', 'two', { project: 'p1', status: 'todo' }),
+        task('t3', 'gone', { project: 'p1', status: 'done', deletedAt: '2026-02-02T00:00:00Z' }),
+      ],
+    })
+    await openSignedIn(userEvent.setup())
+    const half = await screen.findByRole('progressbar', { name: '1 of 2 done' })
+    expect(half).toHaveAttribute('aria-valuenow', '1')
+    expect(half).toHaveAttribute('aria-valuemax', '2')
+    expect(screen.getByText('50%')).toBeInTheDocument()
+    expect(screen.getByText('No tasks yet')).toBeInTheDocument() // the empty project
   })
 
   it('announces loading, then shows an error with Try again that recovers', async () => {
@@ -75,6 +96,8 @@ describe('project list', () => {
                       updatedAt: '',
                       deletedAt: null,
                       purgeAt: null,
+                      taskCount: 0,
+                      doneCount: 0,
                     },
                   ],
                   total: 1,

@@ -370,6 +370,41 @@ describe('logout and session end', () => {
   })
 })
 
+describe('the phone menu', () => {
+  it('holds language, theme and Log out, and closes with Escape', async () => {
+    server()
+    const user = userEvent.setup()
+    renderApp(<AppRoutes />, { route: '/login' })
+    await logIn(user)
+    await screen.findByRole('heading', { name: 'Hello, Alice' })
+
+    const menuButton = screen.getByRole('button', { name: 'Menu' })
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false')
+    expect(menuButton).toHaveTextContent('A') // Alice's initial
+    await user.click(menuButton)
+    expect(menuButton).toHaveAttribute('aria-expanded', 'true')
+    const panel = document.getElementById(menuButton.getAttribute('aria-controls')!)!
+    expect(within(panel).getByText('alice@example.com')).toBeInTheDocument()
+    expect(within(panel).getByRole('group', { name: 'Theme' })).toBeInTheDocument()
+    expect(within(panel).getByRole('group', { name: 'Language' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Log out' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false')
+    expect(menuButton).toHaveFocus()
+  })
+
+  it('offers Log in and Sign up to visitors', async () => {
+    const user = userEvent.setup()
+    renderApp(<AppRoutes />, { route: '/login' })
+    await user.click(screen.getByRole('button', { name: 'Menu' }))
+    const panel = document.getElementById(
+      screen.getByRole('button', { name: 'Menu' }).getAttribute('aria-controls')!,
+    )!
+    expect(within(panel).getByRole('link', { name: 'Sign up' })).toBeInTheDocument()
+  })
+})
+
 describe('staying signed in after a reload', () => {
   it('brings the session back without asking for the password', async () => {
     localStorage.setItem(SESSION_HINT_KEY, '1')

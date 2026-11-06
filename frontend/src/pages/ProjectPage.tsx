@@ -11,7 +11,7 @@ import { Button } from '../components/forms'
 import { RoleBadge } from '../components/RoleBadge'
 import { ErrorState, LoadingState } from '../components/states'
 import { useToast } from '../components/toast'
-import { keys, useDeleteProject, useProject } from '../features/projects/hooks'
+import { keys, useDeleteProject, useMembers, useProject } from '../features/projects/hooks'
 import { MembersSection } from '../features/projects/MembersSection'
 import { ProjectFormDialog } from '../features/projects/ProjectFormDialog'
 import { TaskBoard } from '../features/tasks/TaskBoard'
@@ -26,6 +26,8 @@ export function ProjectPage() {
   const qc = useQueryClient()
   const { request } = useAuth()
   const project = useProject(projectId)
+  // The same query the board and the member list use, so this costs no extra request.
+  const members = useMembers(projectId, project.isSuccess)
   const del = useDeleteProject()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -65,36 +67,42 @@ export function ProjectPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <p>
+    <div className="space-y-5">
+      <header className="space-y-2">
         <Link to="/" className="text-sm font-medium text-primary underline">
           ← {t('projects.back')}
         </Link>
-      </p>
-
-      <header className="rounded-2xl border border-border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="break-words text-3xl font-bold">{p.name}</h1>
-            <p className="mt-1 text-sm text-muted">
-              {t('projects.created', { date: formatDate(p.createdAt, i18n.language) })}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="break-words text-2xl font-bold sm:text-3xl">{p.name}</h1>
+              <RoleBadge role={p.myRole} />
+            </div>
+            {p.description && (
+              <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-muted">
+                {p.description}
+              </p>
+            )}
+            <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-muted">
+              <span>{t('projects.created', { date: formatDate(p.createdAt, i18n.language) })}</span>
+              {members.data && (
+                <a href="#members" className="font-medium text-primary underline">
+                  {t('projects.membersLink', { count: members.data.length })}
+                </a>
+              )}
             </p>
           </div>
-          <RoleBadge role={p.myRole} />
+          {isOwner && (
+            <div className="flex shrink-0 gap-2">
+              <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
+                {t('projects.edit')}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setConfirmDelete(true)}>
+                {t('projects.delete')}
+              </Button>
+            </div>
+          )}
         </div>
-        <p className="mt-3 whitespace-pre-wrap break-words">
-          {p.description || <span className="text-muted">{t('projects.noDescription')}</span>}
-        </p>
-        {isOwner && (
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
-              {t('projects.edit')}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setConfirmDelete(true)}>
-              {t('projects.delete')}
-            </Button>
-          </div>
-        )}
       </header>
 
       <TaskBoard projectId={p.id} />

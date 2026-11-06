@@ -40,11 +40,13 @@ export function useProject(projectId: string) {
   })
 }
 
-export function useMembers(projectId: string) {
+/** enabled=false waits (for example until the project itself has loaded). */
+export function useMembers(projectId: string, enabled = true) {
   const { request } = useAuth()
   return useQuery({
     queryKey: keys.members(projectId),
     queryFn: ({ signal }) => listMembers(request, projectId, signal),
+    enabled,
   })
 }
 
