@@ -3,7 +3,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../../api/types'
 import { PriorityBadge } from '../../components/StatusBadge'
-import { formatDay } from '../../lib/format'
+import { formatDay, initials } from '../../lib/format'
 import { isOverdue } from './boardLogic'
 
 interface ViewProps {
@@ -51,9 +51,16 @@ export function TaskCardView({ task, assigneeName, onOpen, handle }: ViewProps) 
         )}
       </div>
       {assigneeName && (
-        <p className="mt-2 break-words text-sm text-muted">
-          <span aria-hidden="true">● </span>
-          {t('tasks.assignedTo', { name: assigneeName })}
+        <p className="mt-2 flex min-w-0 items-center gap-2 text-sm text-muted">
+          <span
+            aria-hidden="true"
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sky-bg text-xs font-semibold text-sky-fg"
+          >
+            {initials(assigneeName)}
+          </span>
+          <span className="min-w-0 break-words">
+            {t('tasks.assignedTo', { name: assigneeName })}
+          </span>
         </p>
       )}
     </div>

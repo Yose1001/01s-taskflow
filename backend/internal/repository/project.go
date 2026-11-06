@@ -19,7 +19,11 @@ type ProjectRepo struct{ db DBTX }
 func NewProjectRepo(db DBTX) *ProjectRepo { return &ProjectRepo{db: db} }
 
 const (
-	projectCols = `p.id::text, p.name, p.description, p.owner_id::text, m.role, p.created_at, p.updated_at, p.deleted_at`
+	// The two counts are scalar sub-queries (not a join) so they can never change which rows match.
+	// Both use the board index (project_id, status, position) on active tasks.
+	projectCols = `p.id::text, p.name, p.description, p.owner_id::text, m.role, p.created_at, p.updated_at, p.deleted_at,
+		(SELECT count(*) FROM tasks t WHERE t.project_id = p.id AND t.deleted_at IS NULL)::int,
+		(SELECT count(*) FROM tasks t WHERE t.project_id = p.id AND t.deleted_at IS NULL AND t.status = 'done')::int`
 	projectFrom = `FROM projects p JOIN project_members m ON m.project_id = p.id`
 )
 
@@ -27,7 +31,8 @@ type scanner interface{ Scan(dest ...any) error }
 
 func scanProject(row scanner) (model.Project, error) {
 	var p model.Project
-	err := row.Scan(&p.ID, &p.Name, &p.Description, &p.OwnerID, &p.MyRole, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt)
+	err := row.Scan(&p.ID, &p.Name, &p.Description, &p.OwnerID, &p.MyRole, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt,
+		&p.TaskCount, &p.DoneCount)
 	return p, err
 }
 
@@ -39,7 +44,8 @@ func (r *ProjectRepo) CreateProject(ctx context.Context, ownerID, name, descript
 		), m AS (
 			INSERT INTO project_members (project_id, user_id, role) SELECT id, owner_id, 'owner' FROM p
 		)
-		SELECT p.id::text, p.name, p.description, p.owner_id::text, 'owner'::text, p.created_at, p.updated_at, p.deleted_at
+		SELECT p.id::text, p.name, p.description, p.owner_id::text, 'owner'::text, p.created_at, p.updated_at, p.deleted_at,
+		       0, 0
 		FROM p`, name, description, ownerID))
 	return p, mapNotFound(err)
 }

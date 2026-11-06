@@ -25,6 +25,8 @@ type Project struct {
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time // set while the project is in the trash
 	PurgeAt     *time.Time // when it will be deleted for good (DeletedAt + retention)
+	TaskCount   int        // tasks not in the trash
+	DoneCount   int        // of those, how many are in the "done" column
 }
 
 // ProjectPatch updates a project; nil fields are left unchanged.

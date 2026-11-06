@@ -131,6 +131,47 @@ func TestCreateProjectMakesCallerOwner(t *testing.T) {
 	}
 }
 
+func TestProjectsShowTaskProgress(t *testing.T) {
+	e := newEnv(t)
+	alice := e.newUser("alice")
+	pid := e.createProject(alice, "Progress")
+
+	if r := do(t, e.h, "GET", "/api/v1/projects/"+pid, alice.token, ""); r.body["taskCount"] != float64(0) || r.body["doneCount"] != float64(0) {
+		t.Fatalf("new project counts: %s", r.raw)
+	}
+
+	e.createTask(alice, pid, `{"title":"one"}`)
+	e.createTask(alice, pid, `{"title":"two","status":"done"}`)
+	e.createTask(alice, pid, `{"title":"three","status":"done"}`)
+	trashed := e.createTask(alice, pid, `{"title":"gone","status":"done"}`)
+	if c := e.status(alice, "DELETE", "/api/v1/tasks/"+trashed, ""); c != 204 {
+		t.Fatalf("delete task: %d", c)
+	}
+
+	// Tasks in the trash do not count.
+	get := do(t, e.h, "GET", "/api/v1/projects/"+pid, alice.token, "")
+	if get.body["taskCount"] != float64(3) || get.body["doneCount"] != float64(2) {
+		t.Errorf("GET counts = %v / %v, want 3 / 2", get.body["taskCount"], get.body["doneCount"])
+	}
+	list := do(t, e.h, "GET", "/api/v1/projects", alice.token, "")
+	items, _ := list.body["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("list: %s", list.raw)
+	}
+	first := items[0].(map[string]any)
+	if first["taskCount"] != float64(3) || first["doneCount"] != float64(2) {
+		t.Errorf("list counts = %v / %v, want 3 / 2", first["taskCount"], first["doneCount"])
+	}
+
+	// A member sees the same numbers, and joining does not add rows to the list.
+	bob := e.newUser("bob")
+	e.addMember(alice, pid, bob)
+	b := do(t, e.h, "GET", "/api/v1/projects/"+pid, bob.token, "")
+	if b.body["taskCount"] != float64(3) || b.body["myRole"] != "member" {
+		t.Errorf("member view: %s", b.raw)
+	}
+}
+
 func TestCreateProjectValidation(t *testing.T) {
 	e := newEnv(t)
 	alice := e.newUser("alice")

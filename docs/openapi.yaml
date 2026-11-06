@@ -560,6 +560,8 @@ components:
           format: date-time
           nullable: true
           description: เวลาที่จะถูกลบถาวร (deletedAt + 30 วัน) มีค่าเฉพาะรายการในถังขยะ
+        taskCount: { type: integer, description: จำนวนงานที่ไม่อยู่ในถังขยะ }
+        doneCount: { type: integer, description: ในนั้นมีกี่งานที่อยู่คอลัมน์ "เสร็จแล้ว" }
     ProjectInput:
       type: object
       required: [name]

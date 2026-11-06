@@ -41,11 +41,14 @@ type projectResponse struct {
 	UpdatedAt   time.Time  `json:"updatedAt"`
 	DeletedAt   *time.Time `json:"deletedAt"`
 	PurgeAt     *time.Time `json:"purgeAt"`
+	TaskCount   int        `json:"taskCount"`
+	DoneCount   int        `json:"doneCount"`
 }
 
 func toProjectResponse(p model.Project) projectResponse {
 	return projectResponse{ID: p.ID, Name: p.Name, Description: p.Description, OwnerID: p.OwnerID, MyRole: p.MyRole,
-		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt, DeletedAt: p.DeletedAt, PurgeAt: p.PurgeAt}
+		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt, DeletedAt: p.DeletedAt, PurgeAt: p.PurgeAt,
+		TaskCount: p.TaskCount, DoneCount: p.DoneCount}
 }
 
 type memberResponse struct {

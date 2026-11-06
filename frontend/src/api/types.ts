@@ -32,6 +32,10 @@ export interface Project {
   deletedAt: string | null
   /** When a trashed project will be removed for good. */
   purgeAt: string | null
+  /** Tasks not in the trash. */
+  taskCount: number
+  /** Of those, how many are done. */
+  doneCount: number
 }
 
 export interface Page<T> {

@@ -6,7 +6,8 @@
   "nav": {
     "login": "Log in",
     "signup": "Sign up",
-    "logout": "Log out"
+    "logout": "Log out",
+    "menu": "Menu"
   },
   "theme": {
     "label": "Theme",
@@ -90,7 +91,6 @@
     "trash": "Trash",
     "loading": "Loading projects...",
     "empty": "You have no projects yet.",
-    "emptyHint": "Create your first project to start organising your team's work.",
     "noDescription": "No description",
     "created": "Created {{date}}",
     "role_owner": "Owner",
@@ -116,7 +116,10 @@
     "restored": "\"{{name}}\" restored.",
     "notFoundTitle": "Project not found",
     "notFoundText": "It may have been deleted, or you may not have access to it.",
-    "back": "Back to projects"
+    "back": "Back to projects",
+    "progress": "{{done}} of {{total}} done",
+    "noTasks": "No tasks yet",
+    "membersLink": "Members ({{count}})"
   },
   "members": {
     "title": "Members",
@@ -201,7 +204,10 @@
     "trashIntro": "Deleted tasks stay here until the date shown, then they are removed for good. Anyone in the project can restore them.",
     "trashEmpty": "The trash is empty.",
     "backToBoard": "Back to the board",
-    "loadError": "Could not load the tasks."
+    "loadError": "Could not load the tasks.",
+    "filters": "Filters",
+    "filtersCount": "Filters ({{count}})",
+    "swipeHint": "Swipe sideways to see the other columns."
   },
   "status": {
     "todo": "To do",
@@ -230,5 +236,12 @@
   "notFound": {
     "title": "Page not found",
     "back": "Back to home"
+  },
+  "welcome": {
+    "title": "Welcome to TaskFlow!",
+    "step1": "Create a project for a team, an event or anything you are planning.",
+    "step2": "Add tasks and drag them across the board as the work moves along.",
+    "step3": "Invite people by email and give each task someone to look after it.",
+    "cta": "Create your first project"
   }
 }
