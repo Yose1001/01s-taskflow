@@ -1,0 +1,44 @@
+{
+  "app": {
+    "name": "TaskFlow",
+    "tagline": "งานของทีมอยู่ในที่เดียว ใจเย็นลงได้เยอะ"
+  },
+  "theme": {
+    "label": "ธีม",
+    "light": "สว่าง",
+    "dark": "มืด"
+  },
+  "language": {
+    "label": "ภาษา",
+    "th": "ไทย",
+    "en": "English"
+  },
+  "status": {
+    "todo": "รอทำ",
+    "in_progress": "กำลังทำ",
+    "review": "รอตรวจ",
+    "done": "เสร็จแล้ว"
+  },
+  "priority": {
+    "low": "ต่ำ",
+    "medium": "กลาง",
+    "high": "สูง"
+  },
+  "home": {
+    "title": "ยินดีต้อนรับสู่ TaskFlow",
+    "intro": "หน้านี้แสดงหน้าตาของแอป: สีพาสเทล ธีมสว่างและมืด และสองภาษา",
+    "paletteTitle": "ชุดสี",
+    "statusTitle": "สถานะงาน",
+    "priorityTitle": "ความสำคัญ",
+    "buttonsTitle": "ปุ่ม",
+    "primaryButton": "สร้างโปรเจกต์",
+    "secondaryButton": "ยกเลิก",
+    "sampleTaskTitle": "ออกแบบหน้าล็อกอิน",
+    "sampleTaskMeta": "ครบกำหนด 1 ธ.ค. 2569",
+    "errorSample": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+  },
+  "notFound": {
+    "title": "ไม่พบหน้านี้",
+    "back": "กลับหน้าหลัก"
+  }
+}

@@ -1,109 +1,124 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import 'tailwindcss';
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+/* Dark mode follows the data-theme attribute on <html> (set by src/theme), not the OS directly. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/*
+  ALL colors of the app live here, and only here. Components use the names below
+  (bg-surface, text-muted, bg-pink-bg ...) and never hard-coded colors, so a theme change
+  is one edit. The pairs are checked for readability (>= 4.5:1) by src/theme/palette.test.ts.
+  Naming: "-bg" is a soft pastel background, "-fg" is the dark text color to use on it.
+*/
+:root,
+[data-theme='light'] {
+  --bg: #fbf8ff;
+  --surface: #ffffff;
+  --surface-2: #f3edff;
+  --text: #2d2640;
+  --text-muted: #625a78;
+  --border: #e4daf7;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --primary: #6d4fc2;
+  --on-primary: #ffffff;
+  --primary-bg: #e9e0ff;
+  --primary-fg: #3b2a7a;
+
+  --pink-bg: #ffdbe9;
+  --pink-fg: #6b1f43;
+  --mint-bg: #cdf5e5;
+  --mint-fg: #145a43;
+  --sky-bg: #d6e9ff;
+  --sky-fg: #1b4a7a;
+  --peach-bg: #ffe5d1;
+  --peach-fg: #7a3a12;
+  --lemon-bg: #fff4c2;
+  --lemon-fg: #6b5410;
+  --danger-bg: #ffd9d9;
+  --danger-fg: #8a1d1d;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+[data-theme='dark'] {
+  --bg: #14111f;
+  --surface: #1d1930;
+  --surface-2: #272142;
+  --text: #ece8f7;
+  --text-muted: #a9a1c4;
+  --border: #3a3260;
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  --primary: #b9a3ff;
+  --on-primary: #1a1233;
+  --primary-bg: #2f2656;
+  --primary-fg: #dcd0ff;
+
+  --pink-bg: #4a2a3c;
+  --pink-fg: #ffd3e6;
+  --mint-bg: #1f4a3c;
+  --mint-fg: #c8f2e0;
+  --sky-bg: #213f60;
+  --sky-fg: #cfe4ff;
+  --peach-bg: #55341f;
+  --peach-fg: #ffe0c9;
+  --lemon-bg: #50451c;
+  --lemon-fg: #fff0b8;
+  --danger-bg: #5a2323;
+  --danger-fg: #ffd0d0;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+/* Expose the tokens to Tailwind as utilities: bg-bg, bg-surface, text-muted, border-border, bg-pink-bg ... */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-primary-bg: var(--primary-bg);
+  --color-primary-fg: var(--primary-fg);
+  --color-pink-bg: var(--pink-bg);
+  --color-pink-fg: var(--pink-fg);
+  --color-mint-bg: var(--mint-bg);
+  --color-mint-fg: var(--mint-fg);
+  --color-sky-bg: var(--sky-bg);
+  --color-sky-fg: var(--sky-fg);
+  --color-peach-bg: var(--peach-bg);
+  --color-peach-fg: var(--peach-fg);
+  --color-lemon-bg: var(--lemon-bg);
+  --color-lemon-fg: var(--lemon-fg);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-fg: var(--danger-fg);
+
+  /* Prompt is bundled with the app (see main.tsx). The rest are fallbacks while it loads or if it fails. */
+  --font-sans:
+    'Prompt', ui-sans-serif, system-ui, 'Segoe UI', 'Leelawadee UI', 'Noto Sans Thai', sans-serif;
+}
+
+html {
+  color-scheme: light;
+}
+html[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+/* Visible keyboard focus everywhere. */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
   }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
 }

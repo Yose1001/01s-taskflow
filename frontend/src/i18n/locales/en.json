@@ -1,0 +1,44 @@
+{
+  "app": {
+    "name": "TaskFlow",
+    "tagline": "Your team's tasks in one calm place"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "language": {
+    "label": "Language",
+    "th": "ไทย",
+    "en": "English"
+  },
+  "status": {
+    "todo": "To do",
+    "in_progress": "In progress",
+    "review": "In review",
+    "done": "Done"
+  },
+  "priority": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High"
+  },
+  "home": {
+    "title": "Welcome to TaskFlow",
+    "intro": "This page shows the look of the app: pastel colors, light and dark themes, and two languages.",
+    "paletteTitle": "Color palette",
+    "statusTitle": "Task status",
+    "priorityTitle": "Priority",
+    "buttonsTitle": "Buttons",
+    "primaryButton": "Create project",
+    "secondaryButton": "Cancel",
+    "sampleTaskTitle": "Design the login page",
+    "sampleTaskMeta": "Due 1 Dec 2026",
+    "errorSample": "Something went wrong. Please try again."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "back": "Back to home"
+  }
+}
