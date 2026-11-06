@@ -89,9 +89,9 @@
   --color-danger-bg: var(--danger-bg);
   --color-danger-fg: var(--danger-fg);
 
-  /* System fonts only: nothing is downloaded from a third party. Includes Thai-capable fonts. */
+  /* Sarabun is bundled with the app (see main.tsx). The rest are fallbacks while it loads or if it fails. */
   --font-sans:
-    ui-sans-serif, system-ui, 'Segoe UI', 'Leelawadee UI', 'Noto Sans Thai', 'Sarabun', sans-serif;
+    'Sarabun', ui-sans-serif, system-ui, 'Segoe UI', 'Leelawadee UI', 'Noto Sans Thai', sans-serif;
 }
 
 html {
