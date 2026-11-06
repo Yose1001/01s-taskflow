@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down migrate-up migrate-down run-backend run-frontend test test-backend test-frontend test-e2e lint lint-backend lint-frontend fmt
+.PHONY: help db-up db-down migrate-up migrate-down run-backend run-frontend test test-backend test-frontend test-e2e load-test lintlint-backend lint-frontend fmt
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -34,6 +34,9 @@ test-frontend: ## Frontend tests
 
 test-e2e: ## End-to-end tests in a real browser (own database "taskflow_e2e"; needs 'make db-up' and e2e/ deps)
 	cd e2e && pnpm test
+
+load-test: ## Load test: a normal working day, 50 people (needs k6 and 'make db-up'; see docs/load-testing.md)
+	loadtest/run.sh workflow
 
 lint: lint-backend lint-frontend ## Run all linters
 
