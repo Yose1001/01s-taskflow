@@ -17,6 +17,10 @@ RUN pnpm build
 # ---- run: nginx serves the files and forwards /api to the Go server -------------------------
 # The "unprivileged" nginx runs as a normal user (not root) and listens on 8080.
 FROM nginxinc/nginx-unprivileged:1.29-alpine AS run
+# Pick up security fixes for operating-system packages published since the base image was built.
+USER root
+RUN apk upgrade --no-cache
+USER 101
 # Files in templates/ get ${VARIABLES} filled from the environment when the container starts.
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf

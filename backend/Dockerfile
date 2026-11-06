@@ -15,8 +15,19 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api ./c
 
 # ---- migrate: applies the SQL files in migrations/ (one-shot job, not the web server) -------
 # golang-migrate takes a database lock, so two copies started together never apply the same step twice.
-FROM migrate/migrate:v4.19.0 AS migrate
+# The published migrate/migrate image is built with an older Go and carries its known vulnerabilities,
+# so we build the same tool (same version, postgres driver only) with the Go version used above.
+FROM golang:1.27-alpine AS migrate-build
+RUN CGO_ENABLED=0 GOOS=linux go install -trimpath -ldflags="-s -w" -tags postgres \
+    github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.0
+
+FROM alpine:3.22 AS migrate
+RUN apk upgrade --no-cache \
+ && addgroup -S -g 10001 app \
+ && adduser -S -u 10001 -G app -H -h /nonexistent -s /sbin/nologin app
+COPY --from=migrate-build /go/bin/migrate /usr/local/bin/migrate
 COPY migrations /migrations
+USER 10001:10001
 ENTRYPOINT ["migrate", "-path", "/migrations"]
 
 # ---- run: the smallest image that can run the API --------------------------------------------
