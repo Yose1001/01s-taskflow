@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import i18n from '../i18n'
@@ -11,16 +11,23 @@ import { ThemeSwitcher } from './ThemeSwitcher'
 const html = () => document.documentElement
 
 describe('ThemeSwitcher', () => {
-  it('starts on "System" and follows the operating system', async () => {
+  it('offers exactly two choices: Light and Dark (no "System")', () => {
     renderApp(<ThemeSwitcher />)
-    expect(screen.getByRole('button', { name: 'System' })).toHaveAttribute('aria-pressed', 'true')
-    expect(html()).toHaveAttribute('data-theme', 'light')
+    const buttons = within(screen.getByRole('group', { name: 'Theme' })).getAllByRole('button')
+    expect(buttons.map((b) => b.textContent)).toEqual(['Light', 'Dark'])
+    expect(screen.queryByRole('button', { name: 'System' })).not.toBeInTheDocument()
+  })
 
-    // The OS switches to dark: the page follows (the change arrives asynchronously).
+  it('on the very first visit starts from the device preference', () => {
+    renderApp(<ThemeSwitcher />)
+    expect(html()).toHaveAttribute('data-theme', 'light')
+    expect(screen.getByRole('button', { name: 'Light' })).toHaveAttribute('aria-pressed', 'true')
+    cleanup()
+
     setSystemDark(true)
-    await waitFor(() => expect(html()).toHaveAttribute('data-theme', 'dark'))
-    setSystemDark(false)
-    await waitFor(() => expect(html()).toHaveAttribute('data-theme', 'light'))
+    renderApp(<ThemeSwitcher />)
+    expect(html()).toHaveAttribute('data-theme', 'dark')
+    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('lets the user force dark and light, and remembers the choice', async () => {
@@ -38,12 +45,28 @@ describe('ThemeSwitcher', () => {
     expect(localStorage.getItem('tf-theme')).toBe('light')
   })
 
-  it('ignores the operating system once a theme is chosen', async () => {
+  it('ignores the device once a theme is chosen, even if the device changes later', async () => {
     const user = userEvent.setup()
     renderApp(<ThemeSwitcher />)
     await user.click(screen.getByRole('button', { name: 'Light' }))
     setSystemDark(true)
+    // Give any (unwanted) listener a chance to react, then check nothing changed.
+    await waitFor(() => expect(html()).toHaveAttribute('data-theme', 'light'))
+    expect(screen.getByRole('button', { name: 'Light' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('a saved choice wins over the device on the next visit', () => {
+    setSystemDark(true)
+    localStorage.setItem('tf-theme', 'light')
+    renderApp(<ThemeSwitcher />)
     expect(html()).toHaveAttribute('data-theme', 'light')
+  })
+
+  it('an old saved "system" value falls back to the device preference', () => {
+    setSystemDark(true)
+    localStorage.setItem('tf-theme', 'system')
+    renderApp(<ThemeSwitcher />)
+    expect(html()).toHaveAttribute('data-theme', 'dark')
   })
 
   it('restores a saved choice on the next visit', () => {

@@ -6,8 +6,7 @@
   "theme": {
     "label": "ธีม",
     "light": "สว่าง",
-    "dark": "มืด",
-    "system": "ตามระบบ"
+    "dark": "มืด"
   },
   "language": {
     "label": "ภาษา",

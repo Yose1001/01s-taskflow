@@ -1,47 +1,49 @@
 // Theme logic with no React in it, so it is easy to test.
 // index.html runs a tiny script with the same rules before the first paint (keep them in sync).
+//
+// There are exactly two themes: light and dark. The FIRST time someone opens the app (nothing saved yet)
+// we start from what their device prefers; after that the choice they make is saved and always wins.
 
-export type ThemePreference = 'light' | 'dark' | 'system'
-export type ResolvedTheme = 'light' | 'dark'
+export type Theme = 'light' | 'dark'
 
-export const THEME_PREFERENCES: readonly ThemePreference[] = ['light', 'dark', 'system']
+export const THEMES: readonly Theme[] = ['light', 'dark']
 export const THEME_STORAGE_KEY = 'tf-theme'
 
-export function isThemePreference(value: unknown): value is ThemePreference {
-  return value === 'light' || value === 'dark' || value === 'system'
+export function isTheme(value: unknown): value is Theme {
+  return value === 'light' || value === 'dark'
 }
 
-/** The saved choice, or 'system' when nothing valid is saved (or storage is blocked). */
-export function readStoredTheme(): ThemePreference {
+/** The saved choice, or null when nothing valid is saved (or storage is blocked). Old values such as "system" count as nothing. */
+export function readStoredTheme(): Theme | null {
   try {
     const value = localStorage.getItem(THEME_STORAGE_KEY)
-    return isThemePreference(value) ? value : 'system'
+    return isTheme(value) ? value : null
   } catch {
-    return 'system'
+    return null
   }
 }
 
-export function storeTheme(preference: ThemePreference): void {
+export function storeTheme(theme: Theme): void {
   try {
-    localStorage.setItem(THEME_STORAGE_KEY, preference)
+    localStorage.setItem(THEME_STORAGE_KEY, theme)
   } catch {
     // Storage can be blocked (private mode): the theme still works for this visit.
   }
 }
 
-export function systemPrefersDark(): boolean {
+export function devicePrefersDark(): boolean {
   return (
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-color-scheme: dark)').matches
   )
 }
 
-export function resolveTheme(preference: ThemePreference, prefersDark: boolean): ResolvedTheme {
-  if (preference === 'system') return prefersDark ? 'dark' : 'light'
-  return preference
+/** The theme to show on load: the saved choice, otherwise the device preference. */
+export function initialTheme(): Theme {
+  return readStoredTheme() ?? (devicePrefersDark() ? 'dark' : 'light')
 }
 
 /** Puts the theme on <html data-theme="...">, which the CSS variables listen to. */
-export function applyResolvedTheme(theme: ResolvedTheme): void {
+export function applyTheme(theme: Theme): void {
   document.documentElement.setAttribute('data-theme', theme)
 }

@@ -6,8 +6,7 @@
   "theme": {
     "label": "Theme",
     "light": "Light",
-    "dark": "Dark",
-    "system": "System"
+    "dark": "Dark"
   },
   "language": {
     "label": "Language",
