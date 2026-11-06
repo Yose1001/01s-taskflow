@@ -56,7 +56,8 @@ hosting provider's secret store. They are never baked into an image and never co
 | `POSTGRES_PASSWORD` | yes | – | Database password. Use hex (`openssl rand -hex 24`) so it is safe inside the database URL. |
 | `JWT_SECRET` | yes | – | Signs login tokens. At least 32 characters (`openssl rand -hex 32`). Changing it logs everyone out. |
 | `POSTGRES_USER` / `POSTGRES_DB` | no | `taskflow` | Database user and name. |
-| `JWT_TTL_MINUTES` | no | `60` | How long a login token lasts. |
+| `JWT_TTL_MINUTES` | no | `60` | How long an access token lasts (the app renews it quietly). |
+| `SESSION_TTL_DAYS` | no | `30` | How long someone stays signed in without using the app (1-365). |
 | `TRASH_RETENTION_DAYS` | no | `30` | Days before trashed items are deleted for good. |
 | `LOGIN_RATE_LIMIT_PER_MINUTE` / `REGISTER_RATE_LIMIT_PER_MINUTE` | no | `10` / `5` | Sign-in and sign-up attempts per person per minute. Keep the defaults. |
 | `TRUSTED_PROXIES` | no | the `web` container (in the compose file) | See below. |
@@ -94,6 +95,11 @@ gains nothing (the smoke test checks this).
 * **HTTPS and HSTS are not handled here.** Put a TLS-terminating proxy or your provider's load
   balancer in front, and let it add `Strict-Transport-Security`. Do not expose the plain HTTP port to
   the internet; that is why `WEB_BIND` defaults to `127.0.0.1`.
+* Staying signed in uses a random refresh token in a cookie that is `HttpOnly` (page scripts cannot
+  read it), `Secure` (HTTPS only; browsers also allow it on `http://localhost`), `SameSite=Strict`
+  (other sites cannot make the browser send it) and limited to `/api/v1/auth`. The database stores
+  only its SHA-256 hash. Each use replaces it; reusing an old one ends that session (possible theft).
+  Logging out ends the session on the server. The access token itself stays in memory only.
 * CI scans every image with Trivy and fails on HIGH / CRITICAL vulnerabilities that have a fix.
 * The database is a container with a volume here, which is fine for trying things out. For real data
   use a managed PostgreSQL with backups and put its URL in `DATABASE_URL` (step 8).

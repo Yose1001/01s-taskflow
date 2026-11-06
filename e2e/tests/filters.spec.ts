@@ -6,7 +6,7 @@ import {
   loginViaUi,
   newUser,
   openProject,
-  reloadAndLogin,
+  reloadSignedIn,
   titlesIn,
 } from './helpers'
 
@@ -49,8 +49,8 @@ test.describe('search and filters', () => {
     await expect.poll(() => titlesIn(page, /^In review/)).toEqual([])
     await expect(page.getByText('Showing 1 of 4 tasks')).toBeVisible()
 
-    // A reload goes through the login page, and the filters are still there afterwards
-    await reloadAndLogin(page, alice.person)
+    // After a reload the person is still signed in, and the filters are still there
+    await reloadSignedIn(page)
     await expect(page.getByLabel('Search tasks')).toHaveValue('login')
     await expect(page.getByLabel('Priority')).toHaveValue('high')
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Fix Login bug'])

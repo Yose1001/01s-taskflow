@@ -126,13 +126,14 @@ export async function loginViaUi(page: Page, person: Person): Promise<void> {
 }
 
 /**
- * A full page reload forgets the session on purpose (the access token lives only in memory),
- * so the app sends the person to the login page. Sign in again and the app returns to where they were.
+ * Reloads the page. The person stays signed in (the refresh cookie brings the session back)
+ * and stays on the same page.
  */
-export async function reloadAndLogin(page: Page, person: Person): Promise<void> {
+export async function reloadSignedIn(page: Page): Promise<void> {
+  const before = page.url()
   await page.reload()
-  await expect(page).toHaveURL(/\/login/)
-  await submitLogin(page, person)
+  await expect(page).toHaveURL(before)
+  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible()
 }
 
 /** Opens a project by clicking its card in the list. */

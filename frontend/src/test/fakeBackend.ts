@@ -160,6 +160,8 @@ export function fakeBackend(options: Options = {}) {
 
   const routes: Record<string, Handler> = {
     'POST /auth/login': () => LOGIN_OK,
+    'POST /auth/refresh': () => err(401, 'unauthorized'),
+    'POST /auth/logout': () => ({ status: 204 }),
     'GET /me': (req: RecordedRequest) =>
       req.headers.get('Authorization') === `Bearer ${TOKEN}`
         ? { body: me }

@@ -76,7 +76,11 @@ test.describe('signing up and in', () => {
     expect(new URL(page.url()).origin).toBe('http://localhost:5174')
   })
 
-  test('the access token is never written to browser storage or cookies', async ({ page, request, context }) => {
+  test('the access token is never written to browser storage, and the only cookie is out of reach of page scripts', async ({
+    page,
+    request,
+    context,
+  }) => {
     const { person } = await newUser(request, 'Gina')
     await loginViaUi(page, person)
 
@@ -84,21 +88,41 @@ test.describe('signing up and in', () => {
       JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage }, cookie: document.cookie }),
     )
     expect(stored).not.toMatch(/eyJ[\w-]+\.[\w-]+\./) // the shape of a JWT
-    expect(await context.cookies()).toHaveLength(0)
+    expect(stored).not.toContain('taskflow_refresh') // page scripts cannot see the cookie at all
+
+    const cookies = await context.cookies()
+    expect(cookies).toHaveLength(1)
+    expect(cookies[0]).toMatchObject({
+      name: 'taskflow_refresh',
+      path: '/api/v1/auth', // never sent with any other request
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Strict',
+    })
+    expect(cookies[0]!.value).not.toMatch(/^eyJ/) // a random value, not the access token
   })
 
-  test('the session survives moving between pages but a reload asks to log in again', async ({
-    page,
-    request,
-  }) => {
+  test('the session survives a reload and a new tab; logging out ends it', async ({ page, request, context }) => {
     const { person } = await newUser(request, 'Hana')
     await loginViaUi(page, person)
     await page.getByRole('link', { name: 'Trash' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Trash' })).toBeVisible()
-    await page.getByRole('link', { name: /Back to projects/ }).click()
-    await expect(page.getByRole('heading', { level: 1, name: 'Hello, Hana' })).toBeVisible()
+
+    await page.reload()
+    await expect(page).toHaveURL(/\/projects\/trash$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Trash' })).toBeVisible()
+
+    const tab = await context.newPage()
+    await tab.goto('/')
+    await expect(tab.getByRole('heading', { level: 1, name: 'Hello, Hana' })).toBeVisible()
+
+    // Logging out in one tab ends the session in the other tab too.
+    await tab.getByRole('button', { name: 'Log out' }).click()
+    await expect(tab).toHaveURL(/\/login/)
+    await expect(page).toHaveURL(/\/login/)
 
     await page.reload()
     await expect(page).toHaveURL(/\/login/)
+    expect(await context.cookies()).toHaveLength(0)
   })
 })

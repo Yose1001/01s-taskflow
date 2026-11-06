@@ -35,7 +35,8 @@
     "signingUp": "Creating account...",
     "noAccount": "No account yet?",
     "haveAccount": "Already have an account?",
-    "sessionExpired": "Your session ended. Please log in again."
+    "sessionExpired": "Your session ended. Please log in again.",
+    "restoring": "Signing you back in..."
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",

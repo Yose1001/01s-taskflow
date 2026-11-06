@@ -22,15 +22,69 @@ const maxBodyBytes = 1 << 20 // 1 MiB
 type AuthService interface {
 	Register(ctx context.Context, email, password, displayName string) (model.User, error)
 	Login(ctx context.Context, email, password string) (service.Token, error)
+	Refresh(ctx context.Context, refreshToken string) (service.Token, error)
+	Logout(ctx context.Context, refreshToken string) error
 	GetUser(ctx context.Context, id string) (model.User, error)
 	UpdateSettings(ctx context.Context, id string, p model.SettingsPatch) (model.User, error)
 }
 
+// RefreshCookieName is the cookie that holds the refresh token.
+const RefreshCookieName = "taskflow_refresh"
+
+// refreshCookiePath limits the cookie to the sign-in endpoints: it is never sent with any other request.
+const refreshCookiePath = "/api/v1/auth"
+
 // Auth serves /auth/* and /me.
-type Auth struct{ svc AuthService }
+type Auth struct {
+	svc          AuthService
+	secureCookie bool
+}
+
+// AuthOption customises the auth handlers.
+type AuthOption func(*Auth)
+
+// WithSecureCookie sets the cookie's Secure flag (sent over HTTPS only). On by default; turn it off only
+// for plain-HTTP testing on an address other than localhost.
+func WithSecureCookie(secure bool) AuthOption { return func(h *Auth) { h.secureCookie = secure } }
 
 // NewAuth returns the auth handlers.
-func NewAuth(svc AuthService) *Auth { return &Auth{svc: svc} }
+func NewAuth(svc AuthService, opts ...AuthOption) *Auth {
+	h := &Auth{svc: svc, secureCookie: true}
+	for _, o := range opts {
+		o(h)
+	}
+	return h
+}
+
+// setRefreshCookie stores the refresh token where page scripts cannot read it (HttpOnly), that other
+// sites cannot make the browser send (SameSite=Strict), and only for /api/v1/auth.
+// maxAge < 0 deletes the cookie.
+func (h *Auth) setRefreshCookie(w http.ResponseWriter, value string, maxAge int) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     RefreshCookieName,
+		Value:    value,
+		Path:     refreshCookiePath,
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   h.secureCookie,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func refreshCookie(r *http.Request) string {
+	if c, err := r.Cookie(RefreshCookieName); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+func writeAccessToken(w http.ResponseWriter, tok service.Token) {
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+		"accessToken": tok.AccessToken,
+		"tokenType":   "Bearer",
+		"expiresIn":   tok.ExpiresIn,
+	})
+}
 
 type userResponse struct {
 	ID          string    `json:"id"`
@@ -78,11 +132,37 @@ func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, r, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{
-		"accessToken": tok.AccessToken,
-		"tokenType":   "Bearer",
-		"expiresIn":   tok.ExpiresIn,
-	})
+	if tok.RefreshToken != "" {
+		h.setRefreshCookie(w, tok.RefreshToken, tok.RefreshExpiresIn)
+	}
+	writeAccessToken(w, tok)
+}
+
+// Refresh handles POST /auth/refresh: the refresh cookie buys a new access token (and a new cookie).
+func (h *Auth) Refresh(w http.ResponseWriter, r *http.Request) {
+	tok, err := h.svc.Refresh(r.Context(), refreshCookie(r))
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorized) {
+			h.setRefreshCookie(w, "", -1) // the cookie is useless: remove it
+		}
+		writeServiceError(w, r, err)
+		return
+	}
+	if tok.RefreshToken != "" {
+		h.setRefreshCookie(w, tok.RefreshToken, tok.RefreshExpiresIn)
+	}
+	writeAccessToken(w, tok)
+}
+
+// Logout handles POST /auth/logout: ends the session on the server and removes the cookie.
+func (h *Auth) Logout(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.Logout(r.Context(), refreshCookie(r)); err != nil {
+		writeServiceError(w, r, err)
+		return
+	}
+	h.setRefreshCookie(w, "", -1)
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Me handles GET /me (requires middleware.Authenticate).

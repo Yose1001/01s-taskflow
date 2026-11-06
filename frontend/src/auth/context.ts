@@ -11,6 +11,8 @@ export interface RegisterInput {
 export interface AuthContextValue {
   /** The signed-in user, or null when signed out. */
   user: User | null
+  /** True while a reload is bringing back the previous session (show a loading state, not the login page). */
+  restoring: boolean
   /** True when a session ended because it expired (so the login page can explain why). */
   sessionExpired: boolean
   /**
@@ -21,7 +23,10 @@ export interface AuthContextValue {
   login: (email: string, password: string) => Promise<User>
   register: (input: RegisterInput) => Promise<User>
   logout: () => void
-  /** Calls the API as the signed-in user. A 401 ends the session. The token itself is never exposed. */
+  /**
+   * Calls the API as the signed-in user. On a 401 it gets a new access token once and retries; if that
+   * fails the session ends. The token itself is never exposed.
+   */
   request: <T>(path: string, options?: Omit<ApiOptions, 'token'>) => Promise<T>
   /** Saves language/theme to the account. Does nothing when signed out; failures are ignored (local choice still works). */
   saveSettings: (patch: SettingsPatch) => Promise<void>
