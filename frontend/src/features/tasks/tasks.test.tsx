@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '../../App'
@@ -166,6 +166,19 @@ describe('filters', () => {
     await user.selectOptions(screen.getByLabelText('Assigned to'), 'Unassigned')
     expect(titlesIn(column(/^To do/))).toEqual(['Write copy'])
     expect(titlesIn(column(/^In progress/))).toEqual(['Build header'])
+  })
+
+  it('two quick changes in a row both count (the second does not undo the first)', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    // Both happen before the screen has redrawn, like a very fast double change.
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Priority'), { target: { value: 'high' } })
+      fireEvent.change(screen.getByLabelText('Assigned to'), { target: { value: BOB.userId } })
+    })
+    await waitFor(() => expect(screen.getByLabelText('Priority')).toHaveValue('high'))
+    expect(screen.getByLabelText('Assigned to')).toHaveValue(BOB.userId)
+    expect(titlesIn(column(/^To do/))).toEqual(['Draw logo'])
   })
 
   it('says so when nothing matches', async () => {

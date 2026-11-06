@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { theme, setTheme } = useTheme()
   const [user, setUser] = useState<User | null>(null)
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [loggedOut, setLoggedOut] = useState(false)
   const tokenRef = useRef<string | null>(null)
   const timerRef = useRef<number | undefined>(undefined)
 
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         Math.min(MAX_TIMER_MS, Math.max(0, expiresInSeconds * 1000 - EXPIRY_MARGIN_MS)),
       )
       setSessionExpired(false)
+      setLoggedOut(false)
       setUser(me)
     },
     [endSession],
@@ -89,7 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [i18n, startSession, theme],
   )
 
-  const logout = useCallback(() => endSession(false), [endSession])
+  const logout = useCallback(() => {
+    endSession(false)
+    setLoggedOut(true)
+  }, [endSession])
 
   const request = useCallback(
     async <T,>(path: string, options: Omit<ApiOptions, 'token'> = {}): Promise<T> => {
@@ -118,8 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(
-    () => ({ user, sessionExpired, login, register, logout, request, saveSettings }),
-    [user, sessionExpired, login, register, logout, request, saveSettings],
+    () => ({ user, sessionExpired, loggedOut, login, register, logout, request, saveSettings }),
+    [user, sessionExpired, loggedOut, login, register, logout, request, saveSettings],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

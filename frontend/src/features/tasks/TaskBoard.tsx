@@ -18,7 +18,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { restoreTask } from '../../api/tasks'
@@ -40,6 +40,7 @@ import {
   byColumn,
   columnId,
   dropTarget,
+  droppedOnLowerHalf,
   filterTasks,
   hasFilters,
   isPriority,
@@ -120,16 +121,29 @@ export function TaskBoard({ projectId }: { projectId: string }) {
   }
 
   function onDragStart(event: DragStartEvent) {
+    pointerY.current = null // stays null for a keyboard drag, which never moves a pointer
     setActiveId(String(event.active.id))
   }
+
+  // Where the mouse/finger is (screen y) while a card is being dragged.
+  const pointerY = useRef<number | null>(null)
+  const dragging = activeId !== null
+  useEffect(() => {
+    if (!dragging) return
+    const track = (event: PointerEvent) => {
+      pointerY.current = event.clientY
+    }
+    window.addEventListener('pointermove', track)
+    return () => window.removeEventListener('pointermove', track)
+  }, [dragging])
 
   function onDragEnd({ active, over }: DragEndEvent) {
     setActiveId(null)
     if (!over) return
-    // Dropped on the lower half of a task in another column = behind it.
-    const dragged = active.rect.current.translated
-    const after =
-      dragged !== null && dragged.top + dragged.height / 2 > over.rect.top + over.rect.height / 2
+    // Dropped on the lower half of a task in another column = behind it. With a mouse or finger that is
+    // judged by where the pointer really is; with the keyboard (no pointer) by the middle of the moved card.
+    // (The pointer is read directly: the library's own numbers drift when the page scrolls during a drag.)
+    const after = droppedOnLowerHalf(over.rect, pointerY.current, active.rect.current.translated)
     const target = dropTarget(columns, String(active.id), String(over.id), after)
     if (target)
       move.mutate(target, { onError: () => toast.show({ message: t('tasks.moveFailed') }) })
@@ -329,7 +343,8 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
 interface FilterBarProps {
   filters: Filters
   members: Member[]
-  onChange: (next: Filters) => void
+  /** Only the filter(s) that changed, so two quick changes in a row cannot undo each other. */
+  onChange: (changed: Partial<Filters>) => void
   shown: number
   total: number
 }
@@ -347,15 +362,13 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
           value={filters.q}
           maxLength={MAX_QUERY}
           autoComplete="off"
-          onChange={(e) => onChange({ ...filters, q: e.target.value })}
+          onChange={(e) => onChange({ q: e.target.value })}
         />
         <SelectField
           id="filter-priority"
           label={t('tasks.priorityFilter')}
           value={filters.priority}
-          onChange={(e) =>
-            onChange({ ...filters, priority: isPriority(e.target.value) ? e.target.value : '' })
-          }
+          onChange={(e) => onChange({ priority: isPriority(e.target.value) ? e.target.value : '' })}
         >
           <option value="">{t('tasks.all')}</option>
           {PRIORITIES.map((p) => (
@@ -368,7 +381,7 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
           id="filter-assignee"
           label={t('tasks.assigneeFilter')}
           value={filters.assignee}
-          onChange={(e) => onChange({ ...filters, assignee: e.target.value })}
+          onChange={(e) => onChange({ assignee: e.target.value })}
         >
           <option value="">{t('tasks.all')}</option>
           <option value={UNASSIGNED}>{t('tasks.unassigned')}</option>
@@ -396,34 +409,42 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
 }
 
 /**
- * The filters live in the address (?q=&priority=&assignee=), so a refresh, the Back button and a shared
- * link all keep them. Whatever is in the address is checked before use.
+ * The filters are copied to the address (?q=&priority=&assignee=), so a refresh and a shared link keep
+ * them. They are read from the address once, when the board opens, and checked before use. While the board
+ * is open they live in ordinary state (which queues quick changes correctly) and the address follows.
  */
-function useFilters(members: Member[] | null): [Filters, (next: Filters) => void] {
+function useFilters(members: Member[] | null): [Filters, (changed: Partial<Filters>) => void] {
   const [params, setParams] = useSearchParams()
-  const priority = params.get('priority')
-  const assignee = params.get('assignee') ?? ''
+  const [chosen, setChosen] = useState<Filters>(() => {
+    const priority = params.get('priority')
+    return {
+      q: (params.get('q') ?? '').slice(0, MAX_QUERY),
+      priority: isPriority(priority) ? priority : '',
+      assignee: params.get('assignee') ?? '',
+    }
+  })
+
+  // A person in the address who is not a member (any more) is ignored.
   const known =
-    assignee === UNASSIGNED || members === null || members.some((m) => m.userId === assignee)
+    chosen.assignee === UNASSIGNED ||
+    members === null ||
+    members.some((m) => m.userId === chosen.assignee)
+  const filters: Filters = known ? chosen : { ...chosen, assignee: '' }
 
-  const filters: Filters = {
-    q: (params.get('q') ?? '').slice(0, MAX_QUERY),
-    priority: isPriority(priority) ? priority : '',
-    assignee: known ? assignee : '',
-  }
-
-  function set(next: Filters) {
+  useEffect(() => {
     setParams(
       (current) => {
         const out = new URLSearchParams(current) // keep anything else in the address
-        for (const [key, value] of Object.entries(next)) {
+        for (const [key, value] of Object.entries(chosen)) {
           if (value) out.set(key, value)
           else out.delete(key)
         }
         return out
       },
-      { replace: true }, // typing in the search box should not fill the Back button's history
+      // replace: typing in the search box should not fill the Back button's history
+      { replace: true },
     )
-  }
-  return [filters, set]
+  }, [chosen, setParams])
+
+  return [filters, (changed) => setChosen((current) => ({ ...current, ...changed }))]
 }

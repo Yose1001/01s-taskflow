@@ -13,6 +13,11 @@ export interface AuthContextValue {
   user: User | null
   /** True when a session ended because it expired (so the login page can explain why). */
   sessionExpired: boolean
+  /**
+   * True after the person chose to log out. The next login then starts on the home page instead of
+   * returning to the page the previous person left (that page is theirs, not the next person's).
+   */
+  loggedOut: boolean
   login: (email: string, password: string) => Promise<User>
   register: (input: RegisterInput) => Promise<User>
   logout: () => void

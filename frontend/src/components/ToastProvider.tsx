@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useAuth } from '../auth/context'
 import { ToastContext, type ToastInput } from './toast'
 
 interface Item extends ToastInput {
@@ -37,6 +38,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const current = timers.current
     return () => current.forEach((timer) => window.clearTimeout(timer))
   }, [])
+
+  // Messages belong to the person who triggered them: when the signed-in person changes (or logs out),
+  // they are removed, so the next person never reads someone else's "member removed" or "Undo".
+  // (Adjusting state while rendering is React's way to reset state when something it depends on changes.)
+  const userId = useAuth().user?.id ?? null
+  const [ownerId, setOwnerId] = useState(userId)
+  if (ownerId !== userId) {
+    setOwnerId(userId)
+    setItems([])
+  }
 
   const value = useMemo(() => ({ show }), [show])
 

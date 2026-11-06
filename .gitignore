@@ -18,6 +18,8 @@ frontend/dist/
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
+e2e/playwright-report/
+e2e/test-results/
 *.tsbuildinfo
 
 # OS / editor

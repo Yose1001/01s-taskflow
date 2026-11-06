@@ -101,6 +101,25 @@ export function dropTarget(
   return { taskId: activeId, status: over.status, beforeTaskId }
 }
 
+export interface Box {
+  top: number
+  height: number
+}
+
+/**
+ * Was the card dropped on the lower half of the card it landed on? The pointer decides when there is
+ * one (mouse, finger); otherwise (keyboard) the middle of the moved card does.
+ */
+export function droppedOnLowerHalf(
+  over: Box,
+  pointerY: number | null,
+  dragged: Box | null,
+): boolean {
+  const middle = over.top + over.height / 2
+  if (pointerY !== null) return pointerY > middle
+  return dragged !== null && dragged.top + dragged.height / 2 > middle
+}
+
 function locate(columns: Columns, id: string): { status: TaskStatus; index: number } | null {
   for (const status of STATUSES) {
     const index = columns[status].findIndex((task) => task.id === id)

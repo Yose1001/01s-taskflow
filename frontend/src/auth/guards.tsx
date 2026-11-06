@@ -7,9 +7,10 @@ interface FromState {
 
 /** Pages that need a signed-in user. Signed-out visitors are sent to /login and returned afterwards. */
 export function RequireAuth() {
-  const { user } = useAuth()
+  const { user, loggedOut } = useAuth()
   const location = useLocation()
-  if (!user) return <Navigate to="/login" replace state={{ from: location }} />
+  // After an explicit log out nobody should be brought back to the page that was just left.
+  if (!user) return <Navigate to="/login" replace state={loggedOut ? null : { from: location }} />
   return <Outlet />
 }
 

@@ -7,6 +7,7 @@ import {
   byColumn,
   columnId,
   dropTarget,
+  droppedOnLowerHalf,
   filterTasks,
   hasFilters,
   isOverdue,
@@ -202,6 +203,22 @@ describe('applyMove()', () => {
     const copy = JSON.stringify(tasks)
     applyMove(tasks, { taskId: 't1', status: 'done', beforeTaskId: null })
     expect(JSON.stringify(tasks)).toBe(copy)
+  })
+})
+
+describe('droppedOnLowerHalf()', () => {
+  const over = { top: 100, height: 80 } // its middle is at 140
+
+  it('with a pointer, the pointer decides (not the size of the dragged card)', () => {
+    expect(droppedOnLowerHalf(over, 130, { top: 90, height: 400 })).toBe(false)
+    expect(droppedOnLowerHalf(over, 150, { top: 0, height: 10 })).toBe(true)
+    expect(droppedOnLowerHalf(over, 140, null)).toBe(false) // exactly in the middle counts as the top half
+  })
+
+  it('without a pointer (keyboard), the middle of the moved card decides', () => {
+    expect(droppedOnLowerHalf(over, null, { top: 120, height: 60 })).toBe(true) // middle 150
+    expect(droppedOnLowerHalf(over, null, { top: 90, height: 40 })).toBe(false) // middle 110
+    expect(droppedOnLowerHalf(over, null, null)).toBe(false)
   })
 })
 
