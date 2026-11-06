@@ -20,6 +20,7 @@ frontend/playwright-report/
 frontend/test-results/
 e2e/playwright-report/
 e2e/test-results/
+loadtest/results/
 *.tsbuildinfo
 
 # OS / editor
