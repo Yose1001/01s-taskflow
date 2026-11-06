@@ -56,6 +56,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-taskflow}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-taskflow}?sslmode=disable
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.prod (at least 32 characters)}
       JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-60}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      # The sign-in cookie is sent over HTTPS only. Browsers also allow it on http://localhost,
+      # and a real server must use HTTPS anyway.
+      COOKIE_SECURE: "true"
       TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS:-30}
       # Believe the X-Forwarded-For header only from the "web" container (its fixed address below), so
       # the sign-in limit counts real people instead of counting "web" as one person. Trust exactly

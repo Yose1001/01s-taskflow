@@ -2,7 +2,8 @@
 //
 // - Always same-origin (/api/v1): in development Vite forwards it to the Go server.
 // - The access token is passed in by the caller for each request. It is NEVER stored here.
-// - credentials: 'omit' - no cookies are ever sent or accepted.
+// - credentials: 'same-origin' - the only cookie is the refresh cookie, which the server sets HttpOnly
+//   (page scripts cannot read it) and only for /api/v1/auth, so other requests never carry it.
 
 export const API_BASE = '/api/v1'
 
@@ -66,7 +67,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
-      credentials: 'omit',
+      credentials: 'same-origin',
       signal: signal ?? null,
     })
   } catch (error) {

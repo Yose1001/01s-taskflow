@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TaskFlow API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     REST API ของ TaskFlow (ฉบับร่างรออนุมัติ)
 
@@ -87,11 +87,47 @@ paths:
             schema: { $ref: "#/components/schemas/LoginRequest" }
       responses:
         "200":
-          description: สำเร็จ
+          description: |
+            สำเร็จ และตั้ง cookie `taskflow_refresh` (HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth, อายุ 30 วันนับจากการใช้ล่าสุด)
+            ไว้ขอ access token ใหม่หลัง reload หน้า
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/RefreshCookie" }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TokenResponse" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: ขอ access token ใหม่ด้วย refresh cookie (ใช้ตอน reload หน้า หรือก่อน token เดิมหมดอายุ)
+      description: |
+        ไม่มี body ใช้ cookie `taskflow_refresh` แทน token. ทุกครั้งที่ใช้ cookie จะถูกเปลี่ยนเป็นค่าใหม่ (rotation).
+        ถ้า 2 แท็บส่ง cookie เดิมพร้อมกัน ภายใน 30 วินาทีจะได้ token ทั้งคู่ (แท็บหลังไม่ได้ cookie ใหม่).
+        ถ้ามีคนใช้ cookie เก่าหลังจากนั้น ถือว่าอาจถูกขโมย: session นั้นถูกยกเลิกทั้งหมด.
+      security: []
+      responses:
+        "200":
+          description: สำเร็จ (อาจตั้ง cookie ใหม่)
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/RefreshCookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "401":
+          description: ไม่มี cookie, หมดอายุ, ถูก logout แล้ว หรือถูกยกเลิก (cookie ถูกลบ)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: ออกจากระบบ (ยกเลิก session บน server และลบ cookie)
+      security: []
+      responses:
+        "204":
+          description: เรียบร้อย (ไม่มี cookie ก็ได้ 204 เหมือนกัน)
 
   /me:
     get:
@@ -423,6 +459,10 @@ components:
       name: pageSize
       in: query
       schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  headers:
+    RefreshCookie:
+      description: "taskflow_refresh=<random 256-bit token>; Path=/api/v1/auth; Max-Age=2592000; HttpOnly; Secure; SameSite=Strict"
+      schema: { type: string }
   responses:
     Unauthorized:
       description: ไม่ได้ล็อกอินหรือ token ไม่ถูกต้อง

@@ -41,6 +41,9 @@ func New(d Deps) http.Handler {
 	if d.Auth != nil {
 		mux.Handle("POST /api/v1/auth/register", wrap(d.RegisterLimit, http.HandlerFunc(d.Auth.Register)))
 		mux.Handle("POST /api/v1/auth/login", wrap(d.LoginLimit, http.HandlerFunc(d.Auth.Login)))
+		// These two use the refresh cookie instead of an access token.
+		mux.HandleFunc("POST /api/v1/auth/refresh", d.Auth.Refresh)
+		mux.HandleFunc("POST /api/v1/auth/logout", d.Auth.Logout)
 		if d.Authenticate != nil {
 			mux.Handle("GET /api/v1/me", d.Authenticate(http.HandlerFunc(d.Auth.Me)))
 			mux.Handle("PATCH /api/v1/me", d.Authenticate(http.HandlerFunc(d.Auth.UpdateMe)))

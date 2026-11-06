@@ -3,6 +3,9 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/mail"
@@ -51,20 +54,41 @@ type UserStore interface {
 	UpdateSettings(ctx context.Context, id string, p model.SettingsPatch) (model.User, error)
 }
 
-// Token is the result of a successful login.
+// SessionStore keeps sign-in sessions (implemented by repository.SessionRepo).
+// Tokens are never stored, only their SHA-256 hashes.
+type SessionStore interface {
+	CreateSession(ctx context.Context, userID string, tokenHash []byte, expiresAt time.Time) error
+	// RotateSession: see repository.SessionRepo.RotateSession. Returns model.ErrNotFound for an unusable token.
+	RotateSession(ctx context.Context, oldHash, newHash []byte, now, expiresAt, graceUntil time.Time) (userID string, rotated bool, err error)
+	DeleteSession(ctx context.Context, tokenHash []byte) error
+}
+
+// Token is the result of a successful login or refresh.
 type Token struct {
 	AccessToken string
 	ExpiresIn   int // seconds
+	// RefreshToken is set when the browser must store a new refresh token (login, or a refresh that rotated it).
+	RefreshToken     string
+	RefreshExpiresIn int // seconds
 }
+
+// refreshGrace is how long the previous refresh token keeps working after it was replaced. Two tabs that
+// reload at the same moment both send the same token; the slower one must not be signed out.
+const refreshGrace = 30 * time.Second
+
+// maxRefreshTokenLen rejects junk cookies before hashing them. Real tokens are 43 characters.
+const maxRefreshTokenLen = 128
 
 // Auth implements registration, login, token verification and profile settings.
 type Auth struct {
-	store     UserStore
-	secret    []byte
-	ttl       time.Duration
-	cost      int
-	dummyHash []byte
-	now       func() time.Time
+	store      UserStore
+	sessions   SessionStore
+	sessionTTL time.Duration
+	secret     []byte
+	ttl        time.Duration
+	cost       int
+	dummyHash  []byte
+	now        func() time.Time
 }
 
 // Option customises Auth (used by tests).
@@ -75,6 +99,12 @@ func WithBcryptCost(cost int) Option { return func(a *Auth) { a.cost = cost } }
 
 // WithClock overrides the clock (used to test token expiry).
 func WithClock(now func() time.Time) Option { return func(a *Auth) { a.now = now } }
+
+// WithSessions turns on refresh tokens: login starts a session that lasts ttl since its last use.
+// Without it, login returns an access token only (the person is signed out when the page reloads).
+func WithSessions(store SessionStore, ttl time.Duration) Option {
+	return func(a *Auth) { a.sessions, a.sessionTTL = store, ttl }
+}
 
 // NewAuth builds the service. secret must be at least 32 bytes.
 func NewAuth(store UserStore, secret string, ttl time.Duration, opts ...Option) (*Auth, error) {
@@ -87,6 +117,9 @@ func NewAuth(store UserStore, secret string, ttl time.Duration, opts ...Option) 
 	a := &Auth{store: store, secret: []byte(secret), ttl: ttl, cost: DefaultBcryptCost, now: time.Now}
 	for _, o := range opts {
 		o(a)
+	}
+	if a.sessions != nil && a.sessionTTL <= 0 {
+		return nil, errors.New("session TTL must be positive")
 	}
 	// A real hash of a throwaway value: compared against when the email is unknown,
 	// so login takes the same time whether or not the account exists.
@@ -144,7 +177,78 @@ func (a *Auth) Login(ctx context.Context, email, password string) (Token, error)
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return Token{}, ErrInvalidCredentials
 	}
-	return a.issue(user.ID)
+	tok, err := a.issue(user.ID)
+	if err != nil || a.sessions == nil {
+		return tok, err
+	}
+
+	refresh, hash, err := newRefreshToken()
+	if err != nil {
+		return Token{}, err
+	}
+	if err := a.sessions.CreateSession(ctx, user.ID, hash, a.now().Add(a.sessionTTL)); err != nil {
+		return Token{}, fmt.Errorf("create session: %w", err)
+	}
+	tok.RefreshToken, tok.RefreshExpiresIn = refresh, int(a.sessionTTL.Seconds())
+	return tok, nil
+}
+
+// Refresh exchanges a refresh token for a new access token. The refresh token is replaced by a new one
+// (returned in Token.RefreshToken), except when another tab already replaced it a moment ago.
+// Any unusable token gives ErrUnauthorized.
+func (a *Auth) Refresh(ctx context.Context, refreshToken string) (Token, error) {
+	if a.sessions == nil || refreshToken == "" || len(refreshToken) > maxRefreshTokenLen {
+		return Token{}, ErrUnauthorized
+	}
+	next, nextHash, err := newRefreshToken()
+	if err != nil {
+		return Token{}, err
+	}
+	now := a.now()
+	userID, rotated, err := a.sessions.RotateSession(ctx, hashToken(refreshToken), nextHash,
+		now, now.Add(a.sessionTTL), now.Add(refreshGrace))
+	if errors.Is(err, model.ErrNotFound) {
+		return Token{}, ErrUnauthorized
+	}
+	if err != nil {
+		return Token{}, fmt.Errorf("rotate session: %w", err)
+	}
+
+	tok, err := a.issue(userID)
+	if err != nil {
+		return Token{}, err
+	}
+	if rotated {
+		tok.RefreshToken, tok.RefreshExpiresIn = next, int(a.sessionTTL.Seconds())
+	}
+	return tok, nil
+}
+
+// Logout ends the session of a refresh token. Unknown or empty tokens are not an error.
+func (a *Auth) Logout(ctx context.Context, refreshToken string) error {
+	if a.sessions == nil || refreshToken == "" || len(refreshToken) > maxRefreshTokenLen {
+		return nil
+	}
+	if err := a.sessions.DeleteSession(ctx, hashToken(refreshToken)); err != nil {
+		return fmt.Errorf("delete session: %w", err)
+	}
+	return nil
+}
+
+// newRefreshToken returns 256 random bits (base64url, 43 characters) and their hash.
+func newRefreshToken() (string, []byte, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", nil, fmt.Errorf("random token: %w", err)
+	}
+	tok := base64.RawURLEncoding.EncodeToString(b)
+	return tok, hashToken(tok), nil
+}
+
+// hashToken is SHA-256: enough for a 256-bit random value (no salt or slow hash needed).
+func hashToken(tok string) []byte {
+	sum := sha256.Sum256([]byte(tok))
+	return sum[:]
 }
 
 func (a *Auth) issue(userID string) (Token, error) {

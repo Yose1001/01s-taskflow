@@ -7,13 +7,13 @@ afterEach(() => {
 })
 
 describe('api()', () => {
-  it('calls same-origin /api/v1 without cookies and sends JSON', async () => {
+  it('calls same-origin /api/v1 (cookies never go to other sites) and sends JSON', async () => {
     const server = mockApi({ 'POST /things': () => ({ status: 201, body: { id: 1 } }) })
     const result = await api<{ id: number }>('/things', { method: 'POST', body: { name: 'x' } })
 
     expect(result).toEqual({ id: 1 })
     const call = server.calls[0]!
-    expect(call.credentials).toBe('omit')
+    expect(call.credentials).toBe('same-origin')
     expect(call.headers.get('Content-Type')).toBe('application/json')
     expect(call.headers.get('Accept')).toBe('application/json')
     expect(call.body).toEqual({ name: 'x' })

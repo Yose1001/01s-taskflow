@@ -19,6 +19,38 @@ func setValid(t *testing.T) {
 	t.Setenv("CORS_ALLOWED_ORIGINS", "")
 	t.Setenv("LOGIN_RATE_LIMIT_PER_MINUTE", "")
 	t.Setenv("REGISTER_RATE_LIMIT_PER_MINUTE", "")
+	t.Setenv("SESSION_TTL_DAYS", "")
+	t.Setenv("COOKIE_SECURE", "")
+}
+
+func TestSessionSettings(t *testing.T) {
+	setValid(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SessionTTL != 30*24*time.Hour || !cfg.CookieSecure {
+		t.Errorf("defaults = %v, secure=%v; want 30 days, true", cfg.SessionTTL, cfg.CookieSecure)
+	}
+
+	t.Setenv("SESSION_TTL_DAYS", "7")
+	t.Setenv("COOKIE_SECURE", "false")
+	if cfg, err = Load(); err != nil || cfg.SessionTTL != 7*24*time.Hour || cfg.CookieSecure {
+		t.Errorf("overrides = %v, secure=%v, err=%v", cfg.SessionTTL, cfg.CookieSecure, err)
+	}
+
+	for env, bad := range map[string]string{"SESSION_TTL_DAYS": "0", "COOKIE_SECURE": "maybe"} {
+		setValid(t)
+		t.Setenv(env, bad)
+		if _, err := Load(); err == nil || !strings.Contains(err.Error(), env) {
+			t.Errorf("%s=%s: err = %v", env, bad, err)
+		}
+	}
+	setValid(t)
+	t.Setenv("SESSION_TTL_DAYS", "400")
+	if _, err := Load(); err == nil {
+		t.Error("SESSION_TTL_DAYS=400 should be refused")
+	}
 }
 
 func TestRateLimitDefaultsAndOverrides(t *testing.T) {

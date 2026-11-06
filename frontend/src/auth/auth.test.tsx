@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '../App'
 import { renderApp } from '../test/render'
+import { SESSION_HINT_KEY } from './AuthProvider'
 import { LOGIN_OK, ME, TOKEN, allBrowserStorage, mockApi } from '../test/mockApi'
 
 type Routes = Parameters<typeof mockApi>[0]
@@ -20,6 +21,8 @@ const wrongPassword = {
 function server(extra: Routes = {}) {
   return mockApi({
     'POST /auth/login': () => LOGIN_OK,
+    'POST /auth/refresh': () => unauthorized, // no session cookie unless a test says otherwise
+    'POST /auth/logout': () => ({ status: 204 }),
     'GET /projects': () => ({ body: { items: [], total: 0 } }), // the page shown right after signing in
     'GET /me': (req) =>
       req.headers.get('Authorization') === `Bearer ${TOKEN}` ? { body: ME } : unauthorized,
@@ -68,7 +71,8 @@ describe('login', () => {
     })
     expect(api.to('POST /auth/login')[0]!.headers.get('Authorization')).toBeNull() // login itself carries no token
     expect(api.to('GET /me')[0]!.headers.get('Authorization')).toBe(`Bearer ${TOKEN}`)
-    expect(api.calls.every((c) => c.credentials === 'omit')).toBe(true)
+    expect(api.calls.every((c) => c.credentials === 'same-origin')).toBe(true)
+    expect(localStorage.getItem(SESSION_HINT_KEY)).toBe('1') // a reload will try to restore the session
     expect(api.unhandled).toEqual([])
   })
 
@@ -305,12 +309,28 @@ describe('logout and session end', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument()
   })
 
-  it('ends the session by itself just before the token expires', async () => {
+  it('quietly gets a new token just before the old one expires', async () => {
+    const api = server({
+      'POST /auth/login': () => ({
+        body: { accessToken: TOKEN, tokenType: 'Bearer', expiresIn: 11 },
+      }), // 11s - 10s margin = renew after 1s
+      'POST /auth/refresh': () => LOGIN_OK,
+    })
+    const user = userEvent.setup()
+    renderApp(<AppRoutes />, { route: '/login' })
+    await logIn(user)
+    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await waitFor(() => expect(api.to('POST /auth/refresh')).toHaveLength(1), { timeout: 4000 })
+    expect(screen.getByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument()
+    expect(screen.queryByText('Your session ended. Please log in again.')).not.toBeInTheDocument()
+  })
+
+  it('ends the session when the server will not renew it', async () => {
     server({
       'POST /auth/login': () => ({
         body: { accessToken: TOKEN, tokenType: 'Bearer', expiresIn: 11 },
       }),
-    }) // 11s - 10s margin = 1s
+    }) // refresh answers 401
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
@@ -320,6 +340,75 @@ describe('logout and session end', () => {
         expect(screen.getByText('Your session ended. Please log in again.')).toBeInTheDocument(),
       { timeout: 4000 },
     )
+    expect(localStorage.getItem(SESSION_HINT_KEY)).toBeNull()
+  })
+
+  it('a refused access token is renewed once and the request is repeated', async () => {
+    let projectCalls = 0
+    const api = server({
+      'POST /auth/refresh': () => LOGIN_OK,
+      'GET /projects': () =>
+        ++projectCalls === 1 ? unauthorized : { body: { items: [], total: 0 } },
+    })
+    const user = userEvent.setup()
+    renderApp(<AppRoutes />, { route: '/login' })
+    await logIn(user)
+    expect(await screen.findByText('You have no projects yet.')).toBeInTheDocument()
+    expect(api.to('POST /auth/refresh')).toHaveLength(1)
+    expect(screen.queryByText('Your session ended. Please log in again.')).not.toBeInTheDocument()
+  })
+
+  it('logging out also ends the session on the server', async () => {
+    const api = server()
+    const user = userEvent.setup()
+    renderApp(<AppRoutes />, { route: '/login' })
+    await logIn(user)
+    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await waitFor(() => expect(api.to('POST /auth/logout')).toHaveLength(1))
+    expect(localStorage.getItem(SESSION_HINT_KEY)).toBeNull()
+  })
+})
+
+describe('staying signed in after a reload', () => {
+  it('brings the session back without asking for the password', async () => {
+    localStorage.setItem(SESSION_HINT_KEY, '1')
+    const api = server({ 'POST /auth/refresh': () => LOGIN_OK })
+    renderApp(<AppRoutes />, { route: '/projects/trash' })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Trash' })).toBeInTheDocument()
+    expect(api.to('POST /auth/login')).toHaveLength(0)
+    expect(api.to('GET /me')[0]!.headers.get('Authorization')).toBe(`Bearer ${TOKEN}`)
+    expect(allBrowserStorage()).not.toContain(TOKEN)
+  })
+
+  it('shows a loading state, not the login page, while it checks', async () => {
+    localStorage.setItem(SESSION_HINT_KEY, '1')
+    let release: () => void = () => {}
+    const gate = new Promise<void>((r) => (release = r))
+    server({ 'POST /auth/refresh': async () => (await gate, LOGIN_OK) })
+    renderApp(<AppRoutes />, { route: '/' })
+
+    expect(screen.getByText('Signing you back in...')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Log in' })).not.toBeInTheDocument()
+    release()
+    expect(await screen.findByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument()
+  })
+
+  it('goes to the login page when the session is gone, and stops trying', async () => {
+    localStorage.setItem(SESSION_HINT_KEY, '1')
+    const api = server() // refresh answers 401
+    renderApp(<AppRoutes />, { route: '/' })
+    expect(await screen.findByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument()
+    expect(api.to('POST /auth/refresh')).toHaveLength(1)
+    expect(localStorage.getItem(SESSION_HINT_KEY)).toBeNull()
+  })
+
+  it('makes no request at all for a visitor who never signed in', () => {
+    const api = server()
+    renderApp(<AppRoutes />, { route: '/' })
+    expect(screen.getByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument()
+    expect(api.calls).toHaveLength(0)
   })
 })
 

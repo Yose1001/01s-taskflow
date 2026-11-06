@@ -15,10 +15,14 @@ const minJWTSecretLen = 32
 
 // Config holds settings read from the environment.
 type Config struct {
-	Port               string
-	DatabaseURL        string
-	JWTSecret          string
-	JWTTTL             time.Duration
+	Port        string
+	DatabaseURL string
+	JWTSecret   string
+	JWTTTL      time.Duration
+	// SessionTTL is how long a person stays signed in without using the app (refresh token lifetime).
+	SessionTTL time.Duration
+	// CookieSecure marks the sign-in cookie as HTTPS-only. Browsers accept it on http://localhost too.
+	CookieSecure       bool
 	CORSAllowedOrigins []string
 	TrashRetentionDays int
 	// LoginRateLimit and RegisterRateLimit are the most requests one client address may make
@@ -39,6 +43,8 @@ func Load() (Config, error) {
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
 		JWTSecret:          os.Getenv("JWT_SECRET"),
 		JWTTTL:             60 * time.Minute,
+		SessionTTL:         30 * 24 * time.Hour,
+		CookieSecure:       true,
 		CORSAllowedOrigins: splitList(os.Getenv("CORS_ALLOWED_ORIGINS")),
 		TrashRetentionDays: 30,
 		LoginRateLimit:     10,
@@ -59,6 +65,22 @@ func Load() (Config, error) {
 			errs = append(errs, fmt.Errorf("JWT_TTL_MINUTES must be a positive integer, got %q", v))
 		} else {
 			cfg.JWTTTL = time.Duration(n) * time.Minute
+		}
+	}
+	if v := os.Getenv("SESSION_TTL_DAYS"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 365 {
+			errs = append(errs, fmt.Errorf("SESSION_TTL_DAYS must be a whole number from 1 to 365, got %q", v))
+		} else {
+			cfg.SessionTTL = time.Duration(n) * 24 * time.Hour
+		}
+	}
+	if v := os.Getenv("COOKIE_SECURE"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("COOKIE_SECURE must be true or false, got %q", v))
+		} else {
+			cfg.CookieSecure = b
 		}
 	}
 	if v := os.Getenv("TRASH_RETENTION_DAYS"); v != "" {

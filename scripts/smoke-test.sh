@@ -55,10 +55,20 @@ email="smoke-$(date +%s)-$RANDOM@smoke.test"
 password="smoke-$(date +%s%N)-test"
 credentials='"email":"'"$email"'","password":"'"$password"'"'
 check "register" 201 "$(status -X POST -H 'Content-Type: application/json' -d "{$credentials,\"displayName\":\"Smoke\"}" "$BASE/api/v1/auth/register")"
-login="$(curl -s --max-time 10 -X POST -H 'Content-Type: application/json' -d "{$credentials}" "$BASE/api/v1/auth/login")"
+login="$(curl -s -D - --max-time 10 -X POST -H 'Content-Type: application/json' -d "{$credentials}" "$BASE/api/v1/auth/login")"
 token="$(sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p' <<<"$login")"
 if [[ -n "$token" ]]; then pass "login returns a token"; else fail "login returns a token (got: $login)"; fi
 check "the token opens a protected route" 200 "$(status -H "Authorization: Bearer $token" "$BASE/api/v1/projects")"
+
+echo "staying signed in (refresh cookie)"
+set_cookie="$(grep -i '^set-cookie: taskflow_refresh=' <<<"$login" | tr -d '\r')"
+contains "login sets the refresh cookie as HttpOnly" "HttpOnly" "$set_cookie"
+contains "... and SameSite=Strict" "SameSite=Strict" "$set_cookie"
+contains "... only for /api/v1/auth" "Path=/api/v1/auth" "$set_cookie"
+refresh_token="$(sed -n 's/^[Ss]et-[Cc]ookie: taskflow_refresh=\([^;]*\).*/\1/p' <<<"$set_cookie")"
+check "the cookie gets a new access token" 200 "$(status -X POST -H "Cookie: taskflow_refresh=$refresh_token" "$BASE/api/v1/auth/refresh")"
+check "logging out" 204 "$(status -X POST -H "Cookie: taskflow_refresh=$refresh_token" "$BASE/api/v1/auth/logout")"
+check "after logging out the cookie is useless" 401 "$(status -X POST -H "Cookie: taskflow_refresh=$refresh_token" "$BASE/api/v1/auth/refresh")"
 
 echo "sign-in limit"
 # A caller can invent X-Forwarded-For values. The proxy appends the real address, so the API must

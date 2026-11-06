@@ -13,6 +13,16 @@ export function loginUser(input: { email: string; password: string }): Promise<L
   return api<LoginResponse>('/auth/login', { method: 'POST', body: input })
 }
 
+/** Uses the HttpOnly refresh cookie (the browser sends it; this code never sees it) to get a new access token. */
+export function refreshSession(): Promise<LoginResponse> {
+  return api<LoginResponse>('/auth/refresh', { method: 'POST' })
+}
+
+/** Ends the session on the server and removes the refresh cookie. */
+export function logoutSession(): Promise<void> {
+  return api<void>('/auth/logout', { method: 'POST' })
+}
+
 export function fetchMe(token: string): Promise<User> {
   return api<User>('/me', { token })
 }

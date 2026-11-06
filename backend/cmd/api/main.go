@@ -48,7 +48,8 @@ func main() {
 	}
 	defer pool.Close()
 
-	authSvc, err := service.NewAuth(repository.NewUserRepo(pool), cfg.JWTSecret, cfg.JWTTTL)
+	authSvc, err := service.NewAuth(repository.NewUserRepo(pool), cfg.JWTSecret, cfg.JWTTTL,
+		service.WithSessions(repository.NewSessionRepo(pool), cfg.SessionTTL))
 	if err != nil {
 		logger.Error("cannot start auth service", "error", err)
 		os.Exit(1)
@@ -61,7 +62,7 @@ func main() {
 
 	handler := router.New(router.Deps{
 		DB:            pool,
-		Auth:          handlerpkg.NewAuth(authSvc),
+		Auth:          handlerpkg.NewAuth(authSvc, handlerpkg.WithSecureCookie(cfg.CookieSecure)),
 		Projects:      handlerpkg.NewProjects(projectSvc),
 		Tasks:         handlerpkg.NewTasks(taskSvc),
 		Authenticate:  middleware.Authenticate(authSvc),

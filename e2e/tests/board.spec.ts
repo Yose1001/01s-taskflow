@@ -6,7 +6,7 @@ import {
   loginViaUi,
   newUser,
   openProject,
-  reloadAndLogin,
+  reloadSignedIn,
   titlesIn,
 } from './helpers'
 
@@ -70,7 +70,7 @@ test.describe('the task board', () => {
     await expect
       .poll(async () => (await boardOnServer(request, token, projectId)).review)
       .toEqual(['Review checkout', 'Write copy'])
-    await reloadAndLogin(page, person)
+    await reloadSignedIn(page)
     await expect(page.getByRole('region', { name: /^In review, 2/ })).toBeVisible()
     await expect.poll(() => titlesIn(page, /^In review/)).toEqual(['Review checkout', 'Write copy'])
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Draw logo', 'Pick colors'])
