@@ -7,22 +7,11 @@
     <meta name="color-scheme" content="light dark" />
     <title>TaskFlow</title>
     <!--
-      Pick the theme BEFORE the first paint so a dark-mode user never sees a white flash.
+      Picks the theme BEFORE the first paint so a dark-mode user never sees a white flash.
+      It is a separate file (not inline) so the server can forbid inline scripts (Content-Security-Policy).
       Keep in sync with src/theme/theme.ts (same storage key 'tf-theme').
     -->
-    <script>
-      ;(function () {
-        var theme = 'light'
-        try {
-          var pref = localStorage.getItem('tf-theme')
-          var dark =
-            pref === 'dark' ||
-            (pref !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-          theme = dark ? 'dark' : 'light'
-        } catch (e) {}
-        document.documentElement.setAttribute('data-theme', theme)
-      })()
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

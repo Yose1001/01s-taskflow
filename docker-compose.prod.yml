@@ -1,0 +1,101 @@
+# The whole system from container images: database + migrations + API + web.
+#
+#   cp env.prod.example .env.prod      (then fill in the secrets: see the comments in that file)
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up --build
+#   -> open http://localhost:8088
+#
+# Details, updating and rolling back: docs/deployment.md.
+# For day-to-day development use docker-compose.yml (database only) and "make run-backend / run-frontend".
+name: taskflow-prod # a different project name than the dev compose file, so the data volumes never mix
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-taskflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:-taskflow}
+    volumes:
+      - taskflow_prod_pgdata:/var/lib/postgresql/data
+    # No "ports": the database is reachable only from the other containers, never from outside.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-taskflow} -d $${POSTGRES_DB:-taskflow}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot job: brings the database schema up to date, then exits. Safe to run again at any time.
+  migrate:
+    image: ghcr.io/yose1001/taskflow-migrate:${IMAGE_TAG:-dev}
+    build:
+      context: ./backend
+      target: migrate
+    command:
+      - -database
+      - postgres://${POSTGRES_USER:-taskflow}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-taskflow}?sslmode=disable
+      - up
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *hardening
+    image: ghcr.io/yose1001/taskflow-api:${IMAGE_TAG:-dev}
+    build:
+      context: ./backend
+      target: run
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-taskflow}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-taskflow}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.prod (at least 32 characters)}
+      JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-60}
+      TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS:-30}
+      # Believe the X-Forwarded-For header only from the "web" container (its fixed address below), so
+      # the sign-in limit counts real people instead of counting "web" as one person. Trust exactly
+      # the proxy and nothing wider: a whole private network would also include the host's own
+      # gateway address, which is what every visitor looks like to Docker, and then a visitor could
+      # fake the header and dodge the limit.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.31.250.10}
+      LOGIN_RATE_LIMIT_PER_MINUTE: ${LOGIN_RATE_LIMIT_PER_MINUTE:-10}
+      REGISTER_RATE_LIMIT_PER_MINUTE: ${REGISTER_RATE_LIMIT_PER_MINUTE:-5}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    <<: *hardening
+    image: ghcr.io/yose1001/taskflow-web:${IMAGE_TAG:-dev}
+    build:
+      context: ./frontend
+      target: run
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8088}:8080"
+    # nginx writes its config and temporary files at start-up; everything else stays read-only.
+    # (101 is the user id of the "nginx" user inside this image.)
+    tmpfs:
+      - /tmp:uid=101,gid=101
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+    networks:
+      default:
+        ipv4_address: 172.31.250.10 # fixed, so the API can be told exactly which proxy to trust
+    depends_on:
+      api:
+        condition: service_started
+
+# A private network with a fixed range so "web" can have a fixed address.
+# If 172.31.250.0/24 clashes with a network you already use, change it here, in "web" above and in TRUSTED_PROXIES.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+
+volumes:
+  taskflow_prod_pgdata:

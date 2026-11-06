@@ -8,6 +8,7 @@ Go + React + PostgreSQL | ธีมพาสเทล (สว่าง/มืด
 - [ER diagram](docs/02-er-diagram.md)
 - [API contract (OpenAPI)](docs/openapi.yaml)
 - [ADR: tech stack](docs/adr/0001-tech-stack.md)
+- [Deployment: Docker images, รันทั้งระบบ, ตั้งค่า, อัปเดต/ย้อนกลับ](docs/deployment.md)
 
 ## โครงสร้าง
 ```
@@ -28,6 +29,8 @@ make run-frontend        # เว็บที่ http://localhost:5173
 make test                # รัน test ทั้งหมด
 make help                # ดูคำสั่งทั้งหมด
 ```
+
+รันทั้งระบบจาก container (เหมือนตอน deploy): `cp env.prod.example .env.prod` ใส่ secret แล้ว `make prod-up` → http://localhost:8088 (รายละเอียดใน [docs/deployment.md](docs/deployment.md))
 
 ## กติกาการทำงาน
 - ห้าม push เข้า `main` ตรง ๆ: ทำใน branch `feature/*` หรือ `fix/*` แล้วเปิด Pull Request

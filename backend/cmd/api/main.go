@@ -65,8 +65,8 @@ func main() {
 		Projects:      handlerpkg.NewProjects(projectSvc),
 		Tasks:         handlerpkg.NewTasks(taskSvc),
 		Authenticate:  middleware.Authenticate(authSvc),
-		LoginLimit:    middleware.NewRateLimiter(cfg.LoginRateLimit, time.Minute).Middleware,
-		RegisterLimit: middleware.NewRateLimiter(cfg.RegisterRateLimit, time.Minute).Middleware,
+		LoginLimit:    middleware.NewRateLimiter(cfg.LoginRateLimit, time.Minute, cfg.TrustedProxies...).Middleware,
+		RegisterLimit: middleware.NewRateLimiter(cfg.RegisterRateLimit, time.Minute, cfg.TrustedProxies...).Middleware,
 	})
 
 	srv := &http.Server{

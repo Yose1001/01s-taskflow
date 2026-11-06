@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down migrate-up migrate-down run-backend run-frontend test test-backend test-frontend test-e2e load-test lintlint-backend lint-frontend fmt
+.PHONY: help db-up db-down migrate-up migrate-down run-backend run-frontend test test-backend test-frontend test-e2e load-test lint lint-backend lint-frontend fmt docker-build prod-up prod-down smoke-test
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -50,3 +50,18 @@ lint-frontend: ## ESLint
 fmt: ## Format code
 	cd backend && gofmt -w .
 	cd frontend && pnpm format
+
+docker-build: ## Build the three container images (api, migrate, web) locally
+	docker build --target run     -t ghcr.io/yose1001/taskflow-api:dev     backend
+	docker build --target migrate -t ghcr.io/yose1001/taskflow-migrate:dev backend
+	docker build --target run     -t ghcr.io/yose1001/taskflow-web:dev     frontend
+
+prod-up: ## Run the whole system from containers on http://localhost:8088 (needs .env.prod; see docs/deployment.md)
+	@test -f .env.prod || { echo "Missing .env.prod: run 'cp env.prod.example .env.prod' and fill in the secrets"; exit 1; }
+	docker compose --env-file .env.prod -f docker-compose.prod.yml up --build -d
+
+prod-down: ## Stop the containerised system (data is kept)
+	docker compose --env-file .env.prod -f docker-compose.prod.yml down
+
+smoke-test: ## Check a running system end to end (default http://127.0.0.1:8088)
+	scripts/smoke-test.sh

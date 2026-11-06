@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -25,6 +26,9 @@ type Config struct {
 	// one address there); keep the defaults in production.
 	LoginRateLimit    int
 	RegisterRateLimit int
+	// TrustedProxies are the reverse proxies (addresses or networks) whose X-Forwarded-For header
+	// is believed when working out who the client is. Empty (the default) means never believe it.
+	TrustedProxies []netip.Prefix
 }
 
 // Load reads configuration from the environment, applying defaults
@@ -83,10 +87,33 @@ func Load() (Config, error) {
 		}
 	}
 
+	for _, entry := range splitList(os.Getenv("TRUSTED_PROXIES")) {
+		prefix, err := parseProxy(entry)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("TRUSTED_PROXIES: %q is not an IP address or network such as 10.0.0.0/8", entry))
+			continue
+		}
+		cfg.TrustedProxies = append(cfg.TrustedProxies, prefix)
+	}
+
 	if err := errors.Join(errs...); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// parseProxy accepts a single address ("10.0.0.5") or a network ("10.0.0.0/8").
+func parseProxy(s string) (netip.Prefix, error) {
+	if strings.Contains(s, "/") {
+		p, err := netip.ParsePrefix(s)
+		return p.Masked(), err
+	}
+	a, err := netip.ParseAddr(s)
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	a = a.Unmap()
+	return netip.PrefixFrom(a, a.BitLen()), nil
 }
 
 func getenv(key, fallback string) string {

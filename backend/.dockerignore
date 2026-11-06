@@ -1,0 +1,11 @@
+# Keep the build context small and never send secrets or local files into an image.
+.env
+.env.*
+bin/
+tmp/
+*.test
+*.out
+coverage.txt
+**/*_test.go
+Dockerfile
+.dockerignore
