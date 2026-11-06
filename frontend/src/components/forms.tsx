@@ -2,6 +2,7 @@ import {
   useState,
   type InputHTMLAttributes,
   type ReactNode,
+  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -93,6 +94,34 @@ export function TextAreaField({
         aria-describedby={describedBy(id, error, hint)}
         className={`${INPUT} ${error ? 'border-danger-fg' : 'border-border'}`}
       />
+    </Frame>
+  )
+}
+
+export function SelectField({
+  id,
+  label,
+  error,
+  hint,
+  children,
+  ...select
+}: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'id' | 'className'> & {
+  id: string
+  label: string
+  error?: string | undefined
+  hint?: string | undefined
+}) {
+  return (
+    <Frame id={id} label={label} error={error} hint={hint}>
+      <select
+        {...select}
+        id={id}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id, error, hint)}
+        className={`${INPUT} ${error ? 'border-danger-fg' : 'border-border'}`}
+      >
+        {children}
+      </select>
     </Frame>
   )
 }

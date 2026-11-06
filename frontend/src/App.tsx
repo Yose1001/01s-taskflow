@@ -10,6 +10,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { ProjectPage } from './pages/ProjectPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { TaskTrashPage } from './pages/TaskTrashPage'
 import { TrashPage } from './pages/TrashPage'
 import { shouldRetry } from './lib/retry'
 import { ThemeProvider } from './theme/ThemeProvider'
@@ -33,6 +34,7 @@ export function AppRoutes() {
           <Route index element={<ProjectsPage />} />
           <Route path="projects/trash" element={<TrashPage />} />
           <Route path="projects/:projectId" element={<ProjectPage />} />
+          <Route path="projects/:projectId/trash" element={<TaskTrashPage />} />
         </Route>
         {/* Open to everyone: the look-and-feel showcase */}
         <Route path="/design" element={<HomePage />} />

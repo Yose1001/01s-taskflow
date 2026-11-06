@@ -324,7 +324,9 @@ describe('project page', () => {
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument()
-    expect(await screen.findByText('Bob')).toBeInTheDocument() // the member list itself is visible
+    // the member list itself is visible
+    const members = await screen.findByRole('region', { name: 'Members' })
+    expect(await within(members).findByText('Bob')).toBeInTheDocument()
   })
 
   it('says "not found" (without retrying) for a project that is missing or not theirs', async () => {

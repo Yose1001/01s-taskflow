@@ -14,6 +14,7 @@ import { useToast } from '../components/toast'
 import { keys, useDeleteProject, useProject } from '../features/projects/hooks'
 import { MembersSection } from '../features/projects/MembersSection'
 import { ProjectFormDialog } from '../features/projects/ProjectFormDialog'
+import { TaskBoard } from '../features/tasks/TaskBoard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate } from '../lib/format'
 
@@ -96,10 +97,7 @@ export function ProjectPage() {
         )}
       </header>
 
-      <section className="rounded-2xl border border-dashed border-border bg-surface p-5">
-        <h2 className="text-lg font-semibold">{t('projects.tasksTitle')}</h2>
-        <p className="mt-1 text-muted">{t('projects.boardSoon')}</p>
-      </section>
+      <TaskBoard projectId={p.id} />
 
       <MembersSection projectId={p.id} isOwner={isOwner} />
 
