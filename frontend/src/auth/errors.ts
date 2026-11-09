@@ -34,6 +34,13 @@ export const KNOWN_FIELD_CODES = [
   'invalid_assignee',
   'not_a_member',
   'invalid_date',
+  'end_before_start',
+  'too_many_assignees',
+  'invalid_subtask_title',
+  'too_many_subtasks',
+  'hold_reason_required',
+  'hold_reason_too_long',
+  'not_on_hold',
 ] as const
 
 const known = new Set<string>(KNOWN_ERROR_CODES)

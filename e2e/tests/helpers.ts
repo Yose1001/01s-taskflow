@@ -75,9 +75,12 @@ export async function inviteViaApi(
 
 export interface TaskSeed {
   title: string
-  status?: 'todo' | 'in_progress' | 'review' | 'done'
+  status?: 'todo' | 'in_progress' | 'review' | 'on_hold' | 'done'
   priority?: 'low' | 'medium' | 'high'
-  assigneeId?: string
+  holdReason?: string
+  assigneeIds?: string[]
+  subtasks?: string[]
+  startDate?: string
   dueDate?: string
 }
 
@@ -106,7 +109,7 @@ export async function boardOnServer(
   })
   expect(res.status()).toBe(200)
   const { items } = (await res.json()) as { items: Array<{ title: string; status: string }> }
-  const columns: Record<string, string[]> = { todo: [], in_progress: [], review: [], done: [] }
+  const columns: Record<string, string[]> = { todo: [], in_progress: [], review: [], on_hold: [], done: [] }
   for (const t of items) columns[t.status]!.push(t.title) // the API returns them in board order
   return columns
 }
@@ -122,7 +125,7 @@ export async function submitLogin(page: Page, person: Person): Promise<void> {
 export async function loginViaUi(page: Page, person: Person): Promise<void> {
   await page.goto('/login')
   await submitLogin(page, person)
-  await expect(page.getByRole('heading', { level: 1, name: `Hello, ${person.name}` })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: `Hello, ${person.email}` })).toBeVisible()
 }
 
 /**
@@ -147,4 +150,13 @@ export async function titlesIn(page: Page, column: RegExp | string): Promise<str
   const region = page.getByRole('region', { name: column })
   // The card title is the only button in a card without an aria-label (the drag handle has one).
   return region.locator('li button:not([aria-label])').allTextContents()
+}
+
+/** Chooses a day in the calendar of the date field with this label. */
+export async function pickDay(page: Page, label: string, day: string): Promise<void> {
+  await page.getByLabel(label, { exact: true }).click()
+  const calendar = page.getByRole('dialog', { name: label })
+  await calendar.getByLabel('Year', { exact: true }).selectOption(day.slice(0, 4))
+  await calendar.getByLabel('Month', { exact: true }).selectOption(String(Number(day.slice(5, 7)) - 1))
+  await calendar.locator(`[data-day="${day}"]`).click()
 }

@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
+  pickDay,
   boardOnServer,
   createProjectViaApi,
   createTaskViaApi,
@@ -10,7 +11,7 @@ import {
   titlesIn,
 } from './helpers'
 
-// A wide and tall window: the four columns sit side by side like on a real desktop, and the whole board
+// A wide and tall window: the five columns sit side by side like on a real desktop, and the whole board
 // is on screen, so the page never scrolls by itself during a drag (which would move the drop target).
 test.use({ viewport: { width: 1400, height: 1300 } })
 
@@ -19,6 +20,7 @@ const handle = (page: Page, title: string) => page.getByRole('button', { name: `
 
 /** Drags with a real mouse: press, wiggle a little (so it counts as a drag), glide to the target, release. */
 async function dragWithMouse(page: Page, from: Locator, to: Locator, where: 'top' | 'middle' | 'bottom' = 'middle') {
+  await from.hover() // waits until it has stopped moving: cards slide up when the one above them leaves
   const a = (await from.boundingBox())!
   const b = (await to.boundingBox())!
   const targetY = where === 'top' ? b.y + 6 : where === 'bottom' ? b.y + b.height - 6 : b.y + b.height / 2
@@ -48,7 +50,7 @@ async function setUpBoard(page: Page, request: Parameters<typeof newUser>[0]) {
 }
 
 test.describe('the task board', () => {
-  test('shows the tasks in four columns, in order', async ({ page, request }) => {
+  test('shows the tasks in five columns, in order', async ({ page, request }) => {
     await setUpBoard(page, request)
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Draw logo', 'Write copy', 'Pick colors'])
     await expect.poll(() => titlesIn(page, /^In progress/)).toEqual(['Build header'])
@@ -74,6 +76,22 @@ test.describe('the task board', () => {
     await expect(page.getByRole('region', { name: /^In review, 2/ })).toBeVisible()
     await expect.poll(() => titlesIn(page, /^In review/)).toEqual(['Review checkout', 'Write copy'])
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Draw logo', 'Pick colors'])
+  })
+
+  test('with a mouse a card can be picked up anywhere on it, and that does not open it', async ({ page, request }) => {
+    await setUpBoard(page, request)
+    const review = page.getByRole('region', { name: /^In review/ }).getByRole('list')
+
+    // By its title...
+    await dragWithMouse(page, card(page, 'Write copy'), review, 'bottom')
+    await expect.poll(() => titlesIn(page, /^In review/)).toEqual(['Review checkout', 'Write copy'])
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    // ...and by the row at the bottom of the card, which is not a button at all.
+    const bottomRow = page.getByRole('listitem').filter({ hasText: 'Pick colors' }).getByText('Unassigned').first()
+    await dragWithMouse(page, bottomRow, review, 'bottom')
+    await expect.poll(() => titlesIn(page, /^In review/)).toEqual(['Review checkout', 'Write copy', 'Pick colors'])
+    await expect(page.getByRole('dialog')).toHaveCount(0)
   })
 
   test('dragging onto the top of a card in another column puts it in front of that card', async ({
@@ -107,6 +125,7 @@ test.describe('the task board', () => {
     await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Build header" is over In review.')
     await page.keyboard.press('Space') // drop
     await expect(page.locator('[id^="DndLiveRegion"]')).toContainText('"Build header" dropped in In review.')
+    await expect(page.getByRole('dialog')).toHaveCount(0) // moving a card does not open it
 
     await expect.poll(() => titlesIn(page, /^In review/)).toContain('Build header')
     await expect
@@ -122,6 +141,23 @@ test.describe('the task board', () => {
     await page.keyboard.press('ArrowLeft')
     await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Build header" is over To do.')
     await page.keyboard.press('Escape')
+  })
+
+  test('a column can be sorted, which changes the view but not the arranged order', async ({ page, request }) => {
+    const { token, projectId } = await setUpBoard(page, request)
+    const before = (await boardOnServer(request, token, projectId)).todo!
+
+    await page.getByRole('button', { name: /^Sort To do/ }).click()
+    await page.getByRole('menuitemradio', { name: 'Newest first' }).click()
+    await expect.poll(() => titlesIn(page, /^To do/)).toEqual([...before].reverse())
+    expect((await boardOnServer(request, token, projectId)).todo).toEqual(before)
+
+    await page.reload() // remembered on this device
+    await expect.poll(() => titlesIn(page, /^To do/)).toEqual([...before].reverse())
+
+    await page.getByRole('button', { name: /^Sort To do/ }).click()
+    await page.getByRole('menuitemradio', { name: 'My order' }).click()
+    await expect.poll(() => titlesIn(page, /^To do/)).toEqual(before)
   })
 
   test('Escape cancels a keyboard drag and nothing moves', async ({ page, request }) => {
@@ -148,13 +184,13 @@ test.describe('the task board', () => {
   }) => {
     await setUpBoard(page, request)
 
-    // Create, starting in the "In review" column from its + button
-    await page.getByRole('button', { name: 'Add a task to In review' }).click()
+    // Create, choosing the "In review" column in the form
+    await page.getByRole('button', { name: 'New task' }).click()
     const create = page.getByRole('dialog', { name: 'New task' })
-    await expect(create.getByLabel('Column')).toHaveValue('review')
+    await create.getByLabel('Column').selectOption('review')
     await create.getByLabel('Title').fill('  ทดสอบระบบสั่งซื้อ  ')
     await create.getByLabel('Priority').selectOption('High')
-    await create.getByLabel('Due date (optional)').fill('2020-01-02')
+    await pickDay(page, 'End date (optional)', `${new Date().getFullYear() - 1}-01-02`)
     await create.getByRole('button', { name: 'Create task' }).click()
     await expect(page.getByText('Task created.')).toBeVisible()
     await expect.poll(() => titlesIn(page, /^In review/)).toEqual(['Review checkout', 'ทดสอบระบบสั่งซื้อ'])

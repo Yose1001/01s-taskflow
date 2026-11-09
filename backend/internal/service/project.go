@@ -30,7 +30,7 @@ var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[
 type ProjectStore interface {
 	CreateProject(ctx context.Context, ownerID, name, description string) (model.Project, error)
 	GetProject(ctx context.Context, projectID, userID string) (model.Project, error)
-	ListActive(ctx context.Context, userID string, limit, offset int) ([]model.Project, int, error)
+	ListActive(ctx context.Context, userID, sort string, limit, offset int) ([]model.Project, int, error)
 	ListTrashed(ctx context.Context, userID string, cutoff time.Time, limit, offset int) ([]model.Project, int, error)
 	UpdateProject(ctx context.Context, projectID string, patch model.ProjectPatch, at time.Time) error
 	SoftDeleteProject(ctx context.Context, projectID, deletedBy string, at time.Time) error
@@ -88,8 +88,16 @@ func (s *Projects) Create(ctx context.Context, userID, name, description string)
 	return s.store.CreateProject(ctx, userID, name, description)
 }
 
+// projectSorts are the orders the project list can be asked for. The trash has one order only and ignores this.
+var projectSorts = []string{
+	model.ProjectSortNewest, model.ProjectSortOldest, model.ProjectSortProgressHigh, model.ProjectSortProgressLow,
+}
+
 // List returns the user's active projects, or (trashed=true) the projects they own that can still be restored.
-func (s *Projects) List(ctx context.Context, userID string, trashed bool, page, pageSize int) (Page, error) {
+func (s *Projects) List(ctx context.Context, userID string, trashed bool, sort string, page, pageSize int) (Page, error) {
+	if sort != "" && !contains(projectSorts, sort) {
+		return Page{}, &ValidationError{Fields: map[string]string{"sort": "invalid_sort"}}
+	}
 	limit, offset := paging(page, pageSize)
 	var (
 		items []model.Project
@@ -99,7 +107,7 @@ func (s *Projects) List(ctx context.Context, userID string, trashed bool, page, 
 	if trashed {
 		items, total, err = s.store.ListTrashed(ctx, userID, s.cutoff(), limit, offset)
 	} else {
-		items, total, err = s.store.ListActive(ctx, userID, limit, offset)
+		items, total, err = s.store.ListActive(ctx, userID, sort, limit, offset)
 	}
 	if err != nil {
 		return Page{}, err

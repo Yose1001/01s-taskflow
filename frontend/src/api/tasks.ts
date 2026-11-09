@@ -1,5 +1,5 @@
 import type { RequestFn } from './client'
-import type { Page, Task, TaskPriority, TaskStatus } from './types'
+import type { Page, Subtask, Task, TaskPriority, TaskStatus } from './types'
 
 // One function per task endpoint in docs/openapi.yaml.
 const id = encodeURIComponent
@@ -14,12 +14,17 @@ export interface TaskInput {
   description?: string
   status?: TaskStatus
   priority?: TaskPriority
-  assigneeId?: string | null
+  /** Needed when the task is on hold. */
+  holdReason?: string
+  assigneeIds?: string[]
+  /** Titles, in order. Only when creating: afterwards each subtask changes on its own. */
+  subtasks?: string[]
+  startDate?: string | null
   dueDate?: string | null
 }
 
 /** status cannot be changed here; use moveTask. */
-export type TaskPatch = Partial<Omit<TaskInput, 'status'>>
+export type TaskPatch = Partial<Omit<TaskInput, 'status' | 'subtasks'>>
 
 function listTasks(
   request: RequestFn,
@@ -65,15 +70,43 @@ export function restoreTask(request: RequestFn, taskId: string): Promise<Task> {
   return request<Task>(`/tasks/${id(taskId)}/restore`, { method: 'POST' })
 }
 
-/** Put a task in a column, before another task (null = at the end of the column). */
+export function addSubtask(request: RequestFn, taskId: string, title: string): Promise<Subtask> {
+  return request<Subtask>(`/tasks/${id(taskId)}/subtasks`, { method: 'POST', body: { title } })
+}
+
+export function updateSubtask(
+  request: RequestFn,
+  taskId: string,
+  subtaskId: string,
+  patch: Partial<Pick<Subtask, 'title' | 'done'>>,
+): Promise<Subtask> {
+  return request<Subtask>(`/tasks/${id(taskId)}/subtasks/${id(subtaskId)}`, {
+    method: 'PATCH',
+    body: patch,
+  })
+}
+
+export function deleteSubtask(
+  request: RequestFn,
+  taskId: string,
+  subtaskId: string,
+): Promise<void> {
+  return request<void>(`/tasks/${id(taskId)}/subtasks/${id(subtaskId)}`, { method: 'DELETE' })
+}
+
+/**
+ * Put a task in a column, before another task (null = at the end of the column). Going on hold needs a reason;
+ * a task that is already on hold keeps its own, and any other column clears it.
+ */
 export function moveTask(
   request: RequestFn,
   taskId: string,
   status: TaskStatus,
   beforeTaskId: string | null,
+  holdReason?: string,
 ): Promise<Task> {
   return request<Task>(`/tasks/${id(taskId)}/move`, {
     method: 'POST',
-    body: { status, beforeTaskId },
+    body: { status, beforeTaskId, ...(holdReason !== undefined && { holdReason }) },
   })
 }

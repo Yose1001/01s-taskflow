@@ -4,12 +4,14 @@ import { formatDay } from '../../lib/format'
 import {
   NO_FILTERS,
   applyMove,
+  assigneesOf,
   byColumn,
   columnId,
   dropTarget,
   droppedOnLowerHalf,
   filterTasks,
   hasFilters,
+  holdReasonError,
   isOverdue,
   today,
 } from './boardLogic'
@@ -26,7 +28,7 @@ const tasks = [
 ]
 
 describe('byColumn()', () => {
-  it('splits into the four columns and orders each by position', () => {
+  it('splits into the five columns and orders each by position', () => {
     const columns = byColumn(tasks)
     expect(columns.todo.map((t) => t.id)).toEqual(['t1', 't2', 't3'])
     expect(columns.in_progress.map((t) => t.id)).toEqual(['p1'])
@@ -43,9 +45,9 @@ describe('byColumn()', () => {
 
 describe('filterTasks()', () => {
   const list = [
-    task('a', 'Fix Login bug', { priority: 'high', assigneeId: A }),
-    task('b', 'Write docs', { priority: 'low', assigneeId: B }),
-    task('c', 'Plan login page', { priority: 'high', assigneeId: null }),
+    task('a', 'Fix Login bug', { priority: 'high', assigneeIds: [A] }),
+    task('b', 'Write docs', { priority: 'low', assigneeIds: [B] }),
+    task('c', 'Plan login page', { priority: 'high', assigneeIds: [] }),
   ]
   const ids = (f: Partial<typeof NO_FILTERS>) =>
     filterTasks(list, { ...NO_FILTERS, ...f }).map((t) => t.id)
@@ -243,5 +245,69 @@ describe('due dates', () => {
     expect(formatDay('2026-12-01', 'th')).toMatch(/1.*2569/)
     expect(formatDay('not a date', 'en')).toBe('')
     expect(formatDay('2026-13-45', 'en')).toBe('')
+  })
+})
+
+describe('several assignees', () => {
+  const shared = task('s', 'Shared', { assigneeIds: [B, A] })
+  const nameOf = new Map([
+    [A, 'zoe@example.com'],
+    [B, 'amy@example.com'],
+  ])
+
+  it('filters a shared task in under each of its people, and never as unassigned', () => {
+    const count = (assignee: string) => filterTasks([shared], { ...NO_FILTERS, assignee }).length
+    expect(count(A)).toBe(1)
+    expect(count(B)).toBe(1)
+    expect(count('someone-else')).toBe(0)
+    expect(count('none')).toBe(0)
+  })
+
+  it('names the people on a task in alphabetical order', () => {
+    expect(assigneesOf(shared, nameOf)).toEqual([
+      { id: B, name: 'amy@example.com' },
+      { id: A, name: 'zoe@example.com' },
+    ])
+  })
+
+  it('leaves out people whose names are not known yet', () => {
+    expect(assigneesOf(shared, new Map())).toEqual([])
+    expect(assigneesOf(shared, new Map([[A, 'zoe@example.com']]))).toEqual([
+      { id: A, name: 'zoe@example.com' },
+    ])
+  })
+})
+
+describe('holdReasonError()', () => {
+  it('needs a reason, and limits its length in letters', () => {
+    expect(holdReasonError('')).toBe('hold_reason_required')
+    expect(holdReasonError('   ')).toBe('hold_reason_required')
+    expect(holdReasonError('Waiting for the other team')).toBeNull()
+    expect(holdReasonError('ก'.repeat(500))).toBeNull()
+    expect(holdReasonError(` ${'ก'.repeat(500)} `)).toBeNull()
+    expect(holdReasonError('ก'.repeat(501))).toBe('hold_reason_too_long')
+  })
+})
+
+describe('applyMove() and the hold reason', () => {
+  const held = task('h', 'Held', { status: 'on_hold', holdReason: 'waiting' })
+
+  it('sets the reason when going on hold', () => {
+    const [moved] = applyMove([task('t', 'T')], {
+      taskId: 't',
+      status: 'on_hold',
+      beforeTaskId: null,
+      holdReason: 'because',
+    })
+    expect(moved).toMatchObject({ status: 'on_hold', holdReason: 'because' })
+  })
+
+  it('keeps the reason when re-ordering inside the column, and clears it when leaving', () => {
+    expect(
+      applyMove([held], { taskId: 'h', status: 'on_hold', beforeTaskId: null })[0]!.holdReason,
+    ).toBe('waiting')
+    expect(
+      applyMove([held], { taskId: 'h', status: 'done', beforeTaskId: null })[0]!.holdReason,
+    ).toBeNull()
   })
 })

@@ -64,7 +64,9 @@ describe('login', () => {
 
     await logIn(user)
 
-    expect(await screen.findByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Hello, alice@example.com' }),
+    ).toBeInTheDocument()
     expect(api.to('POST /auth/login')[0]!.body).toEqual({
       email: 'alice@example.com',
       password: 'correct horse',
@@ -81,7 +83,7 @@ describe('login', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
 
     expect(allBrowserStorage()).not.toContain(TOKEN)
     expect(allBrowserStorage()).not.toContain('correct horse') // nor the password
@@ -92,7 +94,7 @@ describe('login', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user, '  alice@example.com  ')
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     expect((api.to('POST /auth/login')[0]!.body as { email: string }).email).toBe(
       'alice@example.com',
     )
@@ -104,7 +106,7 @@ describe('login', () => {
     renderApp(<AppRoutes />, { route: '/login' })
     await user.type(screen.getByLabelText('Email'), 'alice@example.com')
     await user.type(screen.getByLabelText('Password'), 'correct horse{Enter}')
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     expect(api.to('POST /auth/login')).toHaveLength(1)
   })
 
@@ -182,7 +184,7 @@ describe('login', () => {
     expect(button).toBeDisabled()
     expect(button).toHaveAttribute('aria-busy', 'true')
     release()
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     expect(api.to('POST /auth/login')).toHaveLength(1)
   })
 
@@ -225,7 +227,9 @@ describe('login', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    expect(await screen.findByRole('heading', { name: 'สวัสดี อลิซ' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'สวัสดี alice@example.com' }),
+    ).toBeInTheDocument()
     expect(html()).toHaveAttribute('lang', 'th')
     expect(html()).toHaveAttribute('data-theme', 'dark')
   })
@@ -235,7 +239,9 @@ describe('login', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login?next=https://evil.example.com' })
     await logIn(user)
-    expect(await screen.findByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Hello, alice@example.com' }),
+    ).toBeInTheDocument()
   })
 
   it('keeps a signed-in user out of the login page', async () => {
@@ -243,9 +249,9 @@ describe('login', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     await user.click(screen.getByRole('link', { name: 'TaskFlow' }))
-    expect(screen.getByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Hello, alice@example.com' })).toBeInTheDocument()
   })
 })
 
@@ -255,12 +261,12 @@ describe('logout and session end', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
 
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
     await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument()
-    expect(screen.queryByText('Alice')).not.toBeInTheDocument()
+    expect(screen.queryByText('alice@example.com')).not.toBeInTheDocument()
     // The top bar offers Log in / Sign up again instead of the name and Log out.
     const topBar = within(screen.getByRole('banner'))
     expect(topBar.getByRole('link', { name: 'Sign up' })).toBeInTheDocument()
@@ -281,7 +287,7 @@ describe('logout and session end', () => {
     await screen.findByRole('heading', { level: 1, name: 'Log in' })
     await logIn(user)
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Hello, Alice' }),
+      await screen.findByRole('heading', { level: 1, name: 'Hello, alice@example.com' }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 1, name: 'Trash' })).not.toBeInTheDocument()
   })
@@ -304,7 +310,7 @@ describe('logout and session end', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
 
     await user.click(screen.getByRole('button', { name: 'Switch to dark theme' })) // triggers an authenticated call
     expect(await screen.findByText('Your session ended. Please log in again.')).toBeInTheDocument()
@@ -321,9 +327,9 @@ describe('logout and session end', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     await waitFor(() => expect(api.to('POST /auth/refresh')).toHaveLength(1), { timeout: 4000 })
-    expect(screen.getByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Hello, alice@example.com' })).toBeInTheDocument()
     expect(screen.queryByText('Your session ended. Please log in again.')).not.toBeInTheDocument()
   })
 
@@ -336,7 +342,7 @@ describe('logout and session end', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     await waitFor(
       () =>
         expect(screen.getByText('Your session ended. Please log in again.')).toBeInTheDocument(),
@@ -365,7 +371,7 @@ describe('logout and session end', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
     await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     await waitFor(() => expect(api.to('POST /auth/logout')).toHaveLength(1))
@@ -379,15 +385,18 @@ describe('the account menu', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
-    // The email lives in the menu now, not on the page.
-    expect(screen.queryByText('alice@example.com')).not.toBeInTheDocument()
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
+    // People are shown by the email they log in with: the display name appears nowhere.
+    expect(screen.queryByText(/Alice/)).not.toBeInTheDocument()
 
     const button = screen.getByRole('button', { name: 'Account menu' })
     expect(button).toHaveAttribute('aria-haspopup', 'menu')
     await user.click(button)
+    expect(screen.getByText('Signed in as')).toBeInTheDocument()
     expect(screen.getByText('alice@example.com')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Log out' })).toHaveFocus()
+    const logOut = screen.getByRole('menuitem', { name: 'Log out' })
+    expect(logOut).toHaveFocus()
+    expect(logOut.querySelector('svg')).toHaveAttribute('aria-hidden', 'true') // an icon, and text says it too
 
     await user.keyboard('{Escape}')
     expect(button).toHaveFocus()
@@ -424,7 +433,9 @@ describe('staying signed in after a reload', () => {
     expect(screen.getByText('Signing you back in...')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Log in' })).not.toBeInTheDocument()
     release()
-    expect(await screen.findByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Hello, alice@example.com' }),
+    ).toBeInTheDocument()
   })
 
   it('goes to the login page when the session is gone, and stops trying', async () => {
@@ -450,7 +461,7 @@ describe('saving language and theme to the account', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
 
     await user.click(screen.getByRole('button', { name: 'Switch to dark theme' }))
     await waitFor(() => expect(api.to('PATCH /me')).toHaveLength(1))
@@ -463,7 +474,7 @@ describe('saving language and theme to the account', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
 
     await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
     await waitFor(() => expect(api.to('PATCH /me')).toHaveLength(1))
@@ -485,10 +496,10 @@ describe('saving language and theme to the account', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     await user.click(screen.getByRole('button', { name: 'Switch to dark theme' }))
     expect(html()).toHaveAttribute('data-theme', 'dark')
-    expect(screen.getByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument() // still signed in
+    expect(screen.getByRole('heading', { name: 'Hello, alice@example.com' })).toBeInTheDocument() // still signed in
   })
 })
 
@@ -540,7 +551,7 @@ describe('sign up', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/register' })
     await fillSignup(user)
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     expect(allBrowserStorage()).not.toContain(TOKEN)
     expect(allBrowserStorage()).not.toContain('correct horse')
   })
@@ -576,7 +587,7 @@ describe('sign up', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/register' })
     await fillSignup(user, 'ก'.repeat(24))
-    await screen.findByRole('heading', { name: 'Hello, Alice' })
+    await screen.findByRole('heading', { name: 'Hello, alice@example.com' })
     expect(api.to('POST /auth/register')).toHaveLength(1)
   })
 
@@ -599,7 +610,9 @@ describe('sign up', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/register' })
     await fillSignup(user)
-    expect(await screen.findByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Hello, alice@example.com' }),
+    ).toBeInTheDocument()
   })
 
   it('uses new-password autocomplete', () => {

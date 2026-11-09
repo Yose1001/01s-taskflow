@@ -16,7 +16,8 @@ test.describe('projects', () => {
     await expect(page.getByText(/Owner$/).first()).toBeVisible() // the badge (also in the member list)
 
     // Edit
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'More actions' }).click()
+    await page.getByRole('menuitem', { name: 'Edit project' }).click()
     const edit = page.getByRole('dialog', { name: 'Edit project' })
     await expect(edit.getByLabel('Project name')).toHaveValue('เว็บไซต์ร้านกาแฟ') // trimmed
     await edit.getByLabel('Project name').fill('Coffee shop site')

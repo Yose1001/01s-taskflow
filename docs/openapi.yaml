@@ -163,6 +163,10 @@ paths:
       summary: รายการโปรเจกต์ที่ฉันเป็นสมาชิก (trashed=true = ถังขยะ เฉพาะที่ฉันเป็น Owner)
       parameters:
         - { name: trashed, in: query, schema: { type: boolean, default: false } }
+        - name: sort
+          in: query
+          description: การเรียง โปรเจกต์ที่ไม่มีงานจะอยู่ท้ายสุดเมื่อเรียงตามความคืบหน้า ถังขยะไม่ใช้ค่านี้
+          schema: { type: string, enum: [newest, oldest, progress_high, progress_low], default: newest }
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -308,7 +312,7 @@ paths:
       tags: [Tasks]
       summary: รายการงานในโปรเจกต์ (กรองได้; trashed=true = ถังขยะของโปรเจกต์)
       description: |
-        เรียงตามคอลัมน์ (todo, in_progress, review, done) แล้วตาม `position` ในคอลัมน์นั้น
+        เรียงตามคอลัมน์ (todo, in_progress, review, on_hold, done) แล้วตาม `position` ในคอลัมน์นั้น
         (`position` ใช้เทียบได้เฉพาะภายในคอลัมน์เดียวกัน) ถังขยะเรียงตามเวลาที่ลบ ใหม่สุดก่อน
         ค้นหา `q` เป็นการหาข้อความในชื่อ ไม่สนตัวพิมพ์เล็ก/ใหญ่ และอักขระ `%` `_` ถือเป็นตัวอักษรธรรมดา
       parameters:
@@ -389,7 +393,7 @@ paths:
     post:
       tags: [Tasks]
       summary: กู้คืนงานจากถังขยะ (สมาชิกทุกคน ภายใน 30 วัน)
-      description: ถ้าผู้รับผิดชอบเดิมไม่ได้เป็นสมาชิกแล้ว `assigneeId` จะถูกล้างเป็น null
+      description: ผู้รับผิดชอบที่ไม่ได้เป็นสมาชิกแล้วจะไม่อยู่ใน `assigneeIds`
       parameters:
         - $ref: "#/components/parameters/TaskId"
       responses:
@@ -409,6 +413,8 @@ paths:
         และต้องไม่ใช่งานนี้เอง มิฉะนั้นคืน 422 (`fields.beforeTaskId` = `invalid_before_task`)
         ถ้าส่ง null หรือไม่ส่ง งานจะไปอยู่ท้ายคอลัมน์
         สถานะ (`status`) เปลี่ยนได้ทางนี้เท่านั้น ส่ง `status` ผ่าน PATCH จะถูกปฏิเสธ (400)
+        ย้ายเข้า `on_hold` ต้องส่ง `holdReason` (มิฉะนั้นคืน 422) งานที่พักอยู่แล้วเรียงลำดับใหม่ได้โดยไม่ต้องส่ง
+        ย้ายไปคอลัมน์อื่นจะล้างสาเหตุออก
       parameters:
         - $ref: "#/components/parameters/TaskId"
       requestBody:
@@ -425,6 +431,11 @@ paths:
                   format: uuid
                   nullable: true
                   description: วางหน้างานนี้ (null = ท้ายคอลัมน์)
+                holdReason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                  description: สาเหตุที่พักงาน
       responses:
         "200":
           description: OK
@@ -433,6 +444,61 @@ paths:
               schema: { $ref: "#/components/schemas/Task" }
         "404": { $ref: "#/components/responses/NotFound" }
         "422": { $ref: "#/components/responses/Validation" }
+  /tasks/{taskId}/subtasks:
+    post:
+      tags: [Tasks]
+      summary: เพิ่มรายการย่อยไว้ท้ายรายการของงาน (งานละไม่เกิน 100 รายการ)
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Subtask" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /tasks/{taskId}/subtasks/{subtaskId}:
+    parameters:
+      - $ref: "#/components/parameters/TaskId"
+      - { name: subtaskId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Tasks]
+      summary: แก้ชื่อรายการย่อย หรือติ๊กว่าทำแล้ว/ยังไม่ทำ
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+                done: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Subtask" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+    delete:
+      tags: [Tasks]
+      summary: ลบรายการย่อยถาวร (รายการย่อยไม่มีถังขยะของตัวเอง)
+      responses:
+        "204": { description: ลบแล้ว }
+        "404": { $ref: "#/components/responses/NotFound" }
 
 components:
   securitySchemes:
@@ -578,10 +644,16 @@ components:
         joinedAt: { type: string, format: date-time }
     TaskStatus:
       type: string
-      enum: [todo, in_progress, review, done]
+      enum: [todo, in_progress, review, on_hold, done]
     Priority:
       type: string
       enum: [low, medium, high]
+    Subtask:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        done: { type: boolean }
     Task:
       type: object
       properties:
@@ -591,9 +663,19 @@ components:
         description: { type: string }
         status: { $ref: "#/components/schemas/TaskStatus" }
         priority: { $ref: "#/components/schemas/Priority" }
-        assigneeId: { type: string, format: uuid, nullable: true }
+        holdReason:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: สาเหตุที่พักงาน มีค่าเมื่อ status เป็น on_hold เท่านั้น
+        assigneeIds: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+        subtasks:
+          type: array
+          description: รายการย่อยตามลำดับ
+          items: { $ref: "#/components/schemas/Subtask" }
         createdBy: { type: string, format: uuid }
-        dueDate: { type: string, format: date, nullable: true }
+        startDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true, description: วันที่สิ้นสุดงาน ต้องไม่อยู่ก่อน startDate }
         position: { type: number, format: double }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -611,8 +693,15 @@ components:
         description: { type: string, maxLength: 5000 }
         status: { $ref: "#/components/schemas/TaskStatus" }
         priority: { $ref: "#/components/schemas/Priority" }
-        assigneeId: { type: string, format: uuid, nullable: true }
-        dueDate: { type: string, format: date, nullable: true }
+        holdReason: { type: string, minLength: 1, maxLength: 500, description: จำเป็นเมื่อ status เป็น on_hold }
+        assigneeIds: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+        subtasks:
+          type: array
+          maxItems: 100
+          description: ชื่อรายการย่อยตั้งต้นตามลำดับ
+          items: { type: string, minLength: 1, maxLength: 200 }
+        startDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true, description: วันที่สิ้นสุดงาน ต้องไม่อยู่ก่อน startDate }
     TaskPatch:
       type: object
       minProperties: 1
@@ -620,8 +709,10 @@ components:
         title: { type: string, minLength: 1, maxLength: 200 }
         description: { type: string, maxLength: 5000 }
         priority: { $ref: "#/components/schemas/Priority" }
-        assigneeId: { type: string, format: uuid, nullable: true }
-        dueDate: { type: string, format: date, nullable: true }
+        holdReason: { type: string, minLength: 1, maxLength: 500, description: แก้ได้เฉพาะงานที่พักอยู่ }
+        assigneeIds: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+        startDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true, description: วันที่สิ้นสุดงาน ต้องไม่อยู่ก่อน startDate }
 
 security:
   - bearerAuth: []

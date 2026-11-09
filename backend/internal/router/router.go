@@ -74,6 +74,9 @@ func New(d Deps) http.Handler {
 		mux.Handle("DELETE /api/v1/tasks/{taskId}", authn(http.HandlerFunc(t.Delete)))
 		mux.Handle("POST /api/v1/tasks/{taskId}/restore", authn(http.HandlerFunc(t.Restore)))
 		mux.Handle("POST /api/v1/tasks/{taskId}/move", authn(http.HandlerFunc(t.Move)))
+		mux.Handle("POST /api/v1/tasks/{taskId}/subtasks", authn(http.HandlerFunc(t.AddSubtask)))
+		mux.Handle("PATCH /api/v1/tasks/{taskId}/subtasks/{subtaskId}", authn(http.HandlerFunc(t.UpdateSubtask)))
+		mux.Handle("DELETE /api/v1/tasks/{taskId}/subtasks/{subtaskId}", authn(http.HandlerFunc(t.DeleteSubtask)))
 	}
 	return mux
 }

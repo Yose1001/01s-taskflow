@@ -9,6 +9,7 @@ const STATUS_STYLE: Record<TaskStatus, { icon: IconName; classes: string }> = {
   todo: { icon: 'circle', classes: 'bg-primary-bg text-primary-fg' },
   in_progress: { icon: 'half-circle', classes: 'bg-sky-bg text-sky-fg' },
   review: { icon: 'eye', classes: 'bg-peach-bg text-peach-fg' },
+  on_hold: { icon: 'pause', classes: 'bg-lemon-bg text-lemon-fg' },
   done: { icon: 'check-circle', classes: 'bg-mint-bg text-mint-fg' },
 }
 

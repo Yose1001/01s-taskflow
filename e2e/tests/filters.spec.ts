@@ -21,7 +21,7 @@ test.describe('search and filters', () => {
     const bob = await newUser(request, 'Bob')
     const projectId = await createProjectViaApi(request, alice.token, 'Studio')
     const bobId = await inviteViaApi(request, alice.token, projectId, bob.person.email)
-    await createTaskViaApi(request, alice.token, projectId, { title: 'Fix Login bug', priority: 'high', assigneeId: bobId })
+    await createTaskViaApi(request, alice.token, projectId, { title: 'Fix Login bug', priority: 'high', assigneeIds: [bobId] })
     await createTaskViaApi(request, alice.token, projectId, { title: 'Write docs', priority: 'low' })
     await createTaskViaApi(request, alice.token, projectId, { title: 'Plan login page', priority: 'high', status: 'review' })
     await createTaskViaApi(request, alice.token, projectId, { title: '100% done', status: 'done' })
@@ -44,7 +44,7 @@ test.describe('search and filters', () => {
 
     // Priority and person narrow it further
     await page.getByLabel('Priority').selectOption('High')
-    await page.getByLabel('Assigned to', { exact: true }).selectOption('Bob')
+    await page.getByLabel('Assigned to', { exact: true }).selectOption(bob.person.email)
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Fix Login bug'])
     await expect.poll(() => titlesIn(page, /^In review/)).toEqual([])
     await expect(page.getByText('Showing 1 of 4 tasks')).toBeVisible()

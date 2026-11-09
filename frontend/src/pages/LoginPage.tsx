@@ -6,6 +6,7 @@ import { ApiError } from '../api/client'
 import { useAuth } from '../auth/context'
 import { errorMessage, fieldErrorMessage } from '../auth/errors'
 import { Alert, Button, PasswordField, TextField } from '../components/forms'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -13,6 +14,7 @@ type Errors = Partial<Record<'email' | 'password', string>>
 
 export function LoginPage() {
   const { t } = useTranslation()
+  useDocumentTitle(t('auth.loginTitle'))
   const { login, sessionExpired } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

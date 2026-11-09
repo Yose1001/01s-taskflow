@@ -60,9 +60,27 @@ func (r *ProjectRepo) GetProject(ctx context.Context, projectID, userID string) 
 	return p, mapNotFound(err)
 }
 
-// ListActive returns the user's non-deleted projects, newest first, and the total count.
-func (r *ProjectRepo) ListActive(ctx context.Context, userID string, limit, offset int) ([]model.Project, int, error) {
-	return r.list(ctx, `WHERE m.user_id = $1::uuid AND p.deleted_at IS NULL`, []any{userID}, `p.created_at DESC, p.id`, limit, offset)
+// projectProgress is the share of a project's active tasks that are done. It is NULL when there are no tasks.
+const projectProgress = `(SELECT count(*) FILTER (WHERE t.status = 'done')::float8 / NULLIF(count(*), 0)
+	FROM tasks t WHERE t.project_id = p.id AND t.deleted_at IS NULL)`
+
+// projectOrders are the only ways to sort, as constant SQL: what the client sends only picks one of them.
+// A project with no tasks has no progress to compare, so it goes last both ways.
+var projectOrders = map[string]string{
+	model.ProjectSortNewest:       `p.created_at DESC, p.id`,
+	model.ProjectSortOldest:       `p.created_at, p.id`,
+	model.ProjectSortProgressHigh: projectProgress + ` DESC NULLS LAST, p.created_at DESC, p.id`,
+	model.ProjectSortProgressLow:  projectProgress + ` ASC NULLS LAST, p.created_at DESC, p.id`,
+}
+
+// ListActive returns one page of the user's non-deleted projects in the given order, and the total count.
+// An order it does not know counts as the newest first.
+func (r *ProjectRepo) ListActive(ctx context.Context, userID, sort string, limit, offset int) ([]model.Project, int, error) {
+	order, ok := projectOrders[sort]
+	if !ok {
+		order = projectOrders[model.ProjectSortNewest]
+	}
+	return r.list(ctx, `WHERE m.user_id = $1::uuid AND p.deleted_at IS NULL`, []any{userID}, order, limit, offset)
 }
 
 // ListTrashed returns projects the user OWNS that were deleted after cutoff (still restorable).

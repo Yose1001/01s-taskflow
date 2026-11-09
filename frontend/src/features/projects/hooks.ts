@@ -18,16 +18,19 @@ export const PAGE_SIZE = 12
 // Cache keys. Everything about projects starts with 'projects' or 'project', so one call can refresh a whole family.
 export const keys = {
   lists: ['projects'] as const,
-  list: (page: number, trashed: boolean) => ['projects', { page, trashed }] as const,
+  list: (page: number, trashed: boolean, sort?: string) =>
+    ['projects', { page, trashed, sort }] as const,
   detail: (projectId: string) => ['project', projectId] as const,
   members: (projectId: string) => ['members', projectId] as const,
 }
 
-export function useProjects(page: number, trashed = false) {
+/** One page of the person's projects. With no sort, the server's own order: the newest first. */
+export function useProjects(page: number, trashed = false, sort?: string) {
   const { request } = useAuth()
   return useQuery({
-    queryKey: keys.list(page, trashed),
-    queryFn: ({ signal }) => listProjects(request, { page, pageSize: PAGE_SIZE, trashed, signal }),
+    queryKey: keys.list(page, trashed, sort),
+    queryFn: ({ signal }) =>
+      listProjects(request, { page, pageSize: PAGE_SIZE, trashed, sort, signal }),
     placeholderData: keepPreviousData, // keep showing the old page while the next one loads
   })
 }

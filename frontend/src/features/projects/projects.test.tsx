@@ -17,7 +17,9 @@ async function openSignedIn(user: U, route = '/') {
   await user.type(screen.getByLabelText('Email'), 'alice@example.com')
   await user.type(screen.getByLabelText('Password'), 'correct horse')
   await user.click(screen.getByRole('button', { name: 'Log in' }))
-  await screen.findByRole('heading', { level: 1, name: 'Hello, Alice' }).catch(() => undefined)
+  await screen
+    .findByRole('heading', { level: 1, name: 'Hello, alice@example.com' })
+    .catch(() => undefined)
   return view
 }
 
@@ -39,6 +41,49 @@ async function openMembers(user: U) {
 }
 
 describe('project list', () => {
+  it('shows cards at first and can switch to a list with the same details', async () => {
+    fakeBackend({ projects: [project('p1', 'Website', { description: 'Redesign the site' })] })
+    const user = userEvent.setup()
+    await openSignedIn(user)
+    await screen.findByRole('link', { name: /Website/ })
+    const cards = screen.getByRole('button', { name: 'Cards' })
+    const list = screen.getByRole('button', { name: 'List' })
+    expect(screen.getByRole('group', { name: 'Project view' })).toBeInTheDocument()
+    expect(cards).toHaveAttribute('aria-pressed', 'true')
+    expect(list).toHaveAttribute('aria-pressed', 'false')
+    expect(document.querySelector('ul[data-view]')).toHaveAttribute('data-view', 'cards')
+
+    await user.click(list)
+    expect(list).toHaveAttribute('aria-pressed', 'true')
+    expect(cards).toHaveAttribute('aria-pressed', 'false')
+    expect(document.querySelector('ul[data-view]')).toHaveAttribute('data-view', 'list')
+    expect(localStorage.getItem('tf-projects-view')).toBe('list')
+
+    const row = screen.getByRole('link', { name: /Website/ })
+    expect(row).toHaveAttribute('href', '/projects/p1')
+    expect(within(row).getByText('Redesign the site')).toBeInTheDocument()
+    expect(within(row).getByText('Owner')).toBeInTheDocument()
+    expect(within(row).getByText('No tasks yet')).toBeInTheDocument()
+    expect(within(row).getByText('Created 15 Jan 2026')).toBeInTheDocument()
+  })
+
+  it('opens in the view chosen last time', async () => {
+    localStorage.setItem('tf-projects-view', 'list')
+    fakeBackend({ projects: [project('p1', 'Website')] })
+    await openSignedIn(userEvent.setup())
+    await screen.findByRole('link', { name: /Website/ })
+    expect(screen.getByRole('button', { name: 'List' })).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelector('ul[data-view]')).toHaveAttribute('data-view', 'list')
+  })
+
+  it('has no view switch while there is nothing to view, but the trash stays reachable', async () => {
+    fakeBackend()
+    await openSignedIn(userEvent.setup())
+    await screen.findByText('You have no projects yet.')
+    expect(screen.queryByRole('group', { name: 'Project view' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Trash' })).toHaveAttribute('href', '/projects/trash')
+  })
+
   it('shows the projects with name, description, role and date, each linking to its page', async () => {
     fakeBackend({
       projects: [
@@ -212,6 +257,115 @@ describe('project list', () => {
   })
 })
 
+describe('sorting the project list', () => {
+  const names = () =>
+    within(screen.getByRole('list'))
+      .getAllByRole('heading', { level: 3 })
+      .map((heading) => heading.textContent)
+  const sample = () => ({
+    projects: [project('n', 'Newest'), project('m', 'Middle'), project('o', 'Oldest')],
+    tasks: [
+      task('a', 'Done', { project: 'o', status: 'done' as const }),
+      task('b', 'Not done', { project: 'm' }),
+    ],
+  })
+  const choose = async (user: U, name: string) => {
+    await user.click(await screen.findByRole('button', { name: /^Sort projects/ }))
+    await user.click(screen.getByRole('menuitemradio', { name }))
+  }
+
+  it('starts with the newest first, without asking the server for a sort', async () => {
+    const api = fakeBackend(sample())
+    await openSignedIn(userEvent.setup())
+    expect(
+      await screen.findByRole('button', { name: 'Sort projects: Newest first' }),
+    ).toBeInTheDocument()
+    expect(names()).toEqual(['Newest', 'Middle', 'Oldest'])
+    expect(api.hits('GET /projects').every((call) => !call.query.has('sort'))).toBe(true)
+  })
+
+  it('offers each order and marks the chosen one', async () => {
+    fakeBackend(sample())
+    const user = userEvent.setup()
+    await openSignedIn(user)
+    await user.click(await screen.findByRole('button', { name: /^Sort projects/ }))
+    const items = screen.getAllByRole('menuitemradio')
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Newest first',
+      'Oldest first',
+      'Most progress first',
+      'Least progress first',
+    ])
+    expect(items[0]).toHaveAttribute('aria-checked', 'true')
+    expect(items[0]).toHaveFocus()
+  })
+
+  it('asks the server, because the list comes in pages, and shows what it answers', async () => {
+    const api = fakeBackend(sample())
+    const user = userEvent.setup()
+    await openSignedIn(user)
+    await choose(user, 'Oldest first')
+    await waitFor(() => expect(names()).toEqual(['Oldest', 'Middle', 'Newest']))
+    expect(api.hits('GET /projects').at(-1)!.query.get('sort')).toBe('oldest')
+
+    await choose(user, 'Most progress first')
+    await waitFor(() => expect(names()).toEqual(['Oldest', 'Middle', 'Newest']))
+    await choose(user, 'Least progress first')
+    await waitFor(() => expect(names()).toEqual(['Middle', 'Oldest', 'Newest'])) // no tasks: last both ways
+    expect(
+      screen.getByRole('button', { name: 'Sort projects: Least progress first' }),
+    ).toHaveFocus()
+  })
+
+  it('goes back to the first page, because a new order means a new first page', async () => {
+    const api = fakeBackend({ projects: many(30) })
+    const user = userEvent.setup()
+    await openSignedIn(user, '/?page=2')
+    await screen.findByText('Project 13')
+    await choose(user, 'Oldest first')
+    await screen.findByText('Project 30')
+    expect(api.hits('GET /projects').at(-1)!.query.get('page')).toBe('1')
+  })
+
+  it('this device remembers the choice', async () => {
+    localStorage.setItem('tf-projects-sort', 'oldest')
+    const api = fakeBackend(sample())
+    await openSignedIn(userEvent.setup())
+    expect(
+      await screen.findByRole('button', { name: 'Sort projects: Oldest first' }),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(names()).toEqual(['Oldest', 'Middle', 'Newest']))
+    expect(api.hits('GET /projects').at(-1)!.query.get('sort')).toBe('oldest')
+  })
+
+  it('is not offered to someone with no projects yet', async () => {
+    fakeBackend()
+    await openSignedIn(userEvent.setup())
+    await screen.findByRole('heading', { name: 'Welcome to TaskFlow' }).catch(() => undefined)
+    expect(screen.queryByRole('button', { name: /^Sort projects/ })).not.toBeInTheDocument()
+  })
+
+  it('does not change how the trash is listed', async () => {
+    localStorage.setItem('tf-projects-sort', 'oldest')
+    const api = fakeBackend({
+      projects: [project('g', 'Gone', { deletedAt: '2026-01-01T00:00:00Z' })],
+    })
+    await openSignedIn(userEvent.setup(), '/projects/trash')
+    await screen.findByText('Gone')
+    expect(api.hits('GET /projects').at(-1)!.query.has('sort')).toBe(false)
+  })
+
+  it('works in Thai', async () => {
+    fakeBackend(sample())
+    const user = userEvent.setup()
+    await openSignedIn(user)
+    await user.click(await screen.findByRole('button', { name: 'Switch language to ไทย' }))
+    expect(
+      await screen.findByRole('button', { name: 'เรียงโปรเจกต์: สร้างล่าสุดก่อน' }),
+    ).toBeInTheDocument()
+  })
+})
+
 describe('creating a project', () => {
   async function openDialog(user: U) {
     await screen.findByText('You have no projects yet.')
@@ -346,10 +500,11 @@ describe('project page', () => {
     await openSignedIn(user, '/projects/p1')
     expect(await screen.findByRole('heading', { level: 1, name: 'Website' })).toBeInTheDocument()
     expect(screen.getByText(/Line one/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'More actions' }))
-    expect(screen.getByRole('menuitem', { name: 'Task trash' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Delete project' })).toBeInTheDocument()
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Edit project',
+      'Delete project',
+    ])
   })
 
   it('shows a member the project but NO owner actions', async () => {
@@ -359,16 +514,13 @@ describe('project page', () => {
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
     await screen.findByRole('heading', { level: 1, name: 'Team space' })
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'More actions' }))
-    expect(screen.getByRole('menuitem', { name: 'Task trash' })).toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: 'Delete project' })).not.toBeInTheDocument()
-    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Trash' })).toBeInTheDocument() // the task trash is for everyone
     expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument()
     // the member list itself is available, without the owner's tools
     const members = await openMembers(user)
-    expect(await within(members).findByText('Bob')).toBeInTheDocument()
+    expect(await within(members).findByText('bob@example.com')).toBeInTheDocument()
     expect(within(members).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument()
     expect(within(members).queryByLabelText('Their email')).not.toBeInTheDocument()
     expect(
@@ -400,7 +552,8 @@ describe('project page', () => {
     const api = fakeBackend({ projects: [project('p1', 'Website', { description: 'Old text' })] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    await user.click(await screen.findByRole('button', { name: 'More actions' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Edit project' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Edit project' })
     expect(within(dialog).getByLabelText('Project name')).toHaveValue('Website')
@@ -506,11 +659,13 @@ describe('members', () => {
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
     const section = await openMembers(user)
-    expect(await within(section).findByText('Bob')).toBeInTheDocument()
+    expect(await within(section).findByText('bob@example.com')).toBeInTheDocument()
     expect(within(section).getByText(/Joined 1 Feb 2026/)).toBeInTheDocument()
     expect(within(section).getByText('(you)')).toBeInTheDocument()
     expect(within(section).getAllByRole('button', { name: /^Actions for/ })).toHaveLength(1)
-    expect(within(section).getByRole('button', { name: 'Actions for Bob' })).toBeInTheDocument()
+    expect(
+      within(section).getByRole('button', { name: 'Actions for bob@example.com' }),
+    ).toBeInTheDocument()
   })
 
   it('closes with Escape, the close button or the background, and returns the focus', async () => {
@@ -541,14 +696,18 @@ describe('members', () => {
     const { container } = await openSignedIn(user, '/projects/p1')
     container.id = 'root'
     const section = await openMembers(user)
-    await user.click(await within(section).findByRole('button', { name: 'Actions for Bob' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
-    const confirm = await screen.findByRole('dialog', { name: 'Remove Bob from this project?' })
+    await user.click(
+      await within(section).findByRole('button', { name: 'Actions for bob@example.com' }),
+    )
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    const confirm = await screen.findByRole('dialog', {
+      name: 'Remove bob@example.com from this project?',
+    })
     expect(within(confirm).getByRole('button', { name: 'Cancel' })).toHaveFocus()
 
     await user.keyboard('{Escape}') // closes only the confirmation
     expect(screen.getByRole('dialog', { name: 'Members' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Actions for Bob' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Actions for bob@example.com' })).toHaveFocus()
     expect(container).toHaveAttribute('inert')
 
     await user.keyboard('{Escape}') // now the panel itself
@@ -564,10 +723,10 @@ describe('members', () => {
     await user.type(within(section).getByLabelText('Their email'), '  BOB@example.com ')
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
 
-    expect(await within(section).findByText('Bob')).toBeInTheDocument()
+    expect(await within(section).findByText('bob@example.com')).toBeInTheDocument()
     expect(api.hits('POST /projects/p1/members')[0]!.body).toEqual({ email: 'BOB@example.com' })
     expect(within(section).getByLabelText('Their email')).toHaveValue('')
-    expect(await screen.findByText('Bob was added to the project.')).toBeInTheDocument()
+    expect(await screen.findByText('bob@example.com was added to the project.')).toBeInTheDocument()
   })
 
   it('explains an unknown email in plain words', async () => {
@@ -613,27 +772,54 @@ describe('members', () => {
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
     const section = await openMembers(user)
-    await user.click(await within(section).findByRole('button', { name: 'Actions for Bob' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
+    await user.click(
+      await within(section).findByRole('button', { name: 'Actions for bob@example.com' }),
+    )
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
 
-    const dialog = await screen.findByRole('dialog', { name: 'Remove Bob from this project?' })
-    expect(within(dialog).getByText(/Bob will lose access/)).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Remove bob@example.com from this project?',
+    })
+    expect(within(dialog).getByText(/bob@example\.com will lose access/)).toBeInTheDocument()
     // Removing someone does not use the trash, so the dialog must not promise it can be restored.
     expect(dialog).not.toHaveTextContent(/trash|restore/i)
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(api.hits('DELETE /projects/p1/members/' + BOB.userId)).toHaveLength(0)
 
-    await user.click(within(section).getByRole('button', { name: 'Actions for Bob' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
+    await user.click(within(section).getByRole('button', { name: 'Actions for bob@example.com' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
     await user.click(
       within(
-        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
+        await screen.findByRole('dialog', { name: 'Remove bob@example.com from this project?' }),
       ).getByRole('button', { name: 'Remove' }),
     )
-    await waitFor(() => expect(within(section).queryByText('Bob')).not.toBeInTheDocument())
-    expect(within(section).getByText('Carol')).toBeInTheDocument()
-    expect(await screen.findByText('Bob was removed.')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(within(section).queryByText('bob@example.com')).not.toBeInTheDocument(),
+    )
+    expect(within(section).getByText('carol@example.com')).toBeInTheDocument()
+    expect(await screen.findByText('bob@example.com was removed.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the keyboard inside the panel after removing someone, so Escape still closes it', async () => {
+    fakeBackend({ projects: [project('p1', 'Website', { members: [BOB, CAROL] })] })
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
+    const section = await openMembers(user)
+    await user.click(
+      await within(section).findByRole('button', { name: 'Actions for bob@example.com' }),
+    )
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    await user.click(
+      within(
+        await screen.findByRole('dialog', { name: 'Remove bob@example.com from this project?' }),
+      ).getByRole('button', { name: 'Remove' }),
+    )
+    await screen.findByText('bob@example.com was removed.')
+
+    await waitFor(() => expect(within(section).getByLabelText('Their email')).toHaveFocus())
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Members' })).not.toBeInTheDocument()
   })
 })
 
@@ -728,7 +914,7 @@ describe('privacy between people on the same browser', () => {
     await user.type(screen.getByLabelText('Email'), 'bob@example.com')
     await user.type(screen.getByLabelText('Password'), 'correct horse')
     await user.click(screen.getByRole('button', { name: 'Log in' }))
-    await screen.findByRole('heading', { level: 1, name: 'Hello, Bob' })
+    await screen.findByRole('heading', { level: 1, name: 'Hello, bob@example.com' })
     expect(screen.queryByText('Alice private plan')).not.toBeInTheDocument()
     release()
   })

@@ -1,12 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { restoreProject } from '../api/projects'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/context'
 import { errorMessage } from '../auth/errors'
 import { Avatar } from '../components/Avatar'
+import { BackLink } from '../components/BackLink'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Button } from '../components/forms'
 import { Icon } from '../components/Icon'
@@ -49,9 +50,9 @@ export function ProjectPage() {
         <div className="py-12 text-center">
           <h1 className="text-2xl font-bold">{t('projects.notFoundTitle')}</h1>
           <p className="mt-2 text-muted">{t('projects.notFoundText')}</p>
-          <Link to="/" className="mt-4 inline-block font-medium text-primary underline">
-            {t('projects.back')}
-          </Link>
+          <p className="mt-4">
+            <BackLink to="/">{t('projects.back')}</BackLink>
+          </p>
         </div>
       )
     }
@@ -76,13 +77,7 @@ export function ProjectPage() {
   return (
     <div className="space-y-5">
       <header className="space-y-2">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline"
-        >
-          <Icon name="arrow-left" />
-          {t('projects.myProjects')}
-        </Link>
+        <BackLink to="/">{t('projects.myProjects')}</BackLink>
         <div className="flex items-center justify-between gap-2 sm:flex-wrap sm:gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 sm:flex-wrap">
@@ -117,7 +112,7 @@ export function ProjectPage() {
                 <span className="flex -space-x-2 max-sm:hidden" aria-hidden="true">
                   {members.data.slice(0, 3).map((m) => (
                     <span key={m.userId} className="rounded-full ring-2 ring-bg">
-                      <Avatar id={m.userId} name={m.displayName} size={24} />
+                      <Avatar id={m.userId} name={m.email} size={24} />
                     </span>
                   ))}
                 </span>
@@ -126,41 +121,29 @@ export function ProjectPage() {
                 </span>
               </Button>
             )}
+            {/* Everything in this menu is for the owner, so members do not get an empty menu. */}
             {isOwner && (
-              <Button
-                type="button"
-                variant="ghost"
-                className={ICON_ON_PHONE}
-                onClick={() => setEditing(true)}
-              >
-                <Icon name="pencil" />
-                <span className="max-sm:sr-only">{t('projects.edit')}</span>
-              </Button>
+              <Menu
+                label={t('projects.moreActions')}
+                trigger={<Icon name="more" size={20} />}
+                triggerClassName="grid h-10 w-10 place-items-center rounded-xl text-text hover:bg-primary-bg"
+                items={[
+                  {
+                    key: 'edit',
+                    label: t('projects.editTitle'),
+                    icon: 'pencil',
+                    onSelect: () => setEditing(true),
+                  },
+                  {
+                    key: 'delete',
+                    label: t('projects.deleteProject'),
+                    icon: 'trash',
+                    tone: 'danger',
+                    onSelect: () => setConfirmDelete(true),
+                  },
+                ]}
+              />
             )}
-            <Menu
-              label={t('projects.moreActions')}
-              trigger={<Icon name="more" size={20} />}
-              triggerClassName="grid h-10 w-10 place-items-center rounded-xl text-text hover:bg-primary-bg"
-              items={[
-                {
-                  key: 'trash',
-                  label: t('tasks.trashTitle'),
-                  icon: 'trash',
-                  onSelect: () => navigate(`/projects/${encodeURIComponent(p.id)}/trash`),
-                },
-                ...(isOwner
-                  ? [
-                      {
-                        key: 'delete',
-                        label: t('projects.deleteProject'),
-                        icon: 'trash' as const,
-                        tone: 'danger' as const,
-                        onSelect: () => setConfirmDelete(true),
-                      },
-                    ]
-                  : []),
-              ]}
-            />
             <Button
               type="button"
               className="max-sm:fixed max-sm:bottom-[max(1rem,env(safe-area-inset-bottom))] max-sm:right-4 max-sm:z-20 max-sm:h-12 max-sm:rounded-full max-sm:shadow-card"

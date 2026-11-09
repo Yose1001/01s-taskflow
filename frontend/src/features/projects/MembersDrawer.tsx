@@ -42,11 +42,12 @@ export function MembersDrawer({
   const [emailError, setEmailError] = useState<string | undefined>()
   const [toRemove, setToRemove] = useState<Member | null>(null)
 
-  // Removing someone takes away the row that had the focus. Keep the focus inside the panel.
+  // Removing someone takes away the row whose button opened the confirmation, so focus has nowhere to
+  // return to. The list reloads before the confirmation closes, hence checking again at both moments.
   const count = members.data?.length
   useEffect(() => {
     if (document.activeElement === document.body) document.getElementById('invite-email')?.focus()
-  }, [count])
+  }, [count, toRemove])
 
   function onInvite(event: FormEvent) {
     event.preventDefault()
@@ -57,7 +58,7 @@ export function MembersDrawer({
     invite.mutate(trimmed, {
       onSuccess: (member) => {
         setEmail('')
-        toast.show({ message: t('members.invited', { name: member.displayName }) })
+        toast.show({ message: t('members.invited', { name: member.email }) })
       },
     })
   }
@@ -93,16 +94,15 @@ export function MembersDrawer({
           <ul className="divide-y divide-border">
             {members.data.map((m) => (
               <li key={m.userId} className="flex items-center gap-3 py-3">
-                <Avatar id={m.userId} name={m.displayName} size={36} />
+                <Avatar id={m.userId} name={m.email} size={36} />
                 <div className="min-w-0 flex-1">
                   <p className="break-words font-medium">
-                    {m.displayName}
+                    {m.email}
                     {m.userId === user?.id && (
                       <span className="font-normal text-muted"> {t('members.you')}</span>
                     )}
                   </p>
-                  <p className="break-words text-sm text-muted">
-                    {m.email} ·{' '}
+                  <p className="text-sm text-muted">
                     {t('members.joined', { date: formatDate(m.joinedAt, i18n.language) })}
                   </p>
                   <div className="mt-1">
@@ -111,14 +111,14 @@ export function MembersDrawer({
                 </div>
                 {isOwner && m.role !== 'owner' && (
                   <Menu
-                    label={t('members.actionsFor', { name: m.displayName })}
+                    label={t('members.actionsFor', { name: m.email })}
                     trigger={<Icon name="more" size={20} />}
                     triggerClassName="grid h-10 w-10 place-items-center rounded-xl text-text hover:bg-primary-bg"
                     items={[
                       {
                         key: 'remove',
                         label: t('members.removeFromProject'),
-                        ariaLabel: `${t('members.remove')}: ${m.displayName}`,
+                        ariaLabel: `${t('members.remove')}: ${m.email}`,
                         tone: 'danger-soft',
                         onSelect: () => setToRemove(m),
                       },
@@ -171,8 +171,8 @@ export function MembersDrawer({
       {toRemove && (
         <ConfirmDialog
           icon="users" // nothing goes to the trash here: the person simply loses access
-          title={t('members.removeTitle', { name: toRemove.displayName })}
-          message={t('members.removeMessage', { name: toRemove.displayName })}
+          title={t('members.removeTitle', { name: toRemove.email })}
+          message={t('members.removeMessage', { name: toRemove.email })}
           confirmLabel={t('members.removeConfirm')}
           pendingLabel={t('members.removing')}
           pending={remove.isPending}
@@ -184,7 +184,7 @@ export function MembersDrawer({
           onConfirm={() =>
             remove.mutate(toRemove.userId, {
               onSuccess: () => {
-                toast.show({ message: t('members.removed', { name: toRemove.displayName }) })
+                toast.show({ message: t('members.removed', { name: toRemove.email }) })
                 setToRemove(null)
               },
             })

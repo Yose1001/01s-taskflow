@@ -4,6 +4,7 @@ import {
   KeyboardSensor,
   TouchSensor,
   closestCorners,
+  defaultDropAnimation,
   pointerWithin,
   useDroppable,
   useSensor,
@@ -18,9 +19,9 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { restoreTask } from '../../api/tasks'
 import type { Member, Task, TaskStatus } from '../../api/types'
 import { useAuth } from '../../auth/context'
@@ -28,27 +29,39 @@ import { errorMessage } from '../../auth/errors'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Button, CompactSelectField, CompactTextField, SelectField } from '../../components/forms'
 import { Icon, type IconName } from '../../components/Icon'
+import { Menu } from '../../components/Menu'
 import { Modal } from '../../components/Modal'
 import { ErrorState, LoadingState } from '../../components/states'
 import { StatusBadge } from '../../components/StatusBadge'
 import { useToast } from '../../components/toast'
+import { TrashLink } from '../../components/TrashLink'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMembers } from '../projects/hooks'
 import {
+  assigneesOf,
   NO_FILTERS,
   PRIORITIES,
   STATUSES,
   UNASSIGNED,
   byColumn,
   columnId,
-  dropTarget,
   droppedOnLowerHalf,
   filterTasks,
   hasFilters,
   isPriority,
   type Columns,
   type Filters,
+  type Move,
 } from './boardLogic'
+import {
+  SORTS,
+  dropWithSorts,
+  loadColumnSorts,
+  saveColumnSorts,
+  sortColumn,
+  type ColumnSort,
+} from './columnSort'
+import { HoldReasonDialog } from './HoldReasonDialog'
 import { taskKeys, useDeleteTask, useMoveTask, useTasks } from './hooks'
 import { MouseOrPenSensor } from './sensors'
 import { SortableTaskCard, TaskCardView } from './TaskCard'
@@ -68,7 +81,7 @@ type Dialog = { kind: 'create'; status: TaskStatus } | { kind: 'edit'; task: Tas
 
 const MAX_QUERY = 100
 
-/** The Kanban board of one project: four columns, drag and drop, filters, and the task dialogs. */
+/** The Kanban board of one project: five columns, drag and drop, filters, and the task dialogs. */
 export function TaskBoard({
   projectId,
   newTaskOpen,
@@ -95,12 +108,15 @@ export function TaskBoard({
     onNewTaskClose()
   }
   const [deleting, setDeleting] = useState<Task | null>(null)
+  // A card dropped on "On hold", waiting to hear why. It stays where it was until then.
+  const [holding, setHolding] = useState<{ move: Move; task: Task } | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [movedByKeyboard, setMovedByKeyboard] = useState(false)
 
   // Which column is in view when the board is swiped sideways on a phone.
   const scroller = useRef<HTMLDivElement>(null)
   const [columnInView, setColumnInView] = useState(0)
+  const [boardScrolls, setBoardScrolls] = useState(false)
   function onBoardScroll() {
     const el = scroller.current
     if (!el || el.children.length < 2) return
@@ -114,15 +130,30 @@ export function TaskBoard({
 
   const all = useMemo(() => tasks.data ?? [], [tasks.data])
   const visible = useMemo(() => filterTasks(all, filters), [all, filters])
+  // `columns` keeps the arranged order, which is what a drop works from. `shown` is what is on screen.
   const columns = useMemo(() => byColumn(visible), [visible])
-  const nameOf = useMemo(() => new Map(members.map((m) => [m.userId, m.displayName])), [members])
+  const [sorts, setSorts] = useState(() => loadColumnSorts(projectId))
+  const shown = useMemo(() => {
+    const sorted = { ...columns }
+    for (const status of STATUSES) {
+      sorted[status] = sortColumn(columns[status], sorts[status])
+    }
+    return sorted
+  }, [columns, sorts])
+  function chooseSort(status: TaskStatus, sort: ColumnSort) {
+    const next = { ...sorts, [status]: sort }
+    setSorts(next)
+    saveColumnSorts(projectId, next)
+  }
+  const nameOf = useMemo(() => new Map(members.map((m) => [m.userId, m.email])), [members])
   const activeTask = activeId ? all.find((task) => task.id === activeId) : undefined
 
   const sensors = useSensors(
     // A little movement is needed before a drag starts, so a plain click never counts as one.
     useSensor(MouseOrPenSensor, { activationConstraint: { distance: 6 } }),
-    // A finger must rest on the handle for a moment first, so scrolling and swiping never pick up a card.
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+    // A finger must rest on the card for a moment first, so scrolling and swiping never pick one up.
+    // The tolerance allows for the small shake of a finger held still; moving further cancels the press.
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -154,6 +185,8 @@ export function TaskBoard({
   function onDragStart(event: DragStartEvent) {
     pointerY.current = null // stays null for a keyboard drag, which never moves a pointer
     setMovedByKeyboard(event.activatorEvent instanceof KeyboardEvent)
+    const el = scroller.current
+    setBoardScrolls(!!el && el.scrollWidth > el.clientWidth)
     setActiveId(String(event.active.id))
   }
 
@@ -165,21 +198,69 @@ export function TaskBoard({
     const track = (event: PointerEvent) => {
       pointerY.current = event.clientY
     }
+    const trackFinger = (event: TouchEvent) => {
+      pointerY.current = event.touches[0]?.clientY ?? pointerY.current
+    }
     window.addEventListener('pointermove', track)
-    return () => window.removeEventListener('pointermove', track)
+    window.addEventListener('touchmove', trackFinger, { passive: true })
+    return () => {
+      window.removeEventListener('pointermove', track)
+      window.removeEventListener('touchmove', trackFinger)
+    }
   }, [dragging])
 
-  function onDragEnd({ active, over }: DragEndEvent) {
+  // Snapping is off during a drag. When it comes back the browser picks a column by itself, which on a phone
+  // could hide the card that was just moved. So go to the column it was dropped in, or, when it was dropped
+  // on nothing, stay where the person let go.
+  const scrollAtDrop = useRef<number | null>(null)
+  useLayoutEffect(() => {
+    if (dragging || scrollAtDrop.current === null) return
+    if (scroller.current) scroller.current.scrollLeft = scrollAtDrop.current
+    scrollAtDrop.current = null
+  }, [dragging])
+
+  function endDrag(droppedIn?: TaskStatus) {
+    const el = scroller.current
+    const column = droppedIn && el?.children[STATUSES.indexOf(droppedIn)]
+    if (el) {
+      scrollAtDrop.current = column
+        ? el.scrollLeft + column.getBoundingClientRect().left - el.getBoundingClientRect().left
+        : el.scrollLeft
+    }
     setActiveId(null)
+  }
+
+  function onDragEnd({ active, over }: DragEndEvent) {
+    endDrag(over ? statusOf(columns, String(over.id)) : undefined)
     if (!over) return
     // Dropped on the lower half of a task in another column = behind it. With a mouse or finger that is
     // judged by where the pointer really is; with the keyboard (no pointer) by the middle of the moved card.
     // (The pointer is read directly: the library's own numbers drift when the page scrolls during a drag.)
     const after = droppedOnLowerHalf(over.rect, pointerY.current, active.rect.current.translated)
-    const target = dropTarget(columns, String(active.id), String(over.id), after)
-    if (target)
-      move.mutate(target, { onError: () => toast.show({ message: t('tasks.moveFailed') }) })
+    const target = dropWithSorts(columns, sorts, String(active.id), String(over.id), after)
+    if (target === 'sorted') toast.show({ message: t('tasks.sortedNoArrange') })
+    else if (target) {
+      const task = all.find((x) => x.id === target.taskId)
+      if (target.status === 'on_hold' && task && task.status !== 'on_hold')
+        setHolding({ move: target, task })
+      else sendMove(target)
+    }
   }
+
+  function sendMove(target: Move) {
+    move.mutate(target, { onError: () => toast.show({ message: t('tasks.moveFailed') }) })
+  }
+
+  // A card that changes column is built anew, so a keyboard user's focus needs to follow it once it has landed.
+  const refocusAfterHold = useRef<string | null>(null)
+  useEffect(() => {
+    const id = refocusAfterHold.current
+    if (!id || all.find((x) => x.id === id)?.status !== 'on_hold') return
+    refocusAfterHold.current = null
+    scroller.current
+      ?.querySelector<HTMLElement>(`[data-task-handle="${id}"]`)
+      ?.focus({ preventScroll: true })
+  }, [all])
 
   // Undo is a plain function: it must still work after the dialog that started it is gone.
   function undoDelete(task: Task) {
@@ -220,24 +301,27 @@ export function TaskBoard({
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
-        // Near the edge of a phone screen the board scrolls sideways by itself during a drag.
-        autoScroll={{ threshold: { x: 0.2, y: 0.2 } }}
+        // Near the edge of a phone screen the board scrolls sideways by itself during a drag. The zone is
+        // narrow because a card can be held anywhere, even close to the edge, without meaning to scroll, and
+        // the speed is one a person can follow (the library's default crosses a column in a fifth of a second).
+        autoScroll={{ threshold: { x: 0.12, y: 0.2 }, acceleration: 3 }}
         accessibility={{
           announcements,
           screenReaderInstructions: { draggable: t('tasks.dragInstructions') },
         }}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
-        onDragCancel={() => setActiveId(null)}
+        onDragCancel={() => endDrag()}
       >
         {/*
-          Phones: one column at a time, swipe sideways. Tablets: 2 x 2. Wide screens: all four.
+          Phones: one column at a time, swipe sideways. Tablets: two across, with Done filling the last row.
+          Wide screens: all five.
           Snapping is off during a drag: it would fight with scrolling by itself near the edge.
         */}
         <div
           ref={scroller}
           onScroll={onBoardScroll}
-          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4 ${
+          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-5 ${
             dragging ? '' : 'snap-x snap-mandatory'
           }`}
         >
@@ -245,9 +329,10 @@ export function TaskBoard({
             <Column
               key={status}
               status={status}
-              tasks={columns[status]}
+              tasks={shown[status]}
               nameOf={nameOf}
-              onAdd={() => setColumnDialog({ kind: 'create', status })}
+              sort={sorts[status]}
+              onSort={(sort) => chooseSort(status, sort)}
               onOpen={(task) => setColumnDialog({ kind: 'edit', task })}
             />
           ))}
@@ -263,18 +348,23 @@ export function TaskBoard({
             />
           ))}
         </div>
-        <DragOverlay>
+        {/*
+          The drop animation first scrolls the board back to where the card came from, away from where it was
+          just dropped. So a board that scrolls sideways goes without it.
+        */}
+        <DragOverlay dropAnimation={boardScrolls ? null : defaultDropAnimation}>
           {/*
             The plain outer div must stay: dnd-kit measures the overlay's first child, and a tilted element
             measures wider than it is. Keyboard moves would then pick the card itself as the next place.
-            The tilt is for dragging by hand only.
+            The tilt is for dragging by hand only. It is only a picture of the card: its buttons are the real
+            card's, so they must not be announced or reached a second time.
           */}
           {activeTask ? (
-            <div>
+            <div aria-hidden="true" inert>
               <div className={movedByKeyboard ? '' : '-rotate-[1.5deg] motion-reduce:rotate-0'}>
                 <TaskCardView
                   task={activeTask}
-                  assigneeName={nameOf.get(activeTask.assigneeId ?? '')}
+                  assignees={assigneesOf(activeTask, nameOf)}
                   picked
                   lifted
                 />
@@ -288,7 +378,14 @@ export function TaskBoard({
         <TaskFormDialog
           projectId={projectId}
           members={members}
-          {...(dialog.kind === 'edit' ? { task: dialog.task } : { initialStatus: dialog.status })}
+          {...(dialog.kind === 'edit'
+            ? {
+                task: dialog.task,
+                // The rest of the form edits what the task was when opened; these change as it stays open.
+                subtasks:
+                  all.find((x) => x.id === dialog.task.id)?.subtasks ?? dialog.task.subtasks,
+              }
+            : { initialStatus: dialog.status })}
           onClose={closeDialog}
           onSaved={() => {
             toast.show({ message: dialog.kind === 'edit' ? t('tasks.saved') : t('tasks.created') })
@@ -297,6 +394,18 @@ export function TaskBoard({
           onDelete={(task) => {
             closeDialog()
             setDeleting(task)
+          }}
+        />
+      )}
+
+      {holding && (
+        <HoldReasonDialog
+          taskTitle={holding.task.title}
+          onCancel={() => setHolding(null)}
+          onConfirm={(holdReason) => {
+            if (movedByKeyboard) refocusAfterHold.current = holding.task.id
+            sendMove({ ...holding.move, holdReason })
+            setHolding(null)
           }}
         />
       )}
@@ -344,7 +453,8 @@ interface ColumnProps {
   status: TaskStatus
   tasks: Task[]
   nameOf: Map<string, string>
-  onAdd: () => void
+  sort: ColumnSort
+  onSort: (sort: ColumnSort) => void
   onOpen: (task: Task) => void
 }
 
@@ -353,10 +463,11 @@ const COLUMN_LINE: Record<TaskStatus, string> = {
   todo: 'bg-primary',
   in_progress: 'bg-sky-fg',
   review: 'bg-peach-fg',
+  on_hold: 'bg-lemon-fg',
   done: 'bg-mint-fg',
 }
 
-function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
+function Column({ status, tasks, nameOf, sort, onSort, onOpen }: ColumnProps) {
   const { t } = useTranslation()
   // The whole column accepts drops, so a card can go into an empty column or below the last card.
   const { setNodeRef, isOver } = useDroppable({ id: columnId(status) })
@@ -364,7 +475,7 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
   return (
     <section
       aria-label={t('tasks.columnLabel', { column: name, count: tasks.length })}
-      className="relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto"
+      className="relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto sm:last:col-span-2 xl:last:col-span-1"
     >
       <span
         aria-hidden="true"
@@ -377,14 +488,21 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
             {tasks.length}
           </span>
         </h3>
-        <button
-          type="button"
-          onClick={onAdd}
-          aria-label={t('tasks.addIn', { column: name })}
-          className="grid h-[30px] w-[30px] place-items-center rounded-full text-primary-fg hover:bg-primary-bg"
-        >
-          <Icon name="plus" />
-        </button>
+        <Menu
+          floating // on phones the columns sit in a sideways scroller, which would cut the menu off
+          label={t('tasks.sortIn', { column: name, sort: t(`tasks.sort_${sort}`) })}
+          trigger={<Icon name="sort" />}
+          // Filled in while the column is sorted, so it is clear why cards are not in the arranged order.
+          triggerClassName={`grid h-[30px] w-[30px] place-items-center rounded-full hover:bg-primary-bg ${
+            sort === 'manual' ? 'text-muted' : 'bg-primary-bg text-primary-fg'
+          }`}
+          items={SORTS.map((value) => ({
+            key: value,
+            label: t(`tasks.sort_${value}`),
+            checked: value === sort,
+            onSelect: () => onSort(value),
+          }))}
+        />
       </div>
       <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
         <ul
@@ -397,7 +515,7 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
             <SortableTaskCard
               key={task.id}
               task={task}
-              assigneeName={task.assigneeId ? nameOf.get(task.assigneeId) : undefined}
+              assignees={assigneesOf(task, nameOf)}
               onOpen={() => onOpen(task)}
             />
           ))}
@@ -445,7 +563,7 @@ function AssigneeOptions({ members }: { members: Member[] }) {
       <option value={UNASSIGNED}>{t('tasks.unassigned')}</option>
       {members.map((m) => (
         <option key={m.userId} value={m.userId}>
-          {m.displayName}
+          {m.email}
         </option>
       ))}
     </>
@@ -529,7 +647,7 @@ function FilterBar({ projectId, filters, members, tasks, onChange, shown, total 
   const assigneeName =
     filters.assignee === UNASSIGNED
       ? t('tasks.unassigned')
-      : members.find((m) => m.userId === filters.assignee)?.displayName
+      : members.find((m) => m.userId === filters.assignee)?.email
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -583,14 +701,11 @@ function FilterBar({ projectId, filters, members, tasks, onChange, shown, total 
         >
           <AssigneeOptions members={members} />
         </CompactSelectField>
-        {/* On phones the same page is in the project's "More actions" menu. */}
-        <Link
+        <TrashLink
           to={`/projects/${encodeURIComponent(projectId)}/trash`}
-          className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 font-medium text-text hover:bg-primary-bg max-sm:hidden"
-        >
-          <Icon name="trash" />
-          {t('tasks.trash')}
-        </Link>
+          label={t('tasks.trash')}
+          iconOnlyOnPhone
+        />
       </div>
       {sheetOpen && (
         <FilterSheet

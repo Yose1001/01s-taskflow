@@ -9,8 +9,18 @@ export interface MenuItem {
   tone?: 'danger' | 'danger-soft'
   /** The accessible name when the visible label alone is not enough, such as "Remove: Bob". */
   ariaLabel?: string
+  /** Makes this one of a set of choices: true shows a tick and tells screen readers it is the chosen one. */
+  checked?: boolean
   onSelect: () => void
 }
+
+type FloatingBox = { right: number; top?: number; bottom?: number }
+
+// How much room the menu wants below its button before it opens upwards instead.
+const ROOM_BELOW = 280
+// The menu's width (w-64) and the gap it keeps from the edge of the window.
+const MENU_WIDTH = 256
+const EDGE = 8
 
 const MENU_TONES = {
   plain: 'text-text hover:bg-primary-bg',
@@ -28,6 +38,7 @@ export function Menu({
   triggerClassName,
   items,
   header,
+  floating = false,
 }: {
   /** The button's accessible name. */
   label: string
@@ -36,9 +47,15 @@ export function Menu({
   items: MenuItem[]
   /** Shown above the items, not selectable. */
   header?: ReactNode
+  /**
+   * For a menu inside something that scrolls: it is placed against the window, so it is never cut off.
+   * It closes when anything scrolls, because it would no longer sit next to its button.
+   */
+  floating?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
+  const [box, setBox] = useState<FloatingBox | null>(null)
   const menuId = useId()
   const wrapper = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
@@ -46,8 +63,44 @@ export function Menu({
 
   // The focused item follows the active one while the menu is open.
   useEffect(() => {
-    if (open) itemRefs.current[active]?.focus()
+    if (open) itemRefs.current[active]?.focus({ preventScroll: true })
   }, [open, active])
+
+  useEffect(() => {
+    if (!open || !floating) return
+    const dismiss = () => setOpen(false)
+    window.addEventListener('scroll', dismiss, true)
+    window.addEventListener('resize', dismiss)
+    return () => {
+      window.removeEventListener('scroll', dismiss, true)
+      window.removeEventListener('resize', dismiss)
+    }
+  }, [open, floating])
+
+  function openMenu() {
+    if (floating && button.current) {
+      const rect = button.current.getBoundingClientRect()
+      const gap = 4
+      // Lined up with the button's right side, unless that would push the menu off the left of the window.
+      const right = Math.max(
+        EDGE,
+        Math.min(window.innerWidth - rect.right, window.innerWidth - MENU_WIDTH - EDGE),
+      )
+      setBox(
+        window.innerHeight - rect.bottom < ROOM_BELOW
+          ? { right, bottom: window.innerHeight - rect.top + gap }
+          : { right, top: rect.bottom + gap },
+      )
+    }
+    // Start on the chosen item when there is one, otherwise on the first.
+    setActive(
+      Math.max(
+        0,
+        items.findIndex((item) => item.checked),
+      ),
+    )
+    setOpen(true)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -93,17 +146,19 @@ export function Menu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        onClick={() => {
-          setActive(0)
-          setOpen((v) => !v)
-        }}
+        onClick={() => (open ? setOpen(false) : openMenu())}
         className={triggerClassName}
       >
         {trigger}
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-surface p-2 shadow-xl">
-          {header && <div className="border-b border-border px-3 pb-2 pt-1">{header}</div>}
+        <div
+          style={floating && box ? box : undefined}
+          className={`w-64 max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-surface p-2 shadow-xl ${
+            floating ? 'fixed z-40' : 'absolute right-0 top-full z-30 mt-1'
+          }`}
+        >
+          {header && <div className="mb-1 border-b border-border px-3 pb-3 pt-2">{header}</div>}
           <div id={menuId} role="menu" aria-label={label} onKeyDown={onMenuKeyDown}>
             {items.map((item, index) => (
               <div
@@ -120,7 +175,8 @@ export function Menu({
                     itemRefs.current[index] = node
                   }}
                   type="button"
-                  role="menuitem"
+                  role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+                  aria-checked={item.checked}
                   tabIndex={index === active ? 0 : -1}
                   aria-label={item.ariaLabel}
                   onClick={() => {
@@ -132,7 +188,8 @@ export function Menu({
                   }`}
                 >
                   {item.icon && <Icon name={item.icon} />}
-                  {item.label}
+                  <span className="min-w-0 flex-1">{item.label}</span>
+                  {item.checked && <Icon name="check" />}
                 </button>
               </div>
             ))}

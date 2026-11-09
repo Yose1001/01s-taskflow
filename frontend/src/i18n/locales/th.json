@@ -7,7 +7,8 @@
     "login": "เข้าสู่ระบบ",
     "signup": "สมัครสมาชิก",
     "logout": "ออกจากระบบ",
-    "account": "เมนูบัญชี"
+    "account": "เมนูบัญชี",
+    "signedInAs": "เข้าสู่ระบบด้วย"
   },
   "theme": {
     "switchToDark": "เปลี่ยนเป็นธีมมืด",
@@ -71,7 +72,14 @@
     "invalid_priority": "เลือกระดับความสำคัญ",
     "invalid_assignee": "เลือกคนจากรายชื่อ",
     "not_a_member": "คนนี้ไม่ได้เป็นสมาชิกของโปรเจกต์",
-    "invalid_date": "กรอกวันที่ให้ถูกต้อง"
+    "invalid_date": "กรอกวันที่ให้ถูกต้อง",
+    "end_before_start": "วันที่สิ้นสุดต้องไม่อยู่ก่อนวันที่เริ่มงาน",
+    "too_many_assignees": "เลือกได้ไม่เกิน 50 คน",
+    "invalid_subtask_title": "รายการย่อยต้องมี 1 ถึง 200 ตัวอักษร",
+    "too_many_subtasks": "งานหนึ่งมีรายการย่อยได้ไม่เกิน 100 รายการ",
+    "hold_reason_required": "กรอกสาเหตุที่พักงาน",
+    "hold_reason_too_long": "สาเหตุยาวได้ไม่เกิน 500 ตัวอักษร",
+    "not_on_hold": "งานนี้ไม่ได้พักอยู่"
   },
   "common": {
     "cancel": "ยกเลิก",
@@ -107,7 +115,6 @@
     "save": "บันทึกการแก้ไข",
     "saving": "กำลังบันทึก...",
     "saved": "บันทึกการแก้ไขแล้ว",
-    "edit": "แก้ไข",
     "deleteTitle": "ลบโปรเจกต์ \"{{name}}\"?",
     "deleteMessage": "โปรเจกต์จะย้ายไปถังขยะ กู้คืนได้ภายใน 30 วัน งานที่จะไปด้วย: {{count}} งาน และสมาชิกคนอื่นจะมองไม่เห็นทันที",
     "deleteConfirm": "ย้ายไปถังขยะ",
@@ -123,7 +130,15 @@
     "myProjects": "โปรเจกต์ของฉัน",
     "membersButton": "สมาชิก {{count}}",
     "moreActions": "ตัวเลือกเพิ่มเติม",
-    "deleteProject": "ลบโปรเจกต์"
+    "deleteProject": "ลบโปรเจกต์",
+    "viewLabel": "มุมมองโปรเจกต์",
+    "viewCards": "การ์ด",
+    "viewList": "รายการ",
+    "sortLabel": "เรียงโปรเจกต์: {{sort}}",
+    "sort_newest": "สร้างล่าสุดก่อน",
+    "sort_oldest": "สร้างเก่าสุดก่อน",
+    "sort_progress_high": "คืบหน้ามากสุดก่อน",
+    "sort_progress_low": "คืบหน้าน้อยสุดก่อน"
   },
   "members": {
     "title": "สมาชิก",
@@ -160,7 +175,6 @@
     "title": "งาน",
     "board": "บอร์ดงาน",
     "new": "สร้างงาน",
-    "addIn": "เพิ่มงานใน {{column}}",
     "loading": "กำลังโหลดงาน...",
     "empty": "ยังไม่มีงาน",
     "emptyBoard": "ยังไม่มีงาน เพิ่มงานแรกเพื่อเริ่มต้น",
@@ -188,7 +202,7 @@
     "descriptionHint": "ไม่เกิน 5000 ตัวอักษร",
     "priorityLabel": "ความสำคัญ",
     "assigneeLabel": "ผู้รับผิดชอบ",
-    "dueLabel": "วันครบกำหนด (ไม่บังคับ)",
+    "dueLabel": "วันที่สิ้นสุด (ไม่บังคับ)",
     "statusLabel": "คอลัมน์",
     "statusMoveHint": "การเปลี่ยนคอลัมน์จะย้ายงานไปไว้ท้ายคอลัมน์นั้น",
     "create": "สร้างงาน",
@@ -197,7 +211,7 @@
     "saving": "กำลังบันทึก...",
     "created": "สร้างงานแล้ว",
     "saved": "บันทึกงานแล้ว",
-    "due": "ครบกำหนด {{date}}",
+    "due": "สิ้นสุด {{date}}",
     "overdue": "เลยกำหนด",
     "assignedTo": "ผู้รับผิดชอบ: {{name}}",
     "delete": "ลบ",
@@ -216,16 +230,42 @@
     "loadError": "โหลดงานไม่สำเร็จ",
     "filters": "ตัวกรอง",
     "filtersCount": "ตัวกรอง ({{count}})",
-    "dueWord": "ครบกำหนด",
+    "dueWord": "สิ้นสุด",
     "assignedWord": "ผู้รับผิดชอบ",
     "filteringBy": "กรองอยู่:",
     "removeFilter": "เอาตัวกรองออก: {{name}}",
-    "showCount": "แสดง {{count}} งาน"
+    "showCount": "แสดง {{count}} งาน",
+    "sortIn": "เรียง {{column}}: {{sort}}",
+    "sort_manual": "ตามที่จัดเอง",
+    "sort_priority": "ความสำคัญสูงก่อน",
+    "sort_due": "ใกล้วันสิ้นสุดก่อน",
+    "sort_newest": "สร้างล่าสุดก่อน",
+    "sortedNoArrange": "คอลัมน์นี้เรียงอัตโนมัติอยู่ ถ้าจะจัดลำดับเอง ให้เลือก \"ตามที่จัดเอง\" ในเมนูเรียงของคอลัมน์",
+    "assigneeHint": "เลือกได้มากกว่า 1 คน",
+    "startLabel": "วันที่เริ่มงาน (ไม่บังคับ)",
+    "starts": "เริ่ม {{date}}",
+    "startWord": "เริ่ม",
+    "subtasksLabel": "รายการย่อย (ไม่บังคับ)",
+    "subtasksHint": "การติ๊ก แก้ชื่อ และลบ จะบันทึกทันที",
+    "subtaskAddLabel": "เพิ่มรายการย่อย",
+    "subtaskPlaceholder": "พิมพ์สิ่งที่ต้องทำ",
+    "subtaskAdd": "เพิ่ม",
+    "subtaskDone": "ทำแล้ว: {{title}}",
+    "subtaskEdit": "แก้ชื่อรายการย่อย: {{title}}",
+    "subtaskRemove": "ลบรายการย่อย: {{title}}",
+    "subtasksProgress": "ทำแล้ว {{done}} จาก {{total}} รายการย่อย",
+    "subtaskSaveFailed": "บันทึกรายการย่อยไม่สำเร็จ ลองอีกครั้ง",
+    "holdTitle": "พักงาน: {{title}}",
+    "holdLabel": "สาเหตุที่พักงาน",
+    "holdHint": "บอกทีมว่างานนี้รออะไรอยู่",
+    "holdConfirm": "พักงาน",
+    "holdWord": "สาเหตุที่พัก"
   },
   "status": {
     "todo": "รอทำ",
     "in_progress": "กำลังทำ",
     "review": "รอตรวจ",
+    "on_hold": "พักงาน",
     "done": "เสร็จแล้ว"
   },
   "priority": {
@@ -262,5 +302,14 @@
     "step2": "เพิ่มงาน แล้วลากย้ายไปตามคอลัมน์เมื่องานคืบหน้า",
     "step3": "เชิญคนอื่นด้วยอีเมล และกำหนดผู้รับผิดชอบให้แต่ละงาน",
     "cta": "สร้างโปรเจกต์แรก"
+  },
+  "datePicker": {
+    "placeholder": "เลือกวันที่",
+    "clear": "ล้าง{{label}}",
+    "previousMonth": "เดือนก่อนหน้า",
+    "nextMonth": "เดือนถัดไป",
+    "month": "เดือน",
+    "year": "ปี",
+    "today": "วันนี้"
   }
 }

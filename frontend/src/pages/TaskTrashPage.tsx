@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { errorMessage } from '../auth/errors'
+import { BackLink } from '../components/BackLink'
 import { Alert, Button } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { EmptyState, ErrorState, LoadingState } from '../components/states'
@@ -28,13 +29,9 @@ export function TaskTrashPage() {
 
   const back = (
     <p>
-      <Link
-        to={`/projects/${encodeURIComponent(projectId)}`}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline"
-      >
-        <Icon name="arrow-left" />
+      <BackLink to={`/projects/${encodeURIComponent(projectId)}`}>
         {t('tasks.backToBoard')}
-      </Link>
+      </BackLink>
     </p>
   )
 
@@ -43,9 +40,9 @@ export function TaskTrashPage() {
       <div className="py-12 text-center">
         <h1 className="text-2xl font-bold">{t('projects.notFoundTitle')}</h1>
         <p className="mt-2 text-muted">{t('projects.notFoundText')}</p>
-        <Link to="/" className="mt-4 inline-block font-medium text-primary underline">
-          {t('projects.back')}
-        </Link>
+        <p className="mt-4">
+          <BackLink to="/">{t('projects.back')}</BackLink>
+        </p>
       </div>
     )
   }

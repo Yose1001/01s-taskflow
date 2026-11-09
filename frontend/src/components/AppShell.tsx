@@ -46,15 +46,18 @@ function Account() {
     return (
       <Menu
         label={t('nav.account')}
-        trigger={<Avatar id={user.id} name={user.displayName} size={36} />}
-        triggerClassName="grid h-11 w-11 place-items-center rounded-full sm:h-9 sm:w-9"
+        trigger={<Avatar id={user.id} name={user.email} size={36} />}
+        triggerClassName="grid h-11 w-11 place-items-center rounded-full hover:ring-2 hover:ring-primary aria-expanded:ring-2 aria-expanded:ring-primary sm:h-9 sm:w-9"
         header={
-          <div className="min-w-0">
-            <p className="break-words font-semibold">{user.displayName}</p>
-            <p className="break-words text-sm text-muted">{user.email}</p>
+          <div className="flex items-center gap-3">
+            <Avatar id={user.id} name={user.email} size={36} />
+            <div className="min-w-0">
+              <p className="text-sm text-muted">{t('nav.signedInAs')}</p>
+              <p className="break-words font-semibold">{user.email}</p>
+            </div>
           </div>
         }
-        items={[{ key: 'logout', label: t('nav.logout'), onSelect: logout }]}
+        items={[{ key: 'logout', label: t('nav.logout'), icon: 'logout', onSelect: logout }]}
       />
     )
   // On phones these two are left out: each sign-in form links to the other, and the bar stays one line.

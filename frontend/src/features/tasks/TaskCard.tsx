@@ -6,16 +6,24 @@ import { Avatar, EmptyAvatar } from '../../components/Avatar'
 import { Icon } from '../../components/Icon'
 import { PriorityBadge } from '../../components/StatusBadge'
 import { formatDay, formatDayShort } from '../../lib/format'
-import { isOverdue } from './boardLogic'
+import { isOverdue, type Assignee } from './boardLogic'
+import { SubtaskProgress } from './SubtaskList'
 
 interface ViewProps {
   task: Task
-  /** Display name of the assignee, when there is one. */
-  assigneeName?: string | undefined
+  /** The people on this task whose names are known. */
+  assignees?: Assignee[]
   onOpen?: () => void
   /** Props for the drag handle (from dnd-kit). Absent on the floating copy shown while dragging. */
   handle?: React.ButtonHTMLAttributes<HTMLButtonElement> & {
     ref?: (node: HTMLElement | null) => void
+    /** Lets the board give the focus back to this card after it has moved. */
+    'data-task-handle'?: string
+  }
+  /** Start a drag with a mouse, pen or finger, from anywhere on the card. */
+  dragListeners?: {
+    onPointerDown?: React.PointerEventHandler<HTMLDivElement>
+    onTouchStart?: React.TouchEventHandler<HTMLDivElement>
   }
   /** This card has been picked up. */
   picked?: boolean
@@ -23,69 +31,132 @@ interface ViewProps {
   lifted?: boolean
 }
 
-function DueChip({ task }: { task: Task }) {
+function DatesChip({ task }: { task: Task }) {
   const { t, i18n } = useTranslation()
-  if (!task.dueDate) return null
+  const { startDate, dueDate } = task
+  if (!startDate && !dueDate) return null
   const overdue = isOverdue(task)
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
+      // On a narrow card it wraps between whole pieces, never in the middle of a word or a date.
+      className={`inline-flex flex-wrap items-center gap-x-1.5 whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium ${
         overdue ? 'bg-danger-bg text-danger-fg' : 'bg-surface-2 text-muted'
       }`}
     >
       <Icon name={overdue ? 'warning' : 'calendar'} size={14} />
-      {overdue ? (
-        <span>{t('tasks.overdue')}</span>
-      ) : (
-        <span className="sr-only">{t('tasks.dueWord')}</span>
-      )}
-      <time
-        dateTime={task.dueDate}
-        title={t('tasks.due', { date: formatDay(task.dueDate, i18n.language) })}
-      >
-        {formatDayShort(task.dueDate, i18n.language)}
-      </time>
+      {overdue && <span>{t('tasks.overdue')}</span>}
+      <span className="inline-flex flex-wrap items-center gap-x-1.5">
+        {startDate && (
+          <>
+            {/* With only a start date, the word is needed on screen: a lone date would read as the end. */}
+            <span className={dueDate ? 'sr-only' : undefined}>{t('tasks.startWord')}</span>
+            <time
+              dateTime={startDate}
+              title={t('tasks.starts', { date: formatDay(startDate, i18n.language) })}
+            >
+              {formatDayShort(startDate, i18n.language)}
+            </time>
+          </>
+        )}
+        {startDate && dueDate && <span aria-hidden="true">–</span>}
+        {dueDate && (
+          <>
+            {(!overdue || startDate) && <span className="sr-only">{t('tasks.dueWord')}</span>}
+            <time
+              dateTime={dueDate}
+              title={t('tasks.due', { date: formatDay(dueDate, i18n.language) })}
+            >
+              {formatDayShort(dueDate, i18n.language)}
+            </time>
+          </>
+        )}
+      </span>
     </span>
   )
 }
 
-function AssigneeRow({ task, name }: { task: Task; name?: string | undefined }) {
+// How many faces fit beside a name on a narrow card. The "+N" and the title still count everyone.
+const MAX_FACES = 3
+
+function AssigneeRow({ task, people }: { task: Task; people: Assignee[] }) {
   const { t } = useTranslation()
-  // Somebody is assigned but the member list has not arrived yet: say nothing rather than "nobody".
-  if (task.assigneeId && !name) return <div className="h-[22px]" />
+  const row = 'flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted'
+  const [first, ...others] = people
+  if (!first) {
+    // Somebody is assigned but the member list has not arrived yet: say nothing rather than "nobody".
+    if (task.assigneeIds.length > 0) return <div className="h-[22px]" />
+    return (
+      <div className={row}>
+        <span className="min-w-0 truncate">{t('tasks.unassigned')}</span>
+        <EmptyAvatar label={t('tasks.unassigned')} size={22} />
+      </div>
+    )
+  }
+  const everyone = people.map((person) => person.name).join(', ')
   return (
-    <div className="flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted">
-      {task.assigneeId && name ? (
-        <>
-          <span className="min-w-0 truncate" title={t('tasks.assignedTo', { name })}>
-            <span className="sr-only">{t('tasks.assignedWord')} </span>
-            <span>{name}</span>
+    <div className={row}>
+      <span
+        className="flex min-w-0 items-center gap-1"
+        title={t('tasks.assignedTo', { name: everyone })}
+      >
+        <span className="min-w-0 truncate">
+          <span className="sr-only">{t('tasks.assignedWord')} </span>
+          <span>{first.name}</span>
+        </span>
+        {others.length > 0 && (
+          <>
+            <span aria-hidden="true" className="shrink-0 font-medium">
+              +{others.length}
+            </span>
+            <span className="sr-only">, {others.map((person) => person.name).join(', ')}</span>
+          </>
+        )}
+      </span>
+      <span className="flex shrink-0 -space-x-1.5">
+        {people.slice(0, MAX_FACES).map((person) => (
+          <span key={person.id} className="rounded-full ring-2 ring-surface">
+            <Avatar id={person.id} name={person.name} size={22} />
           </span>
-          <Avatar id={task.assigneeId} name={name} size={22} />
-        </>
-      ) : (
-        <>
-          <span className="min-w-0 truncate">{t('tasks.unassigned')}</span>
-          <EmptyAvatar label={t('tasks.unassigned')} size={22} />
-        </>
-      )}
+        ))}
+      </span>
     </div>
   )
 }
 
 /** What a task looks like on the board. Plain text only: titles are never treated as HTML. */
-export function TaskCardView({ task, assigneeName, onOpen, handle, picked, lifted }: ViewProps) {
+export function TaskCardView({
+  task,
+  assignees = [],
+  onOpen,
+  handle,
+  dragListeners,
+  picked,
+  lifted,
+}: ViewProps) {
   const { t } = useTranslation()
   return (
+    // A click anywhere on the card opens it. A mouse or pen press that moves drags it, and so does a long
+    // press with a finger; a finger that moves straight away still scrolls the board (see the sensors in
+    // TaskBoard). Keyboard and screen-reader users reach the same two things through the title button and
+    // the handle below. dnd-kit swallows the click that ends a drag.
     <div
-      className={`grid grid-cols-[28px_minmax(0,1fr)] rounded-xl border bg-surface ${
-        lifted ? 'border-primary shadow-xl' : 'border-border shadow-card'
+      onClick={onOpen}
+      {...dragListeners}
+      className={`group grid touch-manipulation select-none grid-cols-[28px_minmax(0,1fr)] rounded-xl border bg-surface [-webkit-touch-callout:none] ${
+        lifted
+          ? 'cursor-grabbing border-primary shadow-xl'
+          : 'cursor-pointer border-border shadow-card hover:border-primary active:cursor-grabbing'
       }`}
     >
-      {/* The whole left edge is the handle: easy to find with a mouse and big enough for a thumb. */}
+      {/* The way to pick the card up with the keyboard. It also shows that the card can be moved, and a finger
+          here drags without ever scrolling the board. */}
       <button
         type="button"
         {...handle}
+        // Space and Enter on the handle pick the card up. If they also produce a click, it must not open the card.
+        onClick={(event) => {
+          if (event.detail === 0) event.stopPropagation()
+        }}
         aria-label={t('tasks.dragHandle', { title: task.title })}
         className={`grid min-h-11 cursor-grab touch-none place-items-center rounded-l-xl -outline-offset-2 active:cursor-grabbing ${
           picked
@@ -98,30 +169,52 @@ export function TaskCardView({ task, assigneeName, onOpen, handle, picked, lifte
       <div className="min-w-0 space-y-2 py-3 pl-1 pr-3">
         <button
           type="button"
-          onClick={onOpen}
           title={task.title}
-          className="line-clamp-3 w-full break-words text-left font-medium leading-[1.45] hover:underline"
+          className="line-clamp-3 w-full cursor-[inherit] break-words text-left font-medium leading-[1.45] group-hover:underline"
         >
           {task.title}
         </button>
         <div className="flex flex-wrap items-center gap-1.5">
           <PriorityBadge priority={task.priority} />
-          <DueChip task={task} />
+          <DatesChip task={task} />
+          {task.subtasks.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-sm font-medium text-muted">
+              <Icon
+                name={task.subtasks.every((subtask) => subtask.done) ? 'check-circle' : 'checklist'}
+                size={14}
+              />
+              <SubtaskProgress subtasks={task.subtasks} />
+            </span>
+          )}
         </div>
-        <AssigneeRow task={task} name={assigneeName} />
+        {task.holdReason && (
+          <p
+            title={task.holdReason}
+            className="flex items-start gap-1.5 rounded-lg bg-lemon-bg px-2 py-1 text-sm text-lemon-fg"
+          >
+            <span className="mt-0.5 shrink-0">
+              <Icon name="pause" size={14} />
+            </span>
+            <span className="line-clamp-2 min-w-0 break-words">
+              <span className="sr-only">{t('tasks.holdWord')}: </span>
+              {task.holdReason}
+            </span>
+          </p>
+        )}
+        <AssigneeRow task={task} people={assignees} />
       </div>
     </div>
   )
 }
 
-/** A card that can be dragged (by its handle, with the mouse, a finger or the keyboard). */
+/** A card that can be dragged: anywhere with a mouse, pen or finger, by its handle with the keyboard. */
 export function SortableTaskCard({
   task,
-  assigneeName,
+  assignees,
   onOpen,
 }: {
   task: Task
-  assigneeName?: string | undefined
+  assignees: Assignee[]
   onOpen: () => void
 }) {
   const {
@@ -133,6 +226,8 @@ export function SortableTaskCard({
     transition,
     isDragging,
   } = useSortable({ id: task.id })
+  // These go on the whole card; a press on the handle reaches them by bubbling. Only keys stay on the handle.
+  const { onPointerDown, onTouchStart, ...handleListeners } = listeners ?? {}
   return (
     <li
       ref={setNodeRef}
@@ -141,9 +236,15 @@ export function SortableTaskCard({
     >
       <TaskCardView
         task={task}
-        assigneeName={assigneeName}
+        assignees={assignees}
         onOpen={onOpen}
-        handle={{ ...attributes, ...listeners, ref: setActivatorNodeRef }}
+        handle={{
+          ...attributes,
+          ...handleListeners,
+          ref: setActivatorNodeRef,
+          'data-task-handle': task.id,
+        }}
+        dragListeners={{ onPointerDown, onTouchStart } as ViewProps['dragListeners']}
         picked={isDragging}
       />
     </li>

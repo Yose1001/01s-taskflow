@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { Menu } from './Menu'
@@ -29,6 +29,49 @@ function setup() {
     third,
   }
 }
+
+describe('Menu with choices', () => {
+  it('marks the chosen item, starts on it, and places a floating menu against the window', async () => {
+    const user = userEvent.setup()
+    render(
+      <Menu
+        floating
+        label="Sort"
+        trigger="..."
+        triggerClassName=""
+        items={[
+          { key: 'a', label: 'A', checked: false, onSelect: () => {} },
+          { key: 'b', label: 'B', checked: true, onSelect: () => {} },
+        ]}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Sort' }))
+    const chosen = screen.getByRole('menuitemradio', { name: 'B' })
+    expect(chosen).toHaveAttribute('aria-checked', 'true')
+    expect(chosen).toHaveFocus()
+    expect(screen.getByRole('menuitemradio', { name: 'A' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+    expect(screen.getByRole('menu').parentElement).toHaveClass('fixed')
+  })
+
+  it('a floating menu closes when anything scrolls', async () => {
+    const user = userEvent.setup()
+    render(
+      <Menu
+        floating
+        label="Sort"
+        trigger="..."
+        triggerClassName=""
+        items={[{ key: 'a', label: 'A', checked: true, onSelect: () => {} }]}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Sort' }))
+    act(() => void window.dispatchEvent(new Event('scroll')))
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+})
 
 describe('Menu', () => {
   it('is closed at first and says it opens a menu', () => {

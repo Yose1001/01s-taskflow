@@ -51,8 +51,15 @@ export interface Member {
   joinedAt: string
 }
 
-export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done'
+export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'on_hold' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high'
+
+/** One line of a task's checklist. */
+export interface Subtask {
+  id: string
+  title: string
+  done: boolean
+}
 
 export interface Task {
   id: string
@@ -61,9 +68,14 @@ export interface Task {
   description: string
   status: TaskStatus
   priority: TaskPriority
-  assigneeId: string | null
+  /** Why it is on hold. Null in every other column. */
+  holdReason: string | null
+  assigneeIds: string[]
+  subtasks: Subtask[]
   createdBy: string
   /** A calendar day, "YYYY-MM-DD" (no time zone). */
+  startDate: string | null
+  /** The end date. */
   dueDate: string | null
   /** Order inside a column. Only comparable between tasks of the same status. */
   position: number
