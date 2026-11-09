@@ -96,6 +96,7 @@ export function TaskBoard({
   }
   const [deleting, setDeleting] = useState<Task | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [movedByKeyboard, setMovedByKeyboard] = useState(false)
 
   // Which column is in view when the board is swiped sideways on a phone.
   const scroller = useRef<HTMLDivElement>(null)
@@ -152,6 +153,7 @@ export function TaskBoard({
 
   function onDragStart(event: DragStartEvent) {
     pointerY.current = null // stays null for a keyboard drag, which never moves a pointer
+    setMovedByKeyboard(event.activatorEvent instanceof KeyboardEvent)
     setActiveId(String(event.active.id))
   }
 
@@ -262,13 +264,22 @@ export function TaskBoard({
           ))}
         </div>
         <DragOverlay>
+          {/*
+            The plain outer div must stay: dnd-kit measures the overlay's first child, and a tilted element
+            measures wider than it is. Keyboard moves would then pick the card itself as the next place.
+            The tilt is for dragging by hand only.
+          */}
           {activeTask ? (
-            <TaskCardView
-              task={activeTask}
-              assigneeName={nameOf.get(activeTask.assigneeId ?? '')}
-              picked
-              lifted
-            />
+            <div>
+              <div className={movedByKeyboard ? '' : '-rotate-[1.5deg] motion-reduce:rotate-0'}>
+                <TaskCardView
+                  task={activeTask}
+                  assigneeName={nameOf.get(activeTask.assigneeId ?? '')}
+                  picked
+                  lifted
+                />
+              </div>
+            </div>
           ) : null}
         </DragOverlay>
       </DndContext>

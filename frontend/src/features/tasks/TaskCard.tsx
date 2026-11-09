@@ -79,9 +79,7 @@ export function TaskCardView({ task, assigneeName, onOpen, handle, picked, lifte
   return (
     <div
       className={`grid grid-cols-[28px_minmax(0,1fr)] rounded-xl border bg-surface ${
-        lifted
-          ? '-rotate-[1.5deg] border-primary shadow-xl motion-reduce:rotate-0'
-          : 'border-border shadow-card'
+        lifted ? 'border-primary shadow-xl' : 'border-border shadow-card'
       }`}
     >
       {/* The whole left edge is the handle: easy to find with a mouse and big enough for a thumb. */}
