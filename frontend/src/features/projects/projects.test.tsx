@@ -205,7 +205,7 @@ describe('project list', () => {
     const user = userEvent.setup()
     await openSignedIn(user)
     await screen.findByRole('link', { name: /เว็บไซต์/ })
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
+    await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
     expect(screen.getByRole('heading', { level: 2, name: 'โปรเจกต์ของคุณ' })).toBeInTheDocument()
     expect(screen.getByText(/สร้างเมื่อ .*2569/)).toBeInTheDocument() // Buddhist-era year
     expect(screen.getByText('เจ้าของ')).toBeInTheDocument()
@@ -467,7 +467,8 @@ describe('project page', () => {
     )
     expect(await screen.findByText('"Website" moved to the trash.')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     await screen.findByRole('heading', { level: 1, name: 'Log in' })
     expect(screen.queryByText('"Website" moved to the trash.')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
@@ -548,6 +549,11 @@ describe('members', () => {
     await user.keyboard('{Escape}') // closes only the confirmation
     expect(screen.getByRole('dialog', { name: 'Members' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Actions for Bob' })).toHaveFocus()
+    expect(container).toHaveAttribute('inert')
+
+    await user.keyboard('{Escape}') // now the panel itself
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(container).not.toHaveAttribute('inert')
   })
 
   it('invites by email, clears the box, and shows the new member', async () => {
@@ -694,7 +700,8 @@ describe('privacy between people on the same browser', () => {
     await screen.findByRole('link', { name: /Alice private plan/ })
     expect(queryClient.getQueryCache().getAll().length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     await screen.findByRole('heading', { level: 1, name: 'Log in' })
 
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
@@ -706,7 +713,8 @@ describe('privacy between people on the same browser', () => {
     const user = userEvent.setup()
     await openSignedIn(user)
     await screen.findByRole('link', { name: /Alice private plan/ })
-    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     await screen.findByRole('heading', { level: 1, name: 'Log in' })
 
     // Bob signs in on the same browser. His server answers slowly, so any leftover data would be visible.

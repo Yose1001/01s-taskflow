@@ -7,17 +7,18 @@
     "login": "เข้าสู่ระบบ",
     "signup": "สมัครสมาชิก",
     "logout": "ออกจากระบบ",
-    "menu": "เมนู"
+    "account": "เมนูบัญชี"
   },
   "theme": {
-    "label": "ธีม",
-    "light": "สว่าง",
-    "dark": "มืด"
+    "switchToDark": "เปลี่ยนเป็นธีมมืด",
+    "switchToLight": "เปลี่ยนเป็นธีมสว่าง"
   },
   "language": {
-    "label": "ภาษา",
     "th": "ไทย",
-    "en": "English"
+    "en": "English",
+    "switchTo": "เปลี่ยนภาษาเป็น {{name}}",
+    "code_th": "TH",
+    "code_en": "EN"
   },
   "auth": {
     "loginTitle": "เข้าสู่ระบบ",
@@ -215,11 +216,11 @@
     "loadError": "โหลดงานไม่สำเร็จ",
     "filters": "ตัวกรอง",
     "filtersCount": "ตัวกรอง ({{count}})",
-    "swipeHint": "ปัดซ้าย-ขวาเพื่อดูคอลัมน์อื่น",
     "dueWord": "ครบกำหนด",
     "assignedWord": "ผู้รับผิดชอบ",
     "filteringBy": "กรองอยู่:",
-    "removeFilter": "เอาตัวกรองออก: {{name}}"
+    "removeFilter": "เอาตัวกรองออก: {{name}}",
+    "showCount": "แสดง {{count}} งาน"
   },
   "status": {
     "todo": "รอทำ",

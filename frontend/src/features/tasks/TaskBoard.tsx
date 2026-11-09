@@ -26,8 +26,9 @@ import type { Member, Task, TaskStatus } from '../../api/types'
 import { useAuth } from '../../auth/context'
 import { errorMessage } from '../../auth/errors'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { CompactSelectField, CompactTextField } from '../../components/forms'
+import { Button, CompactSelectField, CompactTextField, SelectField } from '../../components/forms'
 import { Icon, type IconName } from '../../components/Icon'
+import { Modal } from '../../components/Modal'
 import { ErrorState, LoadingState } from '../../components/states'
 import { StatusBadge } from '../../components/StatusBadge'
 import { useToast } from '../../components/toast'
@@ -95,6 +96,17 @@ export function TaskBoard({
   }
   const [deleting, setDeleting] = useState<Task | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+
+  // Which column is in view when the board is swiped sideways on a phone.
+  const scroller = useRef<HTMLDivElement>(null)
+  const [columnInView, setColumnInView] = useState(0)
+  function onBoardScroll() {
+    const el = scroller.current
+    if (!el || el.children.length < 2) return
+    const [first, second] = [...el.children] as [HTMLElement, HTMLElement]
+    const step = second.offsetLeft - first.offsetLeft
+    if (step > 0) setColumnInView(Math.round(el.scrollLeft / step))
+  }
 
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data])
   const [filters, setFilters] = useFilters(membersQuery.isSuccess ? members : null)
@@ -184,7 +196,8 @@ export function TaskBoard({
     )
 
   return (
-    <section aria-labelledby="tasks-title" className="space-y-4">
+    // On phones the extra space at the bottom keeps the last cards clear of the floating "New task" button.
+    <section aria-labelledby="tasks-title" className="space-y-4 max-sm:pb-20">
       <h2 id="tasks-title" className="sr-only">
         {t('tasks.title')}
       </h2>
@@ -193,6 +206,7 @@ export function TaskBoard({
         projectId={projectId}
         filters={filters}
         members={members}
+        tasks={all}
         onChange={setFilters}
         shown={visible.length}
         total={all.length}
@@ -204,6 +218,8 @@ export function TaskBoard({
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
+        // Near the edge of a phone screen the board scrolls sideways by itself during a drag.
+        autoScroll={{ threshold: { x: 0.2, y: 0.2 } }}
         accessibility={{
           announcements,
           screenReaderInstructions: { draggable: t('tasks.dragInstructions') },
@@ -212,11 +228,17 @@ export function TaskBoard({
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveId(null)}
       >
-        <p className="text-sm text-muted md:hidden" aria-hidden="true">
-          {t('tasks.swipeHint')}
-        </p>
-        {/* Phones: one column at a time, swipe sideways. Tablets: 2 x 2. Wide screens: all four. */}
-        <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-4">
+        {/*
+          Phones: one column at a time, swipe sideways. Tablets: 2 x 2. Wide screens: all four.
+          Snapping is off during a drag: it would fight with scrolling by itself near the edge.
+        */}
+        <div
+          ref={scroller}
+          onScroll={onBoardScroll}
+          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4 ${
+            dragging ? '' : 'snap-x snap-mandatory'
+          }`}
+        >
           {STATUSES.map((status) => (
             <Column
               key={status}
@@ -225,6 +247,17 @@ export function TaskBoard({
               nameOf={nameOf}
               onAdd={() => setColumnDialog({ kind: 'create', status })}
               onOpen={(task) => setColumnDialog({ kind: 'edit', task })}
+            />
+          ))}
+        </div>
+        {/* Decoration only: each column already announces its own name and task count. */}
+        <div aria-hidden="true" className="flex items-center justify-center gap-1.5 sm:hidden">
+          {STATUSES.map((status, index) => (
+            <span
+              key={status}
+              className={`h-1.5 rounded-full ${
+                index === columnInView ? 'w-4 bg-primary' : 'w-1.5 bg-border'
+              }`}
             />
           ))}
         </div>
@@ -320,7 +353,7 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
   return (
     <section
       aria-label={t('tasks.columnLabel', { column: name, count: tasks.length })}
-      className="relative w-[85%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 md:w-auto"
+      className="relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto"
     >
       <span
         aria-hidden="true"
@@ -368,32 +401,130 @@ interface FilterBarProps {
   projectId: string
   filters: Filters
   members: Member[]
+  tasks: Task[]
   /** Only the filter(s) that changed, so two quick changes in a row cannot undo each other. */
   onChange: (changed: Partial<Filters>) => void
   shown: number
   total: number
 }
 
-const SELECT_WIDTH = 'flex-[0_1_150px]'
+const SELECT_WIDTH = 'flex-[0_1_150px] max-sm:hidden'
 
-function FilterBar({ projectId, filters, members, onChange, shown, total }: FilterBarProps) {
+function PriorityOptions() {
   const { t } = useTranslation()
-  // On phones the two lists fold away behind one button, so the board is visible without scrolling.
-  // They start open when the address already has filters in it.
-  const [open, setOpen] = useState(() => hasFilters(filters))
-  const active = [filters.q, filters.priority, filters.assignee].filter(Boolean).length
+  return (
+    <>
+      <option value="">{t('tasks.all')}</option>
+      {PRIORITIES.map((p) => (
+        <option key={p} value={p}>
+          {t(`priority.${p}`)}
+        </option>
+      ))}
+    </>
+  )
+}
+
+function AssigneeOptions({ members }: { members: Member[] }) {
+  const { t } = useTranslation()
+  return (
+    <>
+      <option value="">{t('tasks.all')}</option>
+      <option value={UNASSIGNED}>{t('tasks.unassigned')}</option>
+      {members.map((m) => (
+        <option key={m.userId} value={m.userId}>
+          {m.displayName}
+        </option>
+      ))}
+    </>
+  )
+}
+
+/** The phone version of the two lists. Nothing changes on the board or in the address until "Show N tasks". */
+function FilterSheet({
+  filters,
+  members,
+  tasks,
+  onChange,
+  onClose,
+}: {
+  filters: Filters
+  members: Member[]
+  tasks: Task[]
+  onChange: (changed: Partial<Filters>) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const [priority, setPriority] = useState(filters.priority)
+  const [assignee, setAssignee] = useState(filters.assignee)
+  const count = filterTasks(tasks, { ...filters, priority, assignee }).length
+  return (
+    <Modal
+      title={t('tasks.filters')}
+      variant="drawer"
+      closeLabel={t('common.close')}
+      onClose={onClose}
+    >
+      <div className="space-y-3">
+        <SelectField
+          id="sheet-priority"
+          label={t('tasks.priorityFilter')}
+          value={priority}
+          onChange={(e) => setPriority(isPriority(e.target.value) ? e.target.value : '')}
+        >
+          <PriorityOptions />
+        </SelectField>
+        <SelectField
+          id="sheet-assignee"
+          label={t('tasks.assigneeFilter')}
+          value={assignee}
+          onChange={(e) => setAssignee(e.target.value)}
+        >
+          <AssigneeOptions members={members} />
+        </SelectField>
+        <div className="flex flex-col gap-2 pt-1">
+          <Button
+            type="button"
+            className="w-full"
+            onClick={() => {
+              onChange({ priority, assignee })
+              onClose()
+            }}
+          >
+            {t('tasks.showCount', { count })}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setPriority('')
+              setAssignee('')
+            }}
+          >
+            {t('tasks.clearFilters')}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function FilterBar({ projectId, filters, members, tasks, onChange, shown, total }: FilterBarProps) {
+  const { t } = useTranslation()
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const inSheet = [filters.priority, filters.assignee].filter(Boolean).length
   const assigneeName =
     filters.assignee === UNASSIGNED
       ? t('tasks.unassigned')
       : members.find((m) => m.userId === filters.assignee)?.displayName
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+      <div className="flex items-center gap-2">
         <CompactTextField
           id="filter-q"
           type="search"
           icon="search"
-          className="min-w-40 flex-1"
+          className="flex-1"
           label={t('tasks.search')}
           placeholder={t('tasks.searchPlaceholder')}
           value={filters.q}
@@ -401,55 +532,62 @@ function FilterBar({ projectId, filters, members, onChange, shown, total }: Filt
           autoComplete="off"
           onChange={(e) => onChange({ q: e.target.value })}
         />
-        <button
+        <Button
           type="button"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-sm font-medium sm:hidden"
+          variant="soft"
+          className="shrink-0 sm:hidden"
+          aria-label={inSheet > 0 ? t('tasks.filtersCount', { count: inSheet }) : undefined}
+          onClick={() => setSheetOpen(true)}
         >
-          <Icon name="filter" size={14} />
-          {active > 0 ? t('tasks.filtersCount', { count: active }) : t('tasks.filters')}
-          <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} />
-        </button>
+          <Icon name="filter" />
+          {t('tasks.filters')}
+          {inSheet > 0 && (
+            <span
+              aria-hidden="true"
+              className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-xs text-on-primary"
+            >
+              {inSheet}
+            </span>
+          )}
+        </Button>
         <CompactSelectField
           id="filter-priority"
           icon="filter"
-          className={`${SELECT_WIDTH} ${open ? '' : 'hidden'} sm:block`}
+          className={SELECT_WIDTH}
           label={t('tasks.priorityFilter')}
           value={filters.priority}
           onChange={(e) => onChange({ priority: isPriority(e.target.value) ? e.target.value : '' })}
         >
-          <option value="">{t('tasks.all')}</option>
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {t(`priority.${p}`)}
-            </option>
-          ))}
+          <PriorityOptions />
         </CompactSelectField>
         <CompactSelectField
           id="filter-assignee"
           icon="users"
-          className={`${SELECT_WIDTH} ${open ? '' : 'hidden'} sm:block`}
+          className={SELECT_WIDTH}
           label={t('tasks.assigneeFilter')}
           value={filters.assignee}
           onChange={(e) => onChange({ assignee: e.target.value })}
         >
-          <option value="">{t('tasks.all')}</option>
-          <option value={UNASSIGNED}>{t('tasks.unassigned')}</option>
-          {members.map((m) => (
-            <option key={m.userId} value={m.userId}>
-              {m.displayName}
-            </option>
-          ))}
+          <AssigneeOptions members={members} />
         </CompactSelectField>
+        {/* On phones the same page is in the project's "More actions" menu. */}
         <Link
           to={`/projects/${encodeURIComponent(projectId)}/trash`}
-          className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 font-medium text-text hover:bg-primary-bg"
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 font-medium text-text hover:bg-primary-bg max-sm:hidden"
         >
           <Icon name="trash" />
           {t('tasks.trash')}
         </Link>
       </div>
+      {sheetOpen && (
+        <FilterSheet
+          filters={filters}
+          members={members}
+          tasks={tasks}
+          onChange={onChange}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
       {hasFilters(filters) && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted">{t('tasks.filteringBy')}</span>

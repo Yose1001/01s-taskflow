@@ -125,7 +125,7 @@ describe('board', () => {
   it('works in Thai too', async () => {
     const user = userEvent.setup()
     await openBoard(user)
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
+    await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
     expect(screen.getByRole('region', { name: 'รอทำ 3 งาน' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'สร้างงาน' })).toBeInTheDocument()
     expect(screen.getByText('1 ม.ค. 2563')).toBeInTheDocument() // Buddhist-era year
@@ -188,6 +188,41 @@ describe('filters', () => {
 
     await user.click(screen.getByRole('button', { name: 'Remove filter: logo' }))
     expect(screen.queryByText('Filtering by:')).not.toBeInTheDocument()
+  })
+
+  it('on a phone, the sheet changes nothing until "Show N tasks"', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    const opener = screen.getByRole('button', { name: 'Filters' })
+    await user.click(opener)
+    const sheet = await screen.findByRole('dialog', { name: 'Filters' })
+
+    await user.selectOptions(within(sheet).getByLabelText('Priority'), 'High')
+    const show = within(sheet).getByRole('button', { name: /^Show \d+ tasks$/ })
+    expect(document.getElementById('filter-priority')).toHaveValue('')
+    expect(titlesIn(column(/^To do/))).toHaveLength(3) // the board has not changed yet
+
+    const number = Number(/\d+/.exec(show.textContent!)![0])
+    await user.click(show)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.getElementById('filter-priority')).toHaveValue('high')
+    expect(screen.getByText(new RegExp(`^Showing ${number} of`))).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filters (1)' })).toHaveFocus()
+  })
+
+  it('in the sheet, Clear all empties the choices; closing without Show keeps the board', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    await user.selectOptions(screen.getByLabelText('Priority'), 'High')
+
+    await user.click(screen.getByRole('button', { name: 'Filters (1)' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Filters' })
+    expect(within(sheet).getByLabelText('Priority')).toHaveValue('high')
+    await user.click(within(sheet).getByRole('button', { name: 'Clear all' }))
+    expect(within(sheet).getByLabelText('Priority')).toHaveValue('')
+
+    await user.keyboard('{Escape}')
+    expect(document.getElementById('filter-priority')).toHaveValue('high')
   })
 
   it('offers New task in the project header, opening on the first column', async () => {

@@ -7,17 +7,18 @@
     "login": "Log in",
     "signup": "Sign up",
     "logout": "Log out",
-    "menu": "Menu"
+    "account": "Account menu"
   },
   "theme": {
-    "label": "Theme",
-    "light": "Light",
-    "dark": "Dark"
+    "switchToDark": "Switch to dark theme",
+    "switchToLight": "Switch to light theme"
   },
   "language": {
-    "label": "Language",
     "th": "ไทย",
-    "en": "English"
+    "en": "English",
+    "switchTo": "Switch language to {{name}}",
+    "code_th": "TH",
+    "code_en": "EN"
   },
   "auth": {
     "loginTitle": "Log in",
@@ -215,11 +216,11 @@
     "loadError": "Could not load the tasks.",
     "filters": "Filters",
     "filtersCount": "Filters ({{count}})",
-    "swipeHint": "Swipe sideways to see the other columns.",
     "dueWord": "Due",
     "assignedWord": "Assigned to",
     "filteringBy": "Filtering by:",
-    "removeFilter": "Remove filter: {{name}}"
+    "removeFilter": "Remove filter: {{name}}",
+    "showCount": "Show {{count}} tasks"
   },
   "status": {
     "todo": "To do",

@@ -32,7 +32,8 @@ test.describe('working together', () => {
     await page.keyboard.press('Escape')
 
     // Bob signs in: he is a member, so no owner actions, but the work is his too.
-    await page.getByRole('button', { name: 'Log out' }).click()
+    await page.getByRole('button', { name: 'Account menu' }).click()
+    await page.getByRole('menuitem', { name: 'Log out' }).click()
     await page.getByLabel('Email').fill(bob.person.email)
     await page.getByLabel('Password', { exact: true }).fill(bob.person.password)
     await page.getByRole('button', { name: 'Log in' }).click()
@@ -55,7 +56,8 @@ test.describe('working together', () => {
     await expect(page.getByRole('button', { name: "Bob's idea", exact: true })).toBeVisible()
 
     // Alice sees what Bob added.
-    await page.getByRole('button', { name: 'Log out' }).click()
+    await page.getByRole('button', { name: 'Account menu' }).click()
+    await page.getByRole('menuitem', { name: 'Log out' }).click()
     await page.getByLabel('Email').fill(alice.person.email)
     await page.getByLabel('Password', { exact: true }).fill(alice.person.password)
     await page.getByRole('button', { name: 'Log in' }).click()
@@ -115,7 +117,8 @@ test.describe('working together', () => {
     await expect(page.getByRole('button', { name: "Bob's job", exact: true })).toBeVisible()
 
     // Bob no longer finds the project.
-    await page.getByRole('button', { name: 'Log out' }).click()
+    await page.getByRole('button', { name: 'Account menu' }).click()
+    await page.getByRole('menuitem', { name: 'Log out' }).click()
     await page.getByLabel('Email').fill(bob.person.email)
     await page.getByLabel('Password', { exact: true }).fill(bob.person.password)
     await page.getByRole('button', { name: 'Log in' }).click()

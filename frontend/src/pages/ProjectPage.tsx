@@ -21,6 +21,8 @@ import { TaskBoard } from '../features/tasks/TaskBoard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate } from '../lib/format'
 
+const ICON_ON_PHONE = 'max-sm:h-10 max-sm:w-10 max-sm:px-0 max-sm:py-0'
+
 export function ProjectPage() {
   const { t, i18n } = useTranslation()
   const { projectId = '' } = useParams()
@@ -81,35 +83,58 @@ export function ProjectPage() {
           <Icon name="arrow-left" />
           {t('projects.myProjects')}
         </Link>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2 sm:flex-wrap sm:gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="break-words text-2xl font-bold sm:text-3xl">{p.name}</h1>
-              <RoleBadge role={p.myRole} />
+            <div className="flex items-center gap-2 sm:flex-wrap">
+              <h1 className="min-w-0 truncate text-2xl font-bold sm:whitespace-normal sm:break-words sm:text-3xl">
+                {p.name}
+              </h1>
+              <span className="shrink-0">
+                <RoleBadge role={p.myRole} />
+              </span>
             </div>
-            <p className="mt-0.5 truncate text-sm text-muted" title={p.description || undefined}>
+            <p
+              className="mt-0.5 truncate text-sm text-muted max-sm:hidden"
+              title={p.description || undefined}
+            >
               {p.description && <span>{p.description}</span>}
               {p.description && ' · '}
               <span>{t('projects.created', { date: formatDate(p.createdAt, i18n.language) })}</span>
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* On phones these become 40px icon buttons and "New task" floats over the board. */}
+          <div className="flex shrink-0 items-center gap-1 sm:flex-wrap sm:gap-2">
             {members.data && (
-              <Button type="button" variant="ghost" onClick={() => setMembersOpen(true)}>
-                <span className="flex -space-x-2" aria-hidden="true">
+              <Button
+                type="button"
+                variant="ghost"
+                className={ICON_ON_PHONE}
+                onClick={() => setMembersOpen(true)}
+              >
+                <span className="sm:hidden">
+                  <Icon name="users" size={20} />
+                </span>
+                <span className="flex -space-x-2 max-sm:hidden" aria-hidden="true">
                   {members.data.slice(0, 3).map((m) => (
                     <span key={m.userId} className="rounded-full ring-2 ring-bg">
                       <Avatar id={m.userId} name={m.displayName} size={24} />
                     </span>
                   ))}
                 </span>
-                {t('projects.membersButton', { count: members.data.length })}
+                <span className="max-sm:sr-only">
+                  {t('projects.membersButton', { count: members.data.length })}
+                </span>
               </Button>
             )}
             {isOwner && (
-              <Button type="button" variant="ghost" onClick={() => setEditing(true)}>
+              <Button
+                type="button"
+                variant="ghost"
+                className={ICON_ON_PHONE}
+                onClick={() => setEditing(true)}
+              >
                 <Icon name="pencil" />
-                {t('projects.edit')}
+                <span className="max-sm:sr-only">{t('projects.edit')}</span>
               </Button>
             )}
             <Menu
@@ -136,7 +161,11 @@ export function ProjectPage() {
                   : []),
               ]}
             />
-            <Button type="button" onClick={() => setCreatingTask(true)}>
+            <Button
+              type="button"
+              className="max-sm:fixed max-sm:bottom-[max(1rem,env(safe-area-inset-bottom))] max-sm:right-4 max-sm:z-20 max-sm:h-12 max-sm:rounded-full max-sm:shadow-card"
+              onClick={() => setCreatingTask(true)}
+            >
               <Icon name="plus" />
               {t('tasks.new')}
             </Button>

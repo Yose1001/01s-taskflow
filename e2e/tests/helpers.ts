@@ -133,7 +133,7 @@ export async function reloadSignedIn(page: Page): Promise<void> {
   const before = page.url()
   await page.reload()
   await expect(page).toHaveURL(before)
-  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible()
 }
 
 /** Opens a project by clicking its card in the list. */

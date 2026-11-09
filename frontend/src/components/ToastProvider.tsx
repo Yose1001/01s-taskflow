@@ -58,7 +58,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div
         role="status"
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-2 px-4"
+        // On phones the messages sit above the floating "New task" button.
+        className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-2 px-4 max-sm:bottom-20"
       >
         {items.map((item) => {
           // Only "moved to the trash" messages offer Undo. They stand out with reversed colors.

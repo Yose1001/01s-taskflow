@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import i18n from '../i18n'
@@ -11,36 +11,39 @@ import { ThemeSwitcher } from './ThemeSwitcher'
 const html = () => document.documentElement
 
 describe('ThemeSwitcher', () => {
-  it('offers exactly two choices: Light and Dark (no "System")', () => {
+  const toDark = { name: 'Switch to dark theme' }
+  const toLight = { name: 'Switch to light theme' }
+
+  it('is one button that switches between the only two themes', async () => {
+    const user = userEvent.setup()
     renderApp(<ThemeSwitcher />)
-    const buttons = within(screen.getByRole('group', { name: 'Theme' })).getAllByRole('button')
-    expect(buttons.map((b) => b.textContent)).toEqual(['Light', 'Dark'])
-    expect(screen.queryByRole('button', { name: 'System' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    await user.click(screen.getByRole('button', toDark))
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('button', toLight)).toBeInTheDocument()
   })
 
   it('on the very first visit starts from the device preference', () => {
     renderApp(<ThemeSwitcher />)
     expect(html()).toHaveAttribute('data-theme', 'light')
-    expect(screen.getByRole('button', { name: 'Light' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', toDark)).toBeInTheDocument()
     cleanup()
 
     setSystemDark(true)
     renderApp(<ThemeSwitcher />)
     expect(html()).toHaveAttribute('data-theme', 'dark')
-    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', toLight)).toBeInTheDocument()
   })
 
   it('lets the user force dark and light, and remembers the choice', async () => {
     const user = userEvent.setup()
     renderApp(<ThemeSwitcher />)
 
-    await user.click(screen.getByRole('button', { name: 'Dark' }))
+    await user.click(screen.getByRole('button', toDark))
     expect(html()).toHaveAttribute('data-theme', 'dark')
-    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Light' })).toHaveAttribute('aria-pressed', 'false')
     expect(localStorage.getItem('tf-theme')).toBe('dark')
 
-    await user.click(screen.getByRole('button', { name: 'Light' }))
+    await user.click(screen.getByRole('button', toLight))
     expect(html()).toHaveAttribute('data-theme', 'light')
     expect(localStorage.getItem('tf-theme')).toBe('light')
   })
@@ -48,11 +51,12 @@ describe('ThemeSwitcher', () => {
   it('ignores the device once a theme is chosen, even if the device changes later', async () => {
     const user = userEvent.setup()
     renderApp(<ThemeSwitcher />)
-    await user.click(screen.getByRole('button', { name: 'Light' }))
+    await user.click(screen.getByRole('button', toDark))
+    await user.click(screen.getByRole('button', toLight))
     setSystemDark(true)
     // Give any (unwanted) listener a chance to react, then check nothing changed.
     await waitFor(() => expect(html()).toHaveAttribute('data-theme', 'light'))
-    expect(screen.getByRole('button', { name: 'Light' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', toDark)).toBeInTheDocument()
   })
 
   it('a saved choice wins over the device on the next visit', () => {
@@ -73,12 +77,7 @@ describe('ThemeSwitcher', () => {
     localStorage.setItem('tf-theme', 'dark')
     renderApp(<ThemeSwitcher />)
     expect(html()).toHaveAttribute('data-theme', 'dark')
-    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('is a labelled group for screen readers', () => {
-    renderApp(<ThemeSwitcher />)
-    expect(screen.getByRole('group', { name: 'Theme' })).toBeInTheDocument()
+    expect(screen.getByRole('button', toLight)).toBeInTheDocument()
   })
 })
 
@@ -87,23 +86,16 @@ describe('LanguageSwitcher', () => {
     const user = userEvent.setup()
     renderApp(<LanguageSwitcher />)
 
-    expect(screen.getByRole('group', { name: 'Language' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true')
+    const button = screen.getByRole('button', { name: 'Switch language to ไทย' })
+    expect(button).toHaveTextContent('EN') // shows the current language
 
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
-    expect(screen.getByRole('group', { name: 'ภาษา' })).toBeInTheDocument() // the label itself is now Thai
-    expect(screen.getByRole('button', { name: 'ไทย' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(button)
+    expect(screen.getByRole('button', { name: 'เปลี่ยนภาษาเป็น English' })).toHaveTextContent('TH')
     expect(html()).toHaveAttribute('lang', 'th')
     expect(localStorage.getItem('tf-lang')).toBe('th')
 
-    await user.click(screen.getByRole('button', { name: 'English' }))
+    await user.click(screen.getByRole('button', { name: 'เปลี่ยนภาษาเป็น English' }))
     expect(html()).toHaveAttribute('lang', 'en')
-  })
-
-  it('names each language in its own language', () => {
-    renderApp(<LanguageSwitcher />)
-    expect(screen.getByRole('button', { name: 'ไทย' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'English' })).toBeInTheDocument()
   })
 })
 

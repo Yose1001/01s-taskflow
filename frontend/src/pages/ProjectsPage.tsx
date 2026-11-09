@@ -100,7 +100,6 @@ export function ProjectsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">{t('dashboard.hello', { name: user.displayName })}</h1>
-        <p className="mt-1 text-muted">{user.email}</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">

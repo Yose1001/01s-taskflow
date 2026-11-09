@@ -15,11 +15,11 @@ test.describe('language and theme', () => {
     await page.goto('/login')
     await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible()
 
-    await page.getByRole('button', { name: 'ไทย' }).click()
+    await page.getByRole('button', { name: 'Switch language to ไทย' }).click()
     await expect(page.getByRole('heading', { name: 'เข้าสู่ระบบ' })).toBeVisible()
     await expect(html(page)).toHaveAttribute('lang', 'th')
 
-    await page.getByRole('button', { name: 'Dark' }).or(page.getByRole('button', { name: 'มืด' })).click()
+    await page.getByRole('button', { name: 'เปลี่ยนเป็นธีมมืด' }).click()
     await expect(html(page)).toHaveAttribute('data-theme', 'dark')
 
     await page.reload()
@@ -29,15 +29,19 @@ test.describe('language and theme', () => {
 
   test('only two themes exist (light and dark)', async ({ page }) => {
     await page.goto('/login')
-    await expect(page.getByRole('group', { name: 'Theme' }).getByRole('button')).toHaveCount(2)
+    await expect(page.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible()
+    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    await expect(page.getByRole('button', { name: 'Switch to light theme' })).toBeVisible()
+    await page.getByRole('button', { name: 'Switch to light theme' }).click()
+    await expect(page.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible()
   })
 
   test("a signed-in person's language and theme follow them to another device", async ({ page, request, context }) => {
     const { person } = await newUser(request, 'Alice')
     await loginViaUi(page, person)
 
-    await page.getByRole('button', { name: 'ไทย' }).click()
-    await page.getByRole('button', { name: 'มืด' }).click()
+    await page.getByRole('button', { name: 'Switch language to ไทย' }).click()
+    await page.getByRole('button', { name: 'เปลี่ยนเป็นธีมมืด' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'สวัสดี Alice' })).toBeVisible()
     await expect(html(page)).toHaveAttribute('data-theme', 'dark')
 
@@ -57,7 +61,7 @@ test.describe('language and theme', () => {
     const projectId = await createProjectViaApi(request, token, 'ร้านกาแฟ')
     await createTaskViaApi(request, token, projectId, { title: 'ออกแบบโลโก้', dueDate: '2099-12-01' })
     await loginViaUi(page, person)
-    await page.getByRole('button', { name: 'ไทย' }).click()
+    await page.getByRole('button', { name: 'Switch language to ไทย' }).click()
     await openProject(page, 'ร้านกาแฟ')
     await expect(page.getByRole('region', { name: 'รอทำ 1 งาน' })).toBeVisible()
     await expect(page.getByText('1 ธ.ค. 2642')).toBeVisible() // Buddhist-era year (2099 + 543)
