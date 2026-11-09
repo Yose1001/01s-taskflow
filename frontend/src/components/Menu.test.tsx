@@ -17,7 +17,7 @@ function setup() {
         items={[
           { key: 'a', label: 'First', onSelect: first },
           { key: 'b', label: 'Second', onSelect: second },
-          { key: 'c', label: 'Remove', ariaLabel: 'Remove: Bob', danger: true, onSelect: third },
+          { key: 'c', label: 'Remove', ariaLabel: 'Remove: Bob', tone: 'danger', onSelect: third },
         ]}
       />
     </div>,

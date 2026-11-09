@@ -32,6 +32,12 @@ async function chooseDelete(user: U) {
   await user.click(screen.getByRole('menuitem', { name: 'Delete project' }))
 }
 
+/** The member list opens from the project header. */
+async function openMembers(user: U) {
+  await user.click(await screen.findByRole('button', { name: /^Members \d+$/ }))
+  return screen.findByRole('dialog', { name: 'Members' })
+}
+
 describe('project list', () => {
   it('shows the projects with name, description, role and date, each linking to its page', async () => {
     fakeBackend({
@@ -360,9 +366,14 @@ describe('project page', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument()
-    // the member list itself is visible
-    const members = await screen.findByRole('region', { name: 'Members' })
+    // the member list itself is available, without the owner's tools
+    const members = await openMembers(user)
     expect(await within(members).findByText('Bob')).toBeInTheDocument()
+    expect(within(members).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument()
+    expect(within(members).queryByLabelText('Their email')).not.toBeInTheDocument()
+    expect(
+      within(members).getByText('Only the project owner can invite or remove members.'),
+    ).toBeInTheDocument()
   })
 
   it('says "not found" (without retrying) for a project that is missing or not theirs', async () => {
@@ -491,19 +502,59 @@ describe('project page', () => {
 describe('members', () => {
   it('lists members with roles; the owner row has no Remove button', async () => {
     fakeBackend({ projects: [project('p1', 'Website', { members: [BOB] })] })
-    await openSignedIn(userEvent.setup(), '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
+    const section = await openMembers(user)
     expect(await within(section).findByText('Bob')).toBeInTheDocument()
     expect(within(section).getByText(/Joined 1 Feb 2026/)).toBeInTheDocument()
-    expect(within(section).getAllByRole('button', { name: /^Remove/ })).toHaveLength(1)
-    expect(within(section).getByRole('button', { name: 'Remove: Bob' })).toBeInTheDocument()
+    expect(within(section).getByText('(you)')).toBeInTheDocument()
+    expect(within(section).getAllByRole('button', { name: /^Actions for/ })).toHaveLength(1)
+    expect(within(section).getByRole('button', { name: 'Actions for Bob' })).toBeInTheDocument()
+  })
+
+  it('closes with Escape, the close button or the background, and returns the focus', async () => {
+    fakeBackend({ projects: [project('p1', 'Website')] })
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
+    const opener = await screen.findByRole('button', { name: 'Members 1' })
+
+    await user.click(opener)
+    const panel = await screen.findByRole('dialog', { name: 'Members' })
+    expect(panel).toHaveAttribute('aria-modal', 'true')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
+
+    await user.click(opener)
+    await user.click(await screen.findByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(opener)
+    await user.click((await screen.findByRole('dialog')).parentElement!)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps the page inert until every dialog on top of it has closed', async () => {
+    fakeBackend({ projects: [project('p1', 'Website', { members: [BOB] })] })
+    const user = userEvent.setup()
+    const { container } = await openSignedIn(user, '/projects/p1')
+    container.id = 'root'
+    const section = await openMembers(user)
+    await user.click(await within(section).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
+    const confirm = await screen.findByRole('dialog', { name: 'Remove Bob from this project?' })
+    expect(within(confirm).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+
+    await user.keyboard('{Escape}') // closes only the confirmation
+    expect(screen.getByRole('dialog', { name: 'Members' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Actions for Bob' })).toHaveFocus()
   })
 
   it('invites by email, clears the box, and shows the new member', async () => {
     const api = fakeBackend({ projects: [project('p1', 'Website')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const section = await openMembers(user)
     await user.type(within(section).getByLabelText('Their email'), '  BOB@example.com ')
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
 
@@ -517,7 +568,7 @@ describe('members', () => {
     fakeBackend({ projects: [project('p1', 'Website')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const section = await openMembers(user)
     await user.type(within(section).getByLabelText('Their email'), 'nobody@example.com')
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
     expect(
@@ -530,7 +581,7 @@ describe('members', () => {
     fakeBackend({ projects: [project('p1', 'Website', { members: [BOB] })] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const section = await openMembers(user)
     await user.type(within(section).getByLabelText('Their email'), 'bob@example.com')
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
     expect(await within(section).findByRole('alert')).toHaveTextContent(
@@ -542,7 +593,7 @@ describe('members', () => {
     const api = fakeBackend({ projects: [project('p1', 'Website')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const section = await openMembers(user)
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
     expect(within(section).getByText('This field is required.')).toBeInTheDocument()
     await user.type(within(section).getByLabelText('Their email'), 'not-an-email')
@@ -555,8 +606,9 @@ describe('members', () => {
     const api = fakeBackend({ projects: [project('p1', 'Website', { members: [BOB, CAROL] })] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
-    await user.click(await within(section).findByRole('button', { name: 'Remove: Bob' }))
+    const section = await openMembers(user)
+    await user.click(await within(section).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Remove Bob from this project?' })
     expect(within(dialog).getByText(/Bob will lose access/)).toBeInTheDocument()
@@ -565,9 +617,12 @@ describe('members', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(api.hits('DELETE /projects/p1/members/' + BOB.userId)).toHaveLength(0)
 
-    await user.click(within(section).getByRole('button', { name: 'Remove: Bob' }))
+    await user.click(within(section).getByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove' }),
+      within(
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
+      ).getByRole('button', { name: 'Remove' }),
     )
     await waitFor(() => expect(within(section).queryByText('Bob')).not.toBeInTheDocument())
     expect(within(section).getByText('Carol')).toBeInTheDocument()

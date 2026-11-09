@@ -5,11 +5,17 @@ export interface MenuItem {
   key: string
   label: string
   icon?: IconName
-  /** Drawn in the danger colors, and set apart from the items above it. */
-  danger?: boolean
+  /** danger: red text, set apart from the items above it. danger-soft: on a soft red background. */
+  tone?: 'danger' | 'danger-soft'
   /** The accessible name when the visible label alone is not enough, such as "Remove: Bob". */
   ariaLabel?: string
   onSelect: () => void
+}
+
+const MENU_TONES = {
+  plain: 'text-text hover:bg-primary-bg',
+  danger: 'text-danger hover:bg-danger-bg hover:text-danger-fg',
+  'danger-soft': 'bg-danger-bg text-danger-fg hover:opacity-90',
 }
 
 /**
@@ -104,7 +110,9 @@ export function Menu({
                 key={item.key}
                 role="none"
                 className={
-                  item.danger && index > 0 ? 'mt-1 border-t border-border pt-1' : undefined
+                  item.tone === 'danger' && index > 0
+                    ? 'mt-1 border-t border-border pt-1'
+                    : undefined
                 }
               >
                 <button
@@ -120,9 +128,7 @@ export function Menu({
                     item.onSelect()
                   }}
                   className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-medium ${
-                    item.danger
-                      ? 'text-danger hover:bg-danger-bg hover:text-danger-fg'
-                      : 'text-text hover:bg-primary-bg'
+                    MENU_TONES[item.tone ?? 'plain']
                   }`}
                 >
                   {item.icon && <Icon name={item.icon} />}

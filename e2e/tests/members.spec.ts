@@ -22,12 +22,14 @@ test.describe('working together', () => {
     // Alice invites Bob on screen.
     await loginViaUi(page, alice.person)
     await openProject(page, 'Shared work')
+    await page.getByRole('button', { name: /^Members \d+$/ }).click()
     await page.getByLabel('Their email').fill(bob.person.email)
     await page.getByRole('button', { name: 'Invite' }).click()
     await expect(page.getByText('Bob was added to the project.')).toBeVisible()
-    const members = page.getByRole('region', { name: 'Members' })
+    const members = page.getByRole('dialog', { name: 'Members' })
     await expect(members.getByText('Bob', { exact: true })).toBeVisible()
-    await expect(members.getByRole('button', { name: /^Remove/ })).toHaveCount(1)
+    await expect(members.getByRole('button', { name: /^Actions for/ })).toHaveCount(1)
+    await page.keyboard.press('Escape')
 
     // Bob signs in: he is a member, so no owner actions, but the work is his too.
     await page.getByRole('button', { name: 'Log out' }).click()
@@ -40,8 +42,11 @@ test.describe('working together', () => {
     await page.getByRole('button', { name: 'More actions' }).click()
     await expect(page.getByRole('menuitem', { name: 'Delete project' })).toHaveCount(0)
     await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: /^Members \d+$/ }).click()
+    await expect(page.getByText('Only the project owner can invite or remove members.')).toBeVisible()
     await expect(page.getByLabel('Their email')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: /^Remove/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Actions for/ })).toHaveCount(0)
+    await page.keyboard.press('Escape')
 
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Plan the launch'])
     await page.getByRole('button', { name: 'New task' }).click()
@@ -67,6 +72,7 @@ test.describe('working together', () => {
     await createProjectViaApi(request, alice.token, 'Team')
     await loginViaUi(page, alice.person)
     await openProject(page, 'Team')
+    await page.getByRole('button', { name: /^Members \d+$/ }).click()
 
     await page.getByLabel('Their email').fill('nobody-here@e2e.test')
     await page.getByRole('button', { name: 'Invite' }).click()
@@ -98,10 +104,12 @@ test.describe('working together', () => {
     await openProject(page, 'Crew')
     await expect(page.getByTitle('Assigned to Bob')).toBeVisible()
 
-    const members = page.getByRole('region', { name: 'Members' })
-    await members.getByRole('button', { name: /^Remove/ }).click()
-    await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click()
+    await page.getByRole('button', { name: /^Members \d+$/ }).click()
+    await page.getByRole('button', { name: 'Actions for Bob' }).click()
+    await page.getByRole('menuitem', { name: 'Remove: Bob' }).click()
+    await page.getByRole('dialog', { name: /^Remove Bob/ }).getByRole('button', { name: 'Remove' }).click()
     await expect(page.getByText('Bob was removed.')).toBeVisible()
+    await page.keyboard.press('Escape')
     await expect(page.getByTitle('Assigned to Bob')).toHaveCount(0)
     await page.getByLabel('Assigned to', { exact: true }).selectOption('Unassigned')
     await expect(page.getByRole('button', { name: "Bob's job", exact: true })).toBeVisible()

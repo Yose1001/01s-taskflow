@@ -652,11 +652,14 @@ describe('members and tasks', () => {
     expect(screen.getByTitle('Assigned to Bob')).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Assigned to'), 'Unassigned')
     expect(screen.queryByRole('button', { name: 'Bobs job' })).not.toBeInTheDocument()
-    const members = screen.getByRole('region', { name: 'Members' })
-    const row = (await within(members).findByText('Bob')).closest('li')!
-    await user.click(within(row).getByRole('button', { name: /^Remove/ }))
+    await user.click(screen.getByRole('button', { name: /^Members \d+$/ }))
+    const members = await screen.findByRole('dialog', { name: 'Members' })
+    await user.click(await within(members).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove' }),
+      within(
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
+      ).getByRole('button', { name: 'Remove' }),
     )
     // The task itself changed on the server (no assignee any more), so the board must reload it.
     expect(await screen.findByRole('button', { name: 'Bobs job' })).toBeInTheDocument()

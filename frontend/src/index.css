@@ -124,6 +124,26 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* The members panel slides in: up from the bottom on phones, in from the right on wider screens. */
+@keyframes drawer-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes drawer-left {
+  from {
+    transform: translateX(100%);
+  }
+}
+.drawer-panel {
+  animation: drawer-up 0.2s ease-out;
+}
+@media (min-width: 40rem) {
+  .drawer-panel {
+    animation-name: drawer-left;
+  }
+}
+
 /* Visible keyboard focus everywhere. */
 :focus-visible {
   outline: 2px solid var(--primary);

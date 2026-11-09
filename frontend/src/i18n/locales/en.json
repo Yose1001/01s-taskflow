@@ -80,7 +80,8 @@
     "previous": "Previous",
     "next": "Next",
     "pagination": "Pagination",
-    "pageOf": "Page {{page}} of {{pages}}"
+    "pageOf": "Page {{page}} of {{pages}}",
+    "close": "Close"
   },
   "dashboard": {
     "hello": "Hello, {{name}}"
@@ -127,7 +128,7 @@
     "title": "Members",
     "joined": "Joined {{date}}",
     "loadError": "Could not load the members.",
-    "invite": "Invite someone by email",
+    "invite": "Invite by email",
     "inviteEmail": "Their email",
     "inviteButton": "Invite",
     "inviting": "Inviting...",
@@ -138,7 +139,12 @@
     "removeMessage": "{{name}} will lose access to this project, and tasks assigned to them become unassigned.",
     "removeConfirm": "Remove",
     "removing": "Removing...",
-    "removed": "{{name}} was removed."
+    "removed": "{{name}} was removed.",
+    "you": "(you)",
+    "inviteHelp": "The person must already have a TaskFlow account. The system does not send them an email yet.",
+    "ownerOnly": "Only the project owner can invite or remove members.",
+    "actionsFor": "Actions for {{name}}",
+    "removeFromProject": "Remove from project"
   },
   "trash": {
     "title": "Trash",

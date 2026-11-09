@@ -5,7 +5,7 @@ import { Icon, type IconName } from './Icon'
 // Like the status badges: an icon shape AND a text label, never color alone.
 const STYLE: Record<Role, { icon: IconName; classes: string }> = {
   owner: { icon: 'star', classes: 'bg-pink-bg text-pink-fg' },
-  member: { icon: 'users', classes: 'bg-sky-bg text-sky-fg' },
+  member: { icon: 'users', classes: 'border border-border text-muted' },
 }
 
 export function RoleBadge({ role }: { role: Role }) {

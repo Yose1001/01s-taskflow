@@ -15,7 +15,7 @@ import { RoleBadge } from '../components/RoleBadge'
 import { ErrorState, LoadingState } from '../components/states'
 import { useToast } from '../components/toast'
 import { keys, useDeleteProject, useMembers, useProject } from '../features/projects/hooks'
-import { MembersSection } from '../features/projects/MembersSection'
+import { MembersDrawer } from '../features/projects/MembersDrawer'
 import { ProjectFormDialog } from '../features/projects/ProjectFormDialog'
 import { TaskBoard } from '../features/tasks/TaskBoard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -35,6 +35,7 @@ export function ProjectPage() {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [creatingTask, setCreatingTask] = useState(false)
+  const [membersOpen, setMembersOpen] = useState(false)
   useDocumentTitle(project.data?.name ?? t('projects.title'))
 
   if (project.isPending) return <LoadingState label={t('common.loading')} />
@@ -94,10 +95,7 @@ export function ProjectPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {members.data && (
-              <a
-                href="#members"
-                className="inline-flex items-center gap-2 rounded-xl px-3 py-2 font-medium text-text hover:bg-primary-bg"
-              >
+              <Button type="button" variant="ghost" onClick={() => setMembersOpen(true)}>
                 <span className="flex -space-x-2" aria-hidden="true">
                   {members.data.slice(0, 3).map((m) => (
                     <span key={m.userId} className="rounded-full ring-2 ring-bg">
@@ -106,7 +104,7 @@ export function ProjectPage() {
                   ))}
                 </span>
                 {t('projects.membersButton', { count: members.data.length })}
-              </a>
+              </Button>
             )}
             {isOwner && (
               <Button type="button" variant="ghost" onClick={() => setEditing(true)}>
@@ -131,7 +129,7 @@ export function ProjectPage() {
                         key: 'delete',
                         label: t('projects.deleteProject'),
                         icon: 'trash' as const,
-                        danger: true,
+                        tone: 'danger' as const,
                         onSelect: () => setConfirmDelete(true),
                       },
                     ]
@@ -152,7 +150,9 @@ export function ProjectPage() {
         onNewTaskClose={() => setCreatingTask(false)}
       />
 
-      <MembersSection projectId={p.id} isOwner={isOwner} />
+      {membersOpen && (
+        <MembersDrawer projectId={p.id} isOwner={isOwner} onClose={() => setMembersOpen(false)} />
+      )}
 
       {editing && (
         <ProjectFormDialog
