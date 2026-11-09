@@ -114,6 +114,16 @@ test.describe('the task board', () => {
       .toContain('Build header')
   })
 
+  test('one arrow press is one column, to the left as well', async ({ page, request }) => {
+    await setUpBoard(page, request)
+    await handle(page, 'Build header').focus()
+    await page.keyboard.press('Space')
+    await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Build header" is over In progress.')
+    await page.keyboard.press('ArrowLeft')
+    await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Build header" is over To do.')
+    await page.keyboard.press('Escape')
+  })
+
   test('Escape cancels a keyboard drag and nothing moves', async ({ page, request }) => {
     const { token, projectId } = await setUpBoard(page, request)
     await handle(page, 'Build header').focus()

@@ -389,7 +389,9 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
       <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
         <ul
           ref={setNodeRef}
-          className={`min-h-24 space-y-2 rounded-xl p-1 ${isOver ? 'bg-primary-bg' : ''}`}
+          // No side padding: the list's edge must line up with its cards. Otherwise the left arrow key
+          // counts the card's own column as "to the left", and needs two presses to leave it.
+          className={`min-h-24 space-y-2 rounded-xl py-1 ${isOver ? 'bg-primary-bg' : ''}`}
         >
           {tasks.map((task) => (
             <SortableTaskCard
