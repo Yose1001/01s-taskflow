@@ -26,8 +26,8 @@ import type { Member, Task, TaskStatus } from '../../api/types'
 import { useAuth } from '../../auth/context'
 import { errorMessage } from '../../auth/errors'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { Button, SelectField, TextField } from '../../components/forms'
-import { Icon } from '../../components/Icon'
+import { CompactSelectField, CompactTextField } from '../../components/forms'
+import { Icon, type IconName } from '../../components/Icon'
 import { ErrorState, LoadingState } from '../../components/states'
 import { StatusBadge } from '../../components/StatusBadge'
 import { useToast } from '../../components/toast'
@@ -68,7 +68,16 @@ type Dialog = { kind: 'create'; status: TaskStatus } | { kind: 'edit'; task: Tas
 const MAX_QUERY = 100
 
 /** The Kanban board of one project: four columns, drag and drop, filters, and the task dialogs. */
-export function TaskBoard({ projectId }: { projectId: string }) {
+export function TaskBoard({
+  projectId,
+  newTaskOpen,
+  onNewTaskClose,
+}: {
+  projectId: string
+  /** The page's "New task" button lives outside the board, in the project header. */
+  newTaskOpen: boolean
+  onNewTaskClose: () => void
+}) {
   const { t } = useTranslation()
   const toast = useToast()
   const qc = useQueryClient()
@@ -78,7 +87,12 @@ export function TaskBoard({ projectId }: { projectId: string }) {
   const move = useMoveTask(projectId)
   const del = useDeleteTask(projectId)
 
-  const [dialog, setDialog] = useState<Dialog>(null)
+  const [columnDialog, setColumnDialog] = useState<Dialog>(null)
+  const dialog: Dialog = newTaskOpen ? { kind: 'create', status: 'todo' } : columnDialog
+  function closeDialog() {
+    setColumnDialog(null)
+    onNewTaskClose()
+  }
   const [deleting, setDeleting] = useState<Task | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -171,24 +185,12 @@ export function TaskBoard({ projectId }: { projectId: string }) {
 
   return (
     <section aria-labelledby="tasks-title" className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="tasks-title" className="text-xl font-semibold">
-          {t('tasks.title')}
-        </h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            to={`/projects/${encodeURIComponent(projectId)}/trash`}
-            className="text-sm font-medium text-primary underline"
-          >
-            {t('tasks.trash')}
-          </Link>
-          <Button type="button" onClick={() => setDialog({ kind: 'create', status: 'todo' })}>
-            {t('tasks.new')}
-          </Button>
-        </div>
-      </div>
+      <h2 id="tasks-title" className="sr-only">
+        {t('tasks.title')}
+      </h2>
 
       <FilterBar
+        projectId={projectId}
         filters={filters}
         members={members}
         onChange={setFilters}
@@ -221,8 +223,8 @@ export function TaskBoard({ projectId }: { projectId: string }) {
               status={status}
               tasks={columns[status]}
               nameOf={nameOf}
-              onAdd={() => setDialog({ kind: 'create', status })}
-              onOpen={(task) => setDialog({ kind: 'edit', task })}
+              onAdd={() => setColumnDialog({ kind: 'create', status })}
+              onOpen={(task) => setColumnDialog({ kind: 'edit', task })}
             />
           ))}
         </div>
@@ -243,13 +245,13 @@ export function TaskBoard({ projectId }: { projectId: string }) {
           projectId={projectId}
           members={members}
           {...(dialog.kind === 'edit' ? { task: dialog.task } : { initialStatus: dialog.status })}
-          onClose={() => setDialog(null)}
+          onClose={closeDialog}
           onSaved={() => {
             toast.show({ message: dialog.kind === 'edit' ? t('tasks.saved') : t('tasks.created') })
-            setDialog(null)
+            closeDialog()
           }}
           onDelete={(task) => {
-            setDialog(null)
+            closeDialog()
             setDeleting(task)
           }}
         />
@@ -363,6 +365,7 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
 }
 
 interface FilterBarProps {
+  projectId: string
   filters: Filters
   members: Member[]
   /** Only the filter(s) that changed, so two quick changes in a row cannot undo each other. */
@@ -371,29 +374,26 @@ interface FilterBarProps {
   total: number
 }
 
-function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps) {
+const SELECT_WIDTH = 'flex-[0_1_150px]'
+
+function FilterBar({ projectId, filters, members, onChange, shown, total }: FilterBarProps) {
   const { t } = useTranslation()
-  // On phones the filters fold away behind one button, so the board is visible without scrolling.
+  // On phones the two lists fold away behind one button, so the board is visible without scrolling.
   // They start open when the address already has filters in it.
   const [open, setOpen] = useState(() => hasFilters(filters))
   const active = [filters.q, filters.priority, filters.assignee].filter(Boolean).length
+  const assigneeName =
+    filters.assignee === UNASSIGNED
+      ? t('tasks.unassigned')
+      : members.find((m) => m.userId === filters.assignee)?.displayName
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls="task-filters"
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-sm font-medium sm:hidden"
-      >
-        <Icon name="filter" size={14} />
-        {active > 0 ? t('tasks.filtersCount', { count: active }) : t('tasks.filters')}
-        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} />
-      </button>
-      <div id="task-filters" className={`${open ? 'grid' : 'hidden'} gap-3 sm:grid sm:grid-cols-3`}>
-        <TextField
+      <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+        <CompactTextField
           id="filter-q"
           type="search"
+          icon="search"
+          className="min-w-40 flex-1"
           label={t('tasks.search')}
           placeholder={t('tasks.searchPlaceholder')}
           value={filters.q}
@@ -401,8 +401,20 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
           autoComplete="off"
           onChange={(e) => onChange({ q: e.target.value })}
         />
-        <SelectField
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-sm font-medium sm:hidden"
+        >
+          <Icon name="filter" size={14} />
+          {active > 0 ? t('tasks.filtersCount', { count: active }) : t('tasks.filters')}
+          <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} />
+        </button>
+        <CompactSelectField
           id="filter-priority"
+          icon="filter"
+          className={`${SELECT_WIDTH} ${open ? '' : 'hidden'} sm:block`}
           label={t('tasks.priorityFilter')}
           value={filters.priority}
           onChange={(e) => onChange({ priority: isPriority(e.target.value) ? e.target.value : '' })}
@@ -413,9 +425,11 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
               {t(`priority.${p}`)}
             </option>
           ))}
-        </SelectField>
-        <SelectField
+        </CompactSelectField>
+        <CompactSelectField
           id="filter-assignee"
+          icon="users"
+          className={`${SELECT_WIDTH} ${open ? '' : 'hidden'} sm:block`}
           label={t('tasks.assigneeFilter')}
           value={filters.assignee}
           onChange={(e) => onChange({ assignee: e.target.value })}
@@ -427,11 +441,35 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
               {m.displayName}
             </option>
           ))}
-        </SelectField>
+        </CompactSelectField>
+        <Link
+          to={`/projects/${encodeURIComponent(projectId)}/trash`}
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 font-medium text-text hover:bg-primary-bg"
+        >
+          <Icon name="trash" />
+          {t('tasks.trash')}
+        </Link>
       </div>
       {hasFilters(filters) && (
-        <p className="flex flex-wrap items-center gap-3 text-sm text-muted" role="status">
-          {t('tasks.showing', { shown, total })}
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">{t('tasks.filteringBy')}</span>
+          {filters.q.trim() !== '' && (
+            <FilterChip icon="search" text={filters.q} onRemove={() => onChange({ q: '' })} />
+          )}
+          {filters.priority !== '' && (
+            <FilterChip
+              icon="filter"
+              text={t(`priority.${filters.priority}`)}
+              onRemove={() => onChange({ priority: '' })}
+            />
+          )}
+          {assigneeName && (
+            <FilterChip
+              icon="users"
+              text={assigneeName}
+              onRemove={() => onChange({ assignee: '' })}
+            />
+          )}
           <button
             type="button"
             onClick={() => onChange(NO_FILTERS)}
@@ -439,9 +477,38 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
           >
             {t('tasks.clearFilters')}
           </button>
-        </p>
+          <span className="text-muted" role="status">
+            {t('tasks.showing', { shown, total })}
+          </span>
+        </div>
       )}
     </div>
+  )
+}
+
+function FilterChip({
+  icon,
+  text,
+  onRemove,
+}: {
+  icon: IconName
+  text: string
+  onRemove: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-primary-bg py-1 pl-3 pr-1.5 font-medium text-primary-fg">
+      <Icon name={icon} size={14} />
+      <span className="min-w-0 truncate">{text}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={t('tasks.removeFilter', { name: text })}
+        className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-surface"
+      >
+        <Icon name="x" size={12} />
+      </button>
+    </span>
   )
 }
 

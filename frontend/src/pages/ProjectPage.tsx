@@ -6,9 +6,11 @@ import { restoreProject } from '../api/projects'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/context'
 import { errorMessage } from '../auth/errors'
+import { Avatar } from '../components/Avatar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Button } from '../components/forms'
 import { Icon } from '../components/Icon'
+import { Menu } from '../components/Menu'
 import { RoleBadge } from '../components/RoleBadge'
 import { ErrorState, LoadingState } from '../components/states'
 import { useToast } from '../components/toast'
@@ -32,6 +34,7 @@ export function ProjectPage() {
   const del = useDeleteProject()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [creatingTask, setCreatingTask] = useState(false)
   useDocumentTitle(project.data?.name ?? t('projects.title'))
 
   if (project.isPending) return <LoadingState label={t('common.loading')} />
@@ -75,44 +78,79 @@ export function ProjectPage() {
           className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline"
         >
           <Icon name="arrow-left" />
-          {t('projects.back')}
+          {t('projects.myProjects')}
         </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="break-words text-2xl font-bold sm:text-3xl">{p.name}</h1>
               <RoleBadge role={p.myRole} />
             </div>
-            {p.description && (
-              <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-muted">
-                {p.description}
-              </p>
-            )}
-            <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-muted">
+            <p className="mt-0.5 truncate text-sm text-muted" title={p.description || undefined}>
+              {p.description && <span>{p.description}</span>}
+              {p.description && ' · '}
               <span>{t('projects.created', { date: formatDate(p.createdAt, i18n.language) })}</span>
-              {members.data && (
-                <a href="#members" className="font-medium text-primary underline">
-                  {t('projects.membersLink', { count: members.data.length })}
-                </a>
-              )}
             </p>
           </div>
-          {isOwner && (
-            <div className="flex shrink-0 gap-2">
-              <Button type="button" variant="soft" onClick={() => setEditing(true)}>
+          <div className="flex flex-wrap items-center gap-2">
+            {members.data && (
+              <a
+                href="#members"
+                className="inline-flex items-center gap-2 rounded-xl px-3 py-2 font-medium text-text hover:bg-primary-bg"
+              >
+                <span className="flex -space-x-2" aria-hidden="true">
+                  {members.data.slice(0, 3).map((m) => (
+                    <span key={m.userId} className="rounded-full ring-2 ring-bg">
+                      <Avatar id={m.userId} name={m.displayName} size={24} />
+                    </span>
+                  ))}
+                </span>
+                {t('projects.membersButton', { count: members.data.length })}
+              </a>
+            )}
+            {isOwner && (
+              <Button type="button" variant="ghost" onClick={() => setEditing(true)}>
                 <Icon name="pencil" />
                 {t('projects.edit')}
               </Button>
-              <Button type="button" variant="soft" onClick={() => setConfirmDelete(true)}>
-                <Icon name="trash" />
-                {t('projects.delete')}
-              </Button>
-            </div>
-          )}
+            )}
+            <Menu
+              label={t('projects.moreActions')}
+              trigger={<Icon name="more" size={20} />}
+              triggerClassName="grid h-10 w-10 place-items-center rounded-xl text-text hover:bg-primary-bg"
+              items={[
+                {
+                  key: 'trash',
+                  label: t('tasks.trashTitle'),
+                  icon: 'trash',
+                  onSelect: () => navigate(`/projects/${encodeURIComponent(p.id)}/trash`),
+                },
+                ...(isOwner
+                  ? [
+                      {
+                        key: 'delete',
+                        label: t('projects.deleteProject'),
+                        icon: 'trash' as const,
+                        danger: true,
+                        onSelect: () => setConfirmDelete(true),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            <Button type="button" onClick={() => setCreatingTask(true)}>
+              <Icon name="plus" />
+              {t('tasks.new')}
+            </Button>
+          </div>
         </div>
       </header>
 
-      <TaskBoard projectId={p.id} />
+      <TaskBoard
+        projectId={p.id}
+        newTaskOpen={creatingTask}
+        onNewTaskClose={() => setCreatingTask(false)}
+      />
 
       <MembersSection projectId={p.id} isOwner={isOwner} />
 

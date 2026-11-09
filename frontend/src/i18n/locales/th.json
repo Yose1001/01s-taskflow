@@ -106,7 +106,6 @@
     "saving": "กำลังบันทึก...",
     "saved": "บันทึกการแก้ไขแล้ว",
     "edit": "แก้ไข",
-    "delete": "ลบ",
     "deleteTitle": "ลบโปรเจกต์ \"{{name}}\"?",
     "deleteMessage": "โปรเจกต์จะย้ายไปถังขยะ กู้คืนได้ภายใน 30 วัน งานที่จะไปด้วย: {{count}} งาน และสมาชิกคนอื่นจะมองไม่เห็นทันที",
     "deleteConfirm": "ย้ายไปถังขยะ",
@@ -119,7 +118,10 @@
     "back": "กลับไปหน้าโปรเจกต์",
     "progress": "เสร็จ {{done}} จาก {{total}} งาน",
     "noTasks": "ยังไม่มีงาน",
-    "membersLink": "สมาชิก ({{count}})"
+    "myProjects": "โปรเจกต์ของฉัน",
+    "membersButton": "สมาชิก {{count}}",
+    "moreActions": "ตัวเลือกเพิ่มเติม",
+    "deleteProject": "ลบโปรเจกต์"
   },
   "members": {
     "title": "สมาชิก",
@@ -150,7 +152,7 @@
   "tasks": {
     "title": "งาน",
     "board": "บอร์ดงาน",
-    "new": "สร้างงานใหม่",
+    "new": "สร้างงาน",
     "addIn": "เพิ่มงานใน {{column}}",
     "loading": "กำลังโหลดงาน...",
     "empty": "ยังไม่มีงาน",
@@ -163,7 +165,7 @@
     "assigneeFilter": "ผู้รับผิดชอบ",
     "all": "ทั้งหมด",
     "unassigned": "ยังไม่มีผู้รับผิดชอบ",
-    "clearFilters": "ล้างตัวกรอง",
+    "clearFilters": "ล้างทั้งหมด",
     "showing": "แสดง {{shown}} จาก {{total}} งาน",
     "dragHandle": "ย้ายงาน: {{title}}",
     "dragInstructions": "หากต้องการย้ายงาน กด Space หรือ Enter ที่ปุ่มย้าย ใช้ปุ่มลูกศรเลือกตำแหน่ง แล้วกด Space หรือ Enter อีกครั้งเพื่อวาง กด Escape เพื่อยกเลิก",
@@ -209,7 +211,9 @@
     "filtersCount": "ตัวกรอง ({{count}})",
     "swipeHint": "ปัดซ้าย-ขวาเพื่อดูคอลัมน์อื่น",
     "dueWord": "ครบกำหนด",
-    "assignedWord": "ผู้รับผิดชอบ"
+    "assignedWord": "ผู้รับผิดชอบ",
+    "filteringBy": "กรองอยู่:",
+    "removeFilter": "เอาตัวกรองออก: {{name}}"
   },
   "status": {
     "todo": "รอทำ",

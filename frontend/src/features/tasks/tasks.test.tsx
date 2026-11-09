@@ -127,7 +127,7 @@ describe('board', () => {
     await openBoard(user)
     await user.click(screen.getByRole('button', { name: 'ไทย' }))
     expect(screen.getByRole('region', { name: 'รอทำ 3 งาน' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'สร้างงานใหม่' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'สร้างงาน' })).toBeInTheDocument()
     expect(screen.getByText('1 ม.ค. 2563')).toBeInTheDocument() // Buddhist-era year
   })
 
@@ -166,10 +166,39 @@ describe('filters', () => {
     expect(titlesIn(column(/^In progress/))).toEqual([])
     expect(screen.getByText('Showing 1 of 5 tasks')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
     expect(titlesIn(column(/^To do/))).toHaveLength(3)
     expect(screen.queryByText(/Showing/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Search tasks')).toHaveValue('')
+  })
+
+  it('shows each active filter as a chip that removes only itself', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    expect(screen.queryByText('Filtering by:')).not.toBeInTheDocument() // nothing to show at first
+
+    await user.type(screen.getByLabelText('Search tasks'), 'logo')
+    await user.selectOptions(screen.getByLabelText('Priority'), 'High')
+    expect(screen.getByText('Filtering by:')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remove filter: High' }))
+    expect(screen.getByLabelText('Priority')).toHaveValue('')
+    expect(screen.getByLabelText('Search tasks')).toHaveValue('logo')
+    expect(screen.queryByRole('button', { name: 'Remove filter: High' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remove filter: logo' }))
+    expect(screen.queryByText('Filtering by:')).not.toBeInTheDocument()
+  })
+
+  it('offers New task in the project header, opening on the first column', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    const dialog = await screen.findByRole('dialog', { name: 'New task' })
+    expect(within(dialog).getByLabelText('Column')).toHaveValue('todo')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New task' })).toHaveFocus()
   })
 
   it('filters by priority and by person (including "Unassigned")', async () => {

@@ -6,6 +6,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon, type IconName } from './Icon'
 
 const INPUT =
   'w-full rounded-xl border bg-surface px-3 py-2 text-text placeholder:text-muted focus:border-primary'
@@ -123,6 +124,72 @@ export function SelectField({
         {children}
       </select>
     </Frame>
+  )
+}
+
+/** The frame of a one-line control: the label exists for screen readers, an icon takes its place on screen. */
+function CompactFrame({
+  id,
+  label,
+  icon,
+  className,
+  children,
+}: {
+  id: string
+  label: string
+  icon: IconName
+  className?: string | undefined
+  children: ReactNode
+}) {
+  return (
+    <div className={`relative min-w-0 ${className ?? ''}`}>
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted">
+        <Icon name={icon} />
+      </span>
+      {children}
+    </div>
+  )
+}
+
+export function CompactTextField({
+  id,
+  label,
+  icon,
+  className,
+  ...input
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'id'> & {
+  id: string
+  label: string
+  icon: IconName
+}) {
+  return (
+    <CompactFrame id={id} label={label} icon={icon} className={className}>
+      <input {...input} id={id} className={`${INPUT} border-border pl-9`} />
+    </CompactFrame>
+  )
+}
+
+export function CompactSelectField({
+  id,
+  label,
+  icon,
+  className,
+  children,
+  ...select
+}: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'id'> & {
+  id: string
+  label: string
+  icon: IconName
+}) {
+  return (
+    <CompactFrame id={id} label={label} icon={icon} className={className}>
+      <select {...select} id={id} aria-label={label} className={`${INPUT} border-border pl-9`}>
+        {children}
+      </select>
+    </CompactFrame>
   )
 }
 

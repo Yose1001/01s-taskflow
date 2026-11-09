@@ -25,14 +25,16 @@ test.describe('projects', () => {
     await expect(page.getByText('Changes saved.')).toBeVisible()
 
     // Delete: it asks first, Cancel changes nothing
-    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+    await page.getByRole('button', { name: 'More actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete project' }).click()
     const confirm = page.getByRole('dialog', { name: /^Delete project "/ })
     await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused()
     await confirm.getByRole('button', { name: 'Cancel' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Coffee shop site' })).toBeVisible()
 
     // Delete for real, then Undo from the toast
-    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+    await page.getByRole('button', { name: 'More actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete project' }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Move to trash' }).click()
     await expect(page.getByRole('heading', { level: 1, name: /^Hello/ })).toBeVisible()
     await expect(page.getByText('You have no projects yet.')).toBeVisible()
@@ -41,7 +43,8 @@ test.describe('projects', () => {
 
     // Delete again, then restore it from the Trash page
     await openProject(page, 'Coffee shop site')
-    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+    await page.getByRole('button', { name: 'More actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete project' }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Move to trash' }).click()
     await page.getByRole('link', { name: 'Trash' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Trash' })).toBeVisible()

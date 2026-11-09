@@ -37,7 +37,9 @@ test.describe('working together', () => {
     await openProject(page, 'Shared work')
     await expect(page.getByText(/Member$/).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'More actions' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Delete project' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
     await expect(page.getByLabel('Their email')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /^Remove/ })).toHaveCount(0)
 

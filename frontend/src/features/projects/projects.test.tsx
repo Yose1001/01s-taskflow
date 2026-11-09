@@ -26,6 +26,12 @@ const many = (n: number): FakeProject[] =>
     project(`p${i + 1}`, `Project ${String(i + 1).padStart(2, '0')}`),
   )
 
+/** "Delete project" is the last item of the project's "More actions" menu. */
+async function chooseDelete(user: U) {
+  await user.click(await screen.findByRole('button', { name: 'More actions' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Delete project' }))
+}
+
 describe('project list', () => {
   it('shows the projects with name, description, role and date, each linking to its page', async () => {
     fakeBackend({
@@ -322,7 +328,7 @@ describe('creating a project', () => {
     await user.type(within(dialog).getByLabelText('Project name'), 'Brand new')
     await user.click(within(dialog).getByRole('button', { name: 'Create project' }))
     await screen.findByRole('heading', { level: 1, name: 'Brand new' })
-    await user.click(screen.getByRole('link', { name: /Back to projects/ }))
+    await user.click(screen.getByRole('link', { name: 'My projects' }))
     expect(await screen.findByRole('link', { name: /Brand new/ })).toBeInTheDocument()
   })
 })
@@ -330,21 +336,28 @@ describe('creating a project', () => {
 describe('project page', () => {
   it('shows the details and, for the owner, Edit and Delete', async () => {
     fakeBackend({ projects: [project('p1', 'Website', { description: 'Line one\nLine two' })] })
-    await openSignedIn(userEvent.setup(), '/projects/p1')
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
     expect(await screen.findByRole('heading', { level: 1, name: 'Website' })).toBeInTheDocument()
     expect(screen.getByText(/Line one/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Task trash' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Delete project' })).toBeInTheDocument()
   })
 
   it('shows a member the project but NO owner actions', async () => {
     fakeBackend({
       projects: [project('p1', 'Team space', { owner: BOB_USER, members: [ME_AS_MEMBER] })],
     })
-    await openSignedIn(userEvent.setup(), '/projects/p1')
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
     await screen.findByRole('heading', { level: 1, name: 'Team space' })
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Task trash' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Delete project' })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
     expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument()
     // the member list itself is visible
@@ -401,7 +414,7 @@ describe('project page', () => {
     })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await chooseDelete(user)
 
     const dialog = await screen.findByRole('dialog', { name: 'Delete project "Website"?' })
     expect(within(dialog).getByText(/can be restored within 30 days/)).toHaveTextContent(
@@ -417,7 +430,7 @@ describe('project page', () => {
     const api = fakeBackend({ projects: [project('p1', 'Website'), project('p2', 'Other')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await chooseDelete(user)
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Move to trash' }),
     )
@@ -437,7 +450,7 @@ describe('project page', () => {
     fakeBackend({ projects: [project('p1', 'Website'), project('p2', 'Other')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await chooseDelete(user)
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Move to trash' }),
     )
@@ -467,7 +480,7 @@ describe('project page', () => {
     })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await chooseDelete(user)
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Move to trash' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Something went wrong')
