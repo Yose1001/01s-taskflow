@@ -139,7 +139,7 @@ describe('login', () => {
     )
     expect(screen.getByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument() // still on the login page
 
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
+    await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
     expect(screen.getByRole('alert')).toHaveTextContent('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
   })
 
@@ -257,13 +257,14 @@ describe('logout and session end', () => {
     await logIn(user)
     await screen.findByRole('heading', { name: 'Hello, Alice' })
 
-    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument()
     expect(screen.queryByText('Alice')).not.toBeInTheDocument()
     // The top bar offers Log in / Sign up again instead of the name and Log out.
     const topBar = within(screen.getByRole('banner'))
     expect(topBar.getByRole('link', { name: 'Sign up' })).toBeInTheDocument()
-    expect(topBar.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument()
+    expect(topBar.queryByRole('button', { name: 'Account menu' })).not.toBeInTheDocument()
   })
 
   it('after a log out, the next login starts at home, not on the page that was just left', async () => {
@@ -275,7 +276,8 @@ describe('logout and session end', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Trash' })).toBeInTheDocument()
 
     // ...but after choosing to log out, the next person (maybe someone else) starts fresh.
-    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     await screen.findByRole('heading', { level: 1, name: 'Log in' })
     await logIn(user)
     expect(
@@ -291,7 +293,7 @@ describe('logout and session end', () => {
     await logIn(user)
     await screen.findByRole('heading', { level: 1, name: 'Trash' })
 
-    await user.click(screen.getByRole('button', { name: 'Dark' })) // an authenticated call that gets a 401
+    await user.click(screen.getByRole('button', { name: 'Switch to dark theme' })) // an authenticated call that gets a 401
     await screen.findByText('Your session ended. Please log in again.')
     await logIn(user)
     expect(await screen.findByRole('heading', { level: 1, name: 'Trash' })).toBeInTheDocument()
@@ -304,7 +306,7 @@ describe('logout and session end', () => {
     await logIn(user)
     await screen.findByRole('heading', { name: 'Hello, Alice' })
 
-    await user.click(screen.getByRole('button', { name: 'Dark' })) // triggers an authenticated call
+    await user.click(screen.getByRole('button', { name: 'Switch to dark theme' })) // triggers an authenticated call
     expect(await screen.findByText('Your session ended. Please log in again.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument()
   })
@@ -364,44 +366,39 @@ describe('logout and session end', () => {
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
     await screen.findByRole('heading', { name: 'Hello, Alice' })
-    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     await waitFor(() => expect(api.to('POST /auth/logout')).toHaveLength(1))
     expect(localStorage.getItem(SESSION_HINT_KEY)).toBeNull()
   })
 })
 
-describe('the phone menu', () => {
-  it('holds language, theme and Log out, and closes with Escape', async () => {
+describe('the account menu', () => {
+  it('shows who is signed in and offers Log out', async () => {
     server()
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
     await screen.findByRole('heading', { name: 'Hello, Alice' })
+    // The email lives in the menu now, not on the page.
+    expect(screen.queryByText('alice@example.com')).not.toBeInTheDocument()
 
-    const menuButton = screen.getByRole('button', { name: 'Menu' })
-    expect(menuButton).toHaveAttribute('aria-expanded', 'false')
-    expect(menuButton).toHaveTextContent('A') // Alice's initial
-    await user.click(menuButton)
-    expect(menuButton).toHaveAttribute('aria-expanded', 'true')
-    const panel = document.getElementById(menuButton.getAttribute('aria-controls')!)!
-    expect(within(panel).getByText('alice@example.com')).toBeInTheDocument()
-    expect(within(panel).getByRole('group', { name: 'Theme' })).toBeInTheDocument()
-    expect(within(panel).getByRole('group', { name: 'Language' })).toBeInTheDocument()
-    expect(within(panel).getByRole('button', { name: 'Log out' })).toBeInTheDocument()
+    const button = screen.getByRole('button', { name: 'Account menu' })
+    expect(button).toHaveAttribute('aria-haspopup', 'menu')
+    await user.click(button)
+    expect(screen.getByText('alice@example.com')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Log out' })).toHaveFocus()
 
     await user.keyboard('{Escape}')
-    expect(menuButton).toHaveAttribute('aria-expanded', 'false')
-    expect(menuButton).toHaveFocus()
+    expect(button).toHaveFocus()
+    expect(screen.queryByText('alice@example.com')).not.toBeInTheDocument()
   })
 
-  it('offers Log in and Sign up to visitors', async () => {
-    const user = userEvent.setup()
+  it('offers Log in and Sign up to visitors instead', () => {
     renderApp(<AppRoutes />, { route: '/login' })
-    await user.click(screen.getByRole('button', { name: 'Menu' }))
-    const panel = document.getElementById(
-      screen.getByRole('button', { name: 'Menu' }).getAttribute('aria-controls')!,
-    )!
-    expect(within(panel).getByRole('link', { name: 'Sign up' })).toBeInTheDocument()
+    const topBar = within(screen.getByRole('banner'))
+    expect(topBar.getByRole('link', { name: 'Log in' })).toBeInTheDocument()
+    expect(topBar.getByRole('link', { name: 'Sign up' })).toBeInTheDocument()
   })
 })
 
@@ -455,7 +452,7 @@ describe('saving language and theme to the account', () => {
     await logIn(user)
     await screen.findByRole('heading', { name: 'Hello, Alice' })
 
-    await user.click(screen.getByRole('button', { name: 'Dark' }))
+    await user.click(screen.getByRole('button', { name: 'Switch to dark theme' }))
     await waitFor(() => expect(api.to('PATCH /me')).toHaveLength(1))
     expect(api.to('PATCH /me')[0]!.body).toEqual({ theme: 'dark' })
     expect(api.to('PATCH /me')[0]!.headers.get('Authorization')).toBe(`Bearer ${TOKEN}`)
@@ -468,7 +465,7 @@ describe('saving language and theme to the account', () => {
     await logIn(user)
     await screen.findByRole('heading', { name: 'Hello, Alice' })
 
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
+    await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
     await waitFor(() => expect(api.to('PATCH /me')).toHaveLength(1))
     expect(api.to('PATCH /me')[0]!.body).toEqual({ locale: 'th' })
   })
@@ -477,8 +474,8 @@ describe('saving language and theme to the account', () => {
     const api = server()
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/login' })
-    await user.click(screen.getByRole('button', { name: 'Dark' }))
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
+    await user.click(screen.getByRole('button', { name: 'Switch to dark theme' }))
+    await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
     expect(api.calls).toHaveLength(0)
     expect(html()).toHaveAttribute('data-theme', 'dark') // the local choice still works
   })
@@ -489,7 +486,7 @@ describe('saving language and theme to the account', () => {
     renderApp(<AppRoutes />, { route: '/login' })
     await logIn(user)
     await screen.findByRole('heading', { name: 'Hello, Alice' })
-    await user.click(screen.getByRole('button', { name: 'Dark' }))
+    await user.click(screen.getByRole('button', { name: 'Switch to dark theme' }))
     expect(html()).toHaveAttribute('data-theme', 'dark')
     expect(screen.getByRole('heading', { name: 'Hello, Alice' })).toBeInTheDocument() // still signed in
   })
@@ -518,8 +515,8 @@ describe('sign up', () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/register' })
 
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
-    await user.click(screen.getByRole('button', { name: 'มืด' }))
+    await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
+    await user.click(screen.getByRole('button', { name: 'เปลี่ยนเป็นธีมมืด' }))
     // The form is Thai now.
     await user.type(screen.getByLabelText('ชื่อของคุณ'), 'Alice')
     await user.type(screen.getByLabelText('อีเมล'), 'alice@example.com')

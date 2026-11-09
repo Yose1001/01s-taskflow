@@ -7,17 +7,18 @@
     "login": "เข้าสู่ระบบ",
     "signup": "สมัครสมาชิก",
     "logout": "ออกจากระบบ",
-    "menu": "เมนู"
+    "account": "เมนูบัญชี"
   },
   "theme": {
-    "label": "ธีม",
-    "light": "สว่าง",
-    "dark": "มืด"
+    "switchToDark": "เปลี่ยนเป็นธีมมืด",
+    "switchToLight": "เปลี่ยนเป็นธีมสว่าง"
   },
   "language": {
-    "label": "ภาษา",
     "th": "ไทย",
-    "en": "English"
+    "en": "English",
+    "switchTo": "เปลี่ยนภาษาเป็น {{name}}",
+    "code_th": "TH",
+    "code_en": "EN"
   },
   "auth": {
     "loginTitle": "เข้าสู่ระบบ",
@@ -80,7 +81,8 @@
     "previous": "ก่อนหน้า",
     "next": "ถัดไป",
     "pagination": "เปลี่ยนหน้า",
-    "pageOf": "หน้า {{page}} จาก {{pages}}"
+    "pageOf": "หน้า {{page}} จาก {{pages}}",
+    "close": "ปิด"
   },
   "dashboard": {
     "hello": "สวัสดี {{name}}"
@@ -106,9 +108,8 @@
     "saving": "กำลังบันทึก...",
     "saved": "บันทึกการแก้ไขแล้ว",
     "edit": "แก้ไข",
-    "delete": "ลบ",
-    "deleteTitle": "ลบโปรเจกต์นี้ใช่ไหม?",
-    "deleteMessage": "\"{{name}}\" จะถูกย้ายไปถังขยะ คุณกู้คืนได้จนกว่าจะถูกลบถาวร",
+    "deleteTitle": "ลบโปรเจกต์ \"{{name}}\"?",
+    "deleteMessage": "โปรเจกต์จะย้ายไปถังขยะ กู้คืนได้ภายใน 30 วัน งานที่จะไปด้วย: {{count}} งาน และสมาชิกคนอื่นจะมองไม่เห็นทันที",
     "deleteConfirm": "ย้ายไปถังขยะ",
     "deleting": "กำลังย้าย...",
     "movedToTrash": "ย้าย \"{{name}}\" ไปถังขยะแล้ว",
@@ -119,24 +120,32 @@
     "back": "กลับไปหน้าโปรเจกต์",
     "progress": "เสร็จ {{done}} จาก {{total}} งาน",
     "noTasks": "ยังไม่มีงาน",
-    "membersLink": "สมาชิก ({{count}})"
+    "myProjects": "โปรเจกต์ของฉัน",
+    "membersButton": "สมาชิก {{count}}",
+    "moreActions": "ตัวเลือกเพิ่มเติม",
+    "deleteProject": "ลบโปรเจกต์"
   },
   "members": {
     "title": "สมาชิก",
     "joined": "เข้าร่วมเมื่อ {{date}}",
     "loadError": "โหลดรายชื่อสมาชิกไม่สำเร็จ",
-    "invite": "เชิญคนเข้าร่วมด้วยอีเมล",
+    "invite": "เชิญด้วยอีเมล",
     "inviteEmail": "อีเมลของเขา",
     "inviteButton": "เชิญ",
     "inviting": "กำลังเชิญ...",
     "invited": "เพิ่ม {{name}} เข้าโปรเจกต์แล้ว",
     "noAccount": "ไม่มีบัญชีที่ใช้อีเมลนี้ ให้เขาสมัครสมาชิกก่อน",
     "remove": "เอาออก",
-    "removeTitle": "เอาสมาชิกคนนี้ออกใช่ไหม?",
+    "removeTitle": "เอา {{name}} ออกจากโปรเจกต์นี้?",
     "removeMessage": "{{name}} จะเข้าโปรเจกต์นี้ไม่ได้อีก และงานที่เขารับผิดชอบจะไม่มีผู้รับผิดชอบ",
-    "removeConfirm": "เอาสมาชิกออก",
+    "removeConfirm": "เอาออก",
     "removing": "กำลังเอาออก...",
-    "removed": "เอา {{name}} ออกแล้ว"
+    "removed": "เอา {{name}} ออกแล้ว",
+    "you": "(คุณ)",
+    "inviteHelp": "คนที่เชิญต้องสมัคร TaskFlow ไว้แล้ว ระบบยังไม่ส่งอีเมลแจ้ง",
+    "ownerOnly": "เฉพาะเจ้าของโปรเจกต์ที่เชิญหรือเอาสมาชิกออกได้",
+    "actionsFor": "ตัวเลือกของ {{name}}",
+    "removeFromProject": "เอาออกจากโปรเจกต์"
   },
   "trash": {
     "title": "ถังขยะ",
@@ -150,7 +159,7 @@
   "tasks": {
     "title": "งาน",
     "board": "บอร์ดงาน",
-    "new": "สร้างงานใหม่",
+    "new": "สร้างงาน",
     "addIn": "เพิ่มงานใน {{column}}",
     "loading": "กำลังโหลดงาน...",
     "empty": "ยังไม่มีงาน",
@@ -163,7 +172,7 @@
     "assigneeFilter": "ผู้รับผิดชอบ",
     "all": "ทั้งหมด",
     "unassigned": "ยังไม่มีผู้รับผิดชอบ",
-    "clearFilters": "ล้างตัวกรอง",
+    "clearFilters": "ล้างทั้งหมด",
     "showing": "แสดง {{shown}} จาก {{total}} งาน",
     "dragHandle": "ย้ายงาน: {{title}}",
     "dragInstructions": "หากต้องการย้ายงาน กด Space หรือ Enter ที่ปุ่มย้าย ใช้ปุ่มลูกศรเลือกตำแหน่ง แล้วกด Space หรือ Enter อีกครั้งเพื่อวาง กด Escape เพื่อยกเลิก",
@@ -192,8 +201,8 @@
     "overdue": "เลยกำหนด",
     "assignedTo": "ผู้รับผิดชอบ: {{name}}",
     "delete": "ลบ",
-    "deleteTitle": "ลบงานนี้ใช่ไหม?",
-    "deleteMessage": "\"{{title}}\" จะถูกย้ายไปถังขยะ กู้คืนได้ภายใน 30 วัน",
+    "deleteTitle": "ลบงาน \"{{title}}\"?",
+    "deleteMessage": "งานนี้จะย้ายไปถังขยะ กู้คืนได้ภายใน 30 วัน",
     "deleteConfirm": "ย้ายไปถังขยะ",
     "deleting": "กำลังย้าย...",
     "movedToTrash": "ย้าย \"{{title}}\" ไปถังขยะแล้ว",
@@ -207,7 +216,11 @@
     "loadError": "โหลดงานไม่สำเร็จ",
     "filters": "ตัวกรอง",
     "filtersCount": "ตัวกรอง ({{count}})",
-    "swipeHint": "ปัดซ้าย-ขวาเพื่อดูคอลัมน์อื่น"
+    "dueWord": "ครบกำหนด",
+    "assignedWord": "ผู้รับผิดชอบ",
+    "filteringBy": "กรองอยู่:",
+    "removeFilter": "เอาตัวกรองออก: {{name}}",
+    "showCount": "แสดง {{count}} งาน"
   },
   "status": {
     "todo": "รอทำ",
@@ -231,7 +244,13 @@
     "secondaryButton": "ยกเลิก",
     "sampleTaskTitle": "ออกแบบหน้าล็อกอิน",
     "sampleTaskMeta": "ครบกำหนด 1 ธ.ค. 2569",
-    "errorSample": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    "errorSample": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
+    "ghostButton": "ข้าม",
+    "dangerTitle": "การกระทำที่ต้องระวัง",
+    "dangerButton": "ย้ายไปถังขยะ",
+    "dangerOutlineButton": "ลบงาน",
+    "dangerSoftButton": "เอาออกจากโปรเจกต์",
+    "iconsTitle": "ไอคอน"
   },
   "notFound": {
     "title": "ไม่พบหน้านี้",

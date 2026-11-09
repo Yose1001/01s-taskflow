@@ -2,8 +2,10 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../../api/types'
+import { Avatar, EmptyAvatar } from '../../components/Avatar'
+import { Icon } from '../../components/Icon'
 import { PriorityBadge } from '../../components/StatusBadge'
-import { formatDay, initials } from '../../lib/format'
+import { formatDay, formatDayShort } from '../../lib/format'
 import { isOverdue } from './boardLogic'
 
 interface ViewProps {
@@ -15,54 +17,99 @@ interface ViewProps {
   handle?: React.ButtonHTMLAttributes<HTMLButtonElement> & {
     ref?: (node: HTMLElement | null) => void
   }
+  /** This card has been picked up. */
+  picked?: boolean
+  /** This is the floating copy that follows the pointer. */
+  lifted?: boolean
+}
+
+function DueChip({ task }: { task: Task }) {
+  const { t, i18n } = useTranslation()
+  if (!task.dueDate) return null
+  const overdue = isOverdue(task)
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
+        overdue ? 'bg-danger-bg text-danger-fg' : 'bg-surface-2 text-muted'
+      }`}
+    >
+      <Icon name={overdue ? 'warning' : 'calendar'} size={14} />
+      {overdue ? (
+        <span>{t('tasks.overdue')}</span>
+      ) : (
+        <span className="sr-only">{t('tasks.dueWord')}</span>
+      )}
+      <time
+        dateTime={task.dueDate}
+        title={t('tasks.due', { date: formatDay(task.dueDate, i18n.language) })}
+      >
+        {formatDayShort(task.dueDate, i18n.language)}
+      </time>
+    </span>
+  )
+}
+
+function AssigneeRow({ task, name }: { task: Task; name?: string | undefined }) {
+  const { t } = useTranslation()
+  // Somebody is assigned but the member list has not arrived yet: say nothing rather than "nobody".
+  if (task.assigneeId && !name) return <div className="h-[22px]" />
+  return (
+    <div className="flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted">
+      {task.assigneeId && name ? (
+        <>
+          <span className="min-w-0 truncate" title={t('tasks.assignedTo', { name })}>
+            <span className="sr-only">{t('tasks.assignedWord')} </span>
+            <span>{name}</span>
+          </span>
+          <Avatar id={task.assigneeId} name={name} size={22} />
+        </>
+      ) : (
+        <>
+          <span className="min-w-0 truncate">{t('tasks.unassigned')}</span>
+          <EmptyAvatar label={t('tasks.unassigned')} size={22} />
+        </>
+      )}
+    </div>
+  )
 }
 
 /** What a task looks like on the board. Plain text only: titles are never treated as HTML. */
-export function TaskCardView({ task, assigneeName, onOpen, handle }: ViewProps) {
-  const { t, i18n } = useTranslation()
-  const overdue = isOverdue(task)
+export function TaskCardView({ task, assigneeName, onOpen, handle, picked, lifted }: ViewProps) {
+  const { t } = useTranslation()
   return (
-    <div className="rounded-xl border border-border bg-surface p-3 shadow-sm">
-      <div className="flex items-start gap-2">
-        <button
-          type="button"
-          {...handle}
-          aria-label={t('tasks.dragHandle', { title: task.title })}
-          className="mt-0.5 cursor-grab touch-none rounded-lg px-1.5 py-0.5 text-muted hover:bg-primary-bg active:cursor-grabbing"
-        >
-          <span aria-hidden="true">⠿</span>
-        </button>
+    <div
+      className={`grid grid-cols-[28px_minmax(0,1fr)] rounded-xl border bg-surface ${
+        lifted ? 'border-primary shadow-xl' : 'border-border shadow-card'
+      }`}
+    >
+      {/* The whole left edge is the handle: easy to find with a mouse and big enough for a thumb. */}
+      <button
+        type="button"
+        {...handle}
+        aria-label={t('tasks.dragHandle', { title: task.title })}
+        className={`grid min-h-11 cursor-grab touch-none place-items-center rounded-l-xl -outline-offset-2 active:cursor-grabbing ${
+          picked
+            ? 'bg-primary-bg text-primary-fg'
+            : 'text-handle hover:text-muted focus-visible:text-muted'
+        }`}
+      >
+        <Icon name="grip" />
+      </button>
+      <div className="min-w-0 space-y-2 py-3 pl-1 pr-3">
         <button
           type="button"
           onClick={onOpen}
-          className="min-w-0 flex-1 break-words text-left font-semibold hover:underline"
+          title={task.title}
+          className="line-clamp-3 w-full break-words text-left font-medium leading-[1.45] hover:underline"
         >
           {task.title}
         </button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <PriorityBadge priority={task.priority} />
+          <DueChip task={task} />
+        </div>
+        <AssigneeRow task={task} name={assigneeName} />
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <PriorityBadge priority={task.priority} />
-        {task.dueDate && (
-          <span className={`text-sm ${overdue ? 'font-semibold text-danger-fg' : 'text-muted'}`}>
-            {overdue && <span aria-hidden="true">⚠ </span>}
-            {overdue && `${t('tasks.overdue')} · `}
-            {t('tasks.due', { date: formatDay(task.dueDate, i18n.language) })}
-          </span>
-        )}
-      </div>
-      {assigneeName && (
-        <p className="mt-2 flex min-w-0 items-center gap-2 text-sm text-muted">
-          <span
-            aria-hidden="true"
-            className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sky-bg text-xs font-semibold text-sky-fg"
-          >
-            {initials(assigneeName)}
-          </span>
-          <span className="min-w-0 break-words">
-            {t('tasks.assignedTo', { name: assigneeName })}
-          </span>
-        </p>
-      )}
     </div>
   )
 }
@@ -97,6 +144,7 @@ export function SortableTaskCard({
         assigneeName={assigneeName}
         onOpen={onOpen}
         handle={{ ...attributes, ...listeners, ref: setActivatorNodeRef }}
+        picked={isDragging}
       />
     </li>
   )

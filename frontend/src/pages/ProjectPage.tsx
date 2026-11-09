@@ -6,17 +6,22 @@ import { restoreProject } from '../api/projects'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/context'
 import { errorMessage } from '../auth/errors'
+import { Avatar } from '../components/Avatar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Button } from '../components/forms'
+import { Icon } from '../components/Icon'
+import { Menu } from '../components/Menu'
 import { RoleBadge } from '../components/RoleBadge'
 import { ErrorState, LoadingState } from '../components/states'
 import { useToast } from '../components/toast'
 import { keys, useDeleteProject, useMembers, useProject } from '../features/projects/hooks'
-import { MembersSection } from '../features/projects/MembersSection'
+import { MembersDrawer } from '../features/projects/MembersDrawer'
 import { ProjectFormDialog } from '../features/projects/ProjectFormDialog'
 import { TaskBoard } from '../features/tasks/TaskBoard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate } from '../lib/format'
+
+const ICON_ON_PHONE = 'max-sm:h-10 max-sm:w-10 max-sm:px-0 max-sm:py-0'
 
 export function ProjectPage() {
   const { t, i18n } = useTranslation()
@@ -31,6 +36,8 @@ export function ProjectPage() {
   const del = useDeleteProject()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [creatingTask, setCreatingTask] = useState(false)
+  const [membersOpen, setMembersOpen] = useState(false)
   useDocumentTitle(project.data?.name ?? t('projects.title'))
 
   if (project.isPending) return <LoadingState label={t('common.loading')} />
@@ -69,45 +76,112 @@ export function ProjectPage() {
   return (
     <div className="space-y-5">
       <header className="space-y-2">
-        <Link to="/" className="text-sm font-medium text-primary underline">
-          ← {t('projects.back')}
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline"
+        >
+          <Icon name="arrow-left" />
+          {t('projects.myProjects')}
         </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center justify-between gap-2 sm:flex-wrap sm:gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="break-words text-2xl font-bold sm:text-3xl">{p.name}</h1>
-              <RoleBadge role={p.myRole} />
+            <div className="flex items-center gap-2 sm:flex-wrap">
+              <h1 className="min-w-0 truncate text-2xl font-bold sm:whitespace-normal sm:break-words sm:text-3xl">
+                {p.name}
+              </h1>
+              <span className="shrink-0">
+                <RoleBadge role={p.myRole} />
+              </span>
             </div>
-            {p.description && (
-              <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-muted">
-                {p.description}
-              </p>
-            )}
-            <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-muted">
+            <p
+              className="mt-0.5 truncate text-sm text-muted max-sm:hidden"
+              title={p.description || undefined}
+            >
+              {p.description && <span>{p.description}</span>}
+              {p.description && ' · '}
               <span>{t('projects.created', { date: formatDate(p.createdAt, i18n.language) })}</span>
-              {members.data && (
-                <a href="#members" className="font-medium text-primary underline">
-                  {t('projects.membersLink', { count: members.data.length })}
-                </a>
-              )}
             </p>
           </div>
-          {isOwner && (
-            <div className="flex shrink-0 gap-2">
-              <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
-                {t('projects.edit')}
+          {/* On phones these become 40px icon buttons and "New task" floats over the board. */}
+          <div className="flex shrink-0 items-center gap-1 sm:flex-wrap sm:gap-2">
+            {members.data && (
+              <Button
+                type="button"
+                variant="ghost"
+                className={ICON_ON_PHONE}
+                onClick={() => setMembersOpen(true)}
+              >
+                <span className="sm:hidden">
+                  <Icon name="users" size={20} />
+                </span>
+                <span className="flex -space-x-2 max-sm:hidden" aria-hidden="true">
+                  {members.data.slice(0, 3).map((m) => (
+                    <span key={m.userId} className="rounded-full ring-2 ring-bg">
+                      <Avatar id={m.userId} name={m.displayName} size={24} />
+                    </span>
+                  ))}
+                </span>
+                <span className="max-sm:sr-only">
+                  {t('projects.membersButton', { count: members.data.length })}
+                </span>
               </Button>
-              <Button type="button" variant="secondary" onClick={() => setConfirmDelete(true)}>
-                {t('projects.delete')}
+            )}
+            {isOwner && (
+              <Button
+                type="button"
+                variant="ghost"
+                className={ICON_ON_PHONE}
+                onClick={() => setEditing(true)}
+              >
+                <Icon name="pencil" />
+                <span className="max-sm:sr-only">{t('projects.edit')}</span>
               </Button>
-            </div>
-          )}
+            )}
+            <Menu
+              label={t('projects.moreActions')}
+              trigger={<Icon name="more" size={20} />}
+              triggerClassName="grid h-10 w-10 place-items-center rounded-xl text-text hover:bg-primary-bg"
+              items={[
+                {
+                  key: 'trash',
+                  label: t('tasks.trashTitle'),
+                  icon: 'trash',
+                  onSelect: () => navigate(`/projects/${encodeURIComponent(p.id)}/trash`),
+                },
+                ...(isOwner
+                  ? [
+                      {
+                        key: 'delete',
+                        label: t('projects.deleteProject'),
+                        icon: 'trash' as const,
+                        tone: 'danger' as const,
+                        onSelect: () => setConfirmDelete(true),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            <Button
+              type="button"
+              className="max-sm:fixed max-sm:bottom-[max(1rem,env(safe-area-inset-bottom))] max-sm:right-4 max-sm:z-20 max-sm:h-12 max-sm:rounded-full max-sm:shadow-card"
+              onClick={() => setCreatingTask(true)}
+            >
+              <Icon name="plus" />
+              {t('tasks.new')}
+            </Button>
+          </div>
         </div>
       </header>
 
-      <TaskBoard projectId={p.id} />
+      <TaskBoard
+        projectId={p.id}
+        newTaskOpen={creatingTask}
+        onNewTaskClose={() => setCreatingTask(false)}
+      />
 
-      <MembersSection projectId={p.id} isOwner={isOwner} />
+      {membersOpen && (
+        <MembersDrawer projectId={p.id} isOwner={isOwner} onClose={() => setMembersOpen(false)} />
+      )}
 
       {editing && (
         <ProjectFormDialog
@@ -122,8 +196,8 @@ export function ProjectPage() {
 
       {confirmDelete && (
         <ConfirmDialog
-          title={t('projects.deleteTitle')}
-          message={t('projects.deleteMessage', { name: p.name })}
+          title={t('projects.deleteTitle', { name: p.name })}
+          message={t('projects.deleteMessage', { count: p.taskCount })}
           confirmLabel={t('projects.deleteConfirm')}
           pendingLabel={t('projects.deleting')}
           pending={del.isPending}

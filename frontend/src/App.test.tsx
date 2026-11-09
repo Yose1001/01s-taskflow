@@ -10,8 +10,8 @@ describe('app (signed out)', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Welcome to TaskFlow' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Theme' })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Language' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Switch to dark theme' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Switch language to ไทย' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /TaskFlow/ })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', '/login')
     expect(screen.getByRole('link', { name: 'Sign up' })).toHaveAttribute('href', '/register')
@@ -20,7 +20,7 @@ describe('app (signed out)', () => {
   it('translates the whole page when the language changes', async () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/design' })
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
+    await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
     expect(
       screen.getByRole('heading', { level: 1, name: 'ยินดีต้อนรับสู่ TaskFlow' }),
     ).toBeInTheDocument()
@@ -31,7 +31,7 @@ describe('app (signed out)', () => {
   it('changes the theme from the top bar', async () => {
     const user = userEvent.setup()
     renderApp(<AppRoutes />, { route: '/design' })
-    await user.click(screen.getByRole('button', { name: 'Dark' }))
+    await user.click(screen.getByRole('button', { name: 'Switch to dark theme' }))
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
   })
 

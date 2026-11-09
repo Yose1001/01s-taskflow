@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { errorMessage } from '../auth/errors'
 import { Alert, Button } from '../components/forms'
+import { Icon } from '../components/Icon'
 import { Pagination } from '../components/Pagination'
 import { EmptyState, ErrorState, LoadingState } from '../components/states'
 import { useToast } from '../components/toast'
@@ -23,8 +24,12 @@ export function TrashPage() {
   return (
     <div className="space-y-6">
       <p>
-        <Link to="/" className="text-sm font-medium text-primary underline">
-          ← {t('projects.back')}
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline"
+        >
+          <Icon name="arrow-left" />
+          {t('projects.back')}
         </Link>
       </p>
       <div>
@@ -64,7 +69,7 @@ export function TrashPage() {
                   </div>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="soft"
                     disabled={restore.isPending}
                     aria-busy={restoring}
                     aria-label={`${t('trash.restore')}: ${p.name}`}
@@ -75,6 +80,7 @@ export function TrashPage() {
                       })
                     }
                   >
+                    <Icon name="restore" />
                     {restoring ? t('trash.restoring') : t('trash.restore')}
                   </Button>
                 </li>

@@ -6,6 +6,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon, type IconName } from './Icon'
 
 const INPUT =
   'w-full rounded-xl border bg-surface px-3 py-2 text-text placeholder:text-muted focus:border-primary'
@@ -126,6 +127,72 @@ export function SelectField({
   )
 }
 
+/** The frame of a one-line control: the label exists for screen readers, an icon takes its place on screen. */
+function CompactFrame({
+  id,
+  label,
+  icon,
+  className,
+  children,
+}: {
+  id: string
+  label: string
+  icon: IconName
+  className?: string | undefined
+  children: ReactNode
+}) {
+  return (
+    <div className={`relative min-w-0 ${className ?? ''}`}>
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted">
+        <Icon name={icon} />
+      </span>
+      {children}
+    </div>
+  )
+}
+
+export function CompactTextField({
+  id,
+  label,
+  icon,
+  className,
+  ...input
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'id'> & {
+  id: string
+  label: string
+  icon: IconName
+}) {
+  return (
+    <CompactFrame id={id} label={label} icon={icon} className={className}>
+      <input {...input} id={id} className={`${INPUT} border-border pl-9`} />
+    </CompactFrame>
+  )
+}
+
+export function CompactSelectField({
+  id,
+  label,
+  icon,
+  className,
+  children,
+  ...select
+}: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'id'> & {
+  id: string
+  label: string
+  icon: IconName
+}) {
+  return (
+    <CompactFrame id={id} label={label} icon={icon} className={className}>
+      <select {...select} id={id} aria-label={label} className={`${INPUT} border-border pl-9`}>
+        {children}
+      </select>
+    </CompactFrame>
+  )
+}
+
 /** A password box with a Show/Hide button. */
 export function PasswordField({ id, label, error, hint, ...input }: Omit<FieldProps, 'type'>) {
   const { t } = useTranslation()
@@ -154,19 +221,29 @@ export function PasswordField({ id, label, error, hint, ...input }: Omit<FieldPr
   )
 }
 
+const BUTTON_STYLES = {
+  // A page has one primary button. Everything else is soft or ghost.
+  primary: 'bg-primary text-on-primary hover:opacity-90',
+  soft: 'border border-border bg-surface-2 text-text hover:bg-primary-bg',
+  ghost: 'text-text hover:bg-primary-bg',
+  // Only for the confirm button of a delete dialog.
+  danger: 'bg-danger text-on-danger hover:opacity-90',
+  'danger-outline': 'border border-danger text-danger hover:bg-danger-bg hover:text-danger-fg',
+  'danger-soft': 'bg-danger-bg text-danger-fg hover:opacity-90',
+}
+
+export type ButtonVariant = keyof typeof BUTTON_STYLES
+
 export function Button({
   children,
   variant = 'primary',
+  className = '',
   ...props
-}: { variant?: 'primary' | 'secondary' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const style =
-    variant === 'primary'
-      ? 'bg-primary text-on-primary hover:opacity-90'
-      : 'border border-border bg-surface-2 text-text hover:bg-primary-bg'
+}: { variant?: ButtonVariant } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`rounded-xl px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-60 ${style}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-60 ${BUTTON_STYLES[variant]} ${className}`}
     >
       {children}
     </button>

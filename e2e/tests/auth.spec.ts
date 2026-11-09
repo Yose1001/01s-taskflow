@@ -13,7 +13,8 @@ test.describe('signing up and in', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Hello, Alice' })).toBeVisible()
     await expect(page.getByText('You have no projects yet.')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Log out' }).click()
+    await page.getByRole('button', { name: 'Account menu' }).click()
+    await page.getByRole('menuitem', { name: 'Log out' }).click()
     await expect(page).toHaveURL(/\/login/)
 
     await submitLogin(page, person)
@@ -117,7 +118,8 @@ test.describe('signing up and in', () => {
     await expect(tab.getByRole('heading', { level: 1, name: 'Hello, Hana' })).toBeVisible()
 
     // Logging out in one tab ends the session in the other tab too.
-    await tab.getByRole('button', { name: 'Log out' }).click()
+    await tab.getByRole('button', { name: 'Account menu' }).click()
+    await tab.getByRole('menuitem', { name: 'Log out' }).click()
     await expect(tab).toHaveURL(/\/login/)
     await expect(page).toHaveURL(/\/login/)
 

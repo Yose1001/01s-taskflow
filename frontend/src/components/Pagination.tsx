@@ -18,18 +18,13 @@ export function Pagination({ page, total, pageSize, onPage }: Props) {
       aria-label={t('common.pagination')}
       className="mt-6 flex items-center justify-center gap-3"
     >
-      <Button
-        type="button"
-        variant="secondary"
-        disabled={page <= 1}
-        onClick={() => onPage(page - 1)}
-      >
+      <Button type="button" variant="soft" disabled={page <= 1} onClick={() => onPage(page - 1)}>
         {t('common.previous')}
       </Button>
       <span className="text-sm text-muted">{t('common.pageOf', { page, pages })}</span>
       <Button
         type="button"
-        variant="secondary"
+        variant="soft"
         disabled={page >= pages}
         onClick={() => onPage(page + 1)}
       >

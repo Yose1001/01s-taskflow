@@ -60,7 +60,7 @@ test.describe('search and filters', () => {
     await page.getByLabel('Priority').selectOption('All')
     await page.getByLabel('Assigned to', { exact: true }).selectOption('Unassigned')
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Write docs'])
-    await page.getByRole('button', { name: 'Clear filters' }).click()
+    await page.getByRole('button', { name: 'Clear all' }).click()
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Fix Login bug', 'Write docs'])
     await expect(page).not.toHaveURL(/priority=|assignee=|q=/)
   })

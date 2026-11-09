@@ -20,7 +20,13 @@ const flatEn = flatten(en)
 const flatTh = flatten(th)
 
 // Words that are the same in both languages on purpose.
-const SAME_IN_BOTH = new Set(['app.name', 'language.en', 'language.th'])
+const SAME_IN_BOTH = new Set([
+  'app.name',
+  'language.en',
+  'language.th',
+  'language.code_en',
+  'language.code_th',
+])
 const THAI = /[฀-๿]/
 
 describe('translations', () => {

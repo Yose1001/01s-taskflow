@@ -114,6 +114,16 @@ test.describe('the task board', () => {
       .toContain('Build header')
   })
 
+  test('one arrow press is one column, to the left as well', async ({ page, request }) => {
+    await setUpBoard(page, request)
+    await handle(page, 'Build header').focus()
+    await page.keyboard.press('Space')
+    await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Build header" is over In progress.')
+    await page.keyboard.press('ArrowLeft')
+    await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Build header" is over To do.')
+    await page.keyboard.press('Escape')
+  })
+
   test('Escape cancels a keyboard drag and nothing moves', async ({ page, request }) => {
     const { token, projectId } = await setUpBoard(page, request)
     await handle(page, 'Build header').focus()
@@ -148,7 +158,7 @@ test.describe('the task board', () => {
     await create.getByRole('button', { name: 'Create task' }).click()
     await expect(page.getByText('Task created.')).toBeVisible()
     await expect.poll(() => titlesIn(page, /^In review/)).toEqual(['Review checkout', 'ทดสอบระบบสั่งซื้อ'])
-    await expect(page.getByText('Overdue · Due 2 Jan 2020')).toBeVisible() // marked with words, not only color
+    await expect(page.getByText('Overdue', { exact: true })).toBeVisible() // marked with words, not only color
 
     // Edit
     await card(page, 'ทดสอบระบบสั่งซื้อ').click()
@@ -163,7 +173,7 @@ test.describe('the task board', () => {
     // Delete: asks first, then Undo
     await card(page, 'Test the order system').click()
     await page.getByRole('dialog', { name: 'Edit task' }).getByRole('button', { name: 'Delete' }).click()
-    const confirm = page.getByRole('dialog', { name: 'Delete this task?' })
+    const confirm = page.getByRole('dialog', { name: /^Delete task "/ })
     await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused()
     await confirm.getByRole('button', { name: 'Move to trash' }).click()
     await expect(card(page, 'Test the order system')).toHaveCount(0)

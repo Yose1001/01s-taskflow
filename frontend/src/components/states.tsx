@@ -21,7 +21,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
     <div role="alert" className="rounded-2xl bg-danger-bg p-5 text-danger-fg">
       <p>{message}</p>
       <div className="mt-3">
-        <Button type="button" variant="secondary" onClick={onRetry}>
+        <Button type="button" variant="soft" onClick={onRetry}>
           {t('common.retry')}
         </Button>
       </div>

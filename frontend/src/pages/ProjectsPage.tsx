@@ -100,7 +100,6 @@ export function ProjectsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">{t('dashboard.hello', { name: user.displayName })}</h1>
-        <p className="mt-1 text-muted">{user.email}</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -109,9 +108,13 @@ export function ProjectsPage() {
           <Link to="/projects/trash" className="font-medium text-primary underline">
             {t('projects.trash')}
           </Link>
-          <Button type="button" onClick={() => setCreating(true)}>
-            {t('projects.new')}
-          </Button>
+          {/* A new person has one big button in the welcome panel instead: one primary button per page.
+              Waiting for the list means the button never flashes up and disappears again. */}
+          {projects.data && projects.data.total > 0 && (
+            <Button type="button" onClick={() => setCreating(true)}>
+              {t('projects.new')}
+            </Button>
+          )}
         </div>
       </div>
 

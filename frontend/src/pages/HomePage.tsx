@@ -1,4 +1,7 @@
 import { useTranslation } from 'react-i18next'
+import { Button } from '../components/forms'
+import { Icon } from '../components/Icon'
+import { ICON_NAMES } from '../components/iconPaths'
 import {
   PriorityBadge,
   StatusBadge,
@@ -72,22 +75,46 @@ export function HomePage() {
 
         <Section title={t('home.buttonsTitle')}>
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="rounded-xl bg-primary px-4 py-2 font-medium text-on-primary hover:opacity-90"
-            >
+            <Button type="button">
+              <Icon name="plus" />
               {t('home.primaryButton')}
-            </button>
-            <button
-              type="button"
-              className="rounded-xl border border-border bg-surface-2 px-4 py-2 font-medium text-text hover:bg-primary-bg"
-            >
+            </Button>
+            <Button type="button" variant="soft">
               {t('home.secondaryButton')}
-            </button>
+            </Button>
+            <Button type="button" variant="ghost">
+              {t('home.ghostButton')}
+            </Button>
+          </div>
+          <h3 className="mb-2 mt-5 text-sm font-semibold uppercase tracking-wide text-muted">
+            {t('home.dangerTitle')}
+          </h3>
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" variant="danger">
+              {t('home.dangerButton')}
+            </Button>
+            <Button type="button" variant="danger-outline">
+              <Icon name="trash" />
+              {t('home.dangerOutlineButton')}
+            </Button>
+            <Button type="button" variant="danger-soft">
+              {t('home.dangerSoftButton')}
+            </Button>
           </div>
           <p role="alert" className="mt-4 rounded-xl bg-danger-bg px-3 py-2 text-sm text-danger-fg">
             {t('home.errorSample')}
           </p>
+        </Section>
+
+        <Section title={t('home.iconsTitle')}>
+          <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+            {ICON_NAMES.map((name) => (
+              <li key={name} className="flex flex-col items-center gap-1 text-center">
+                <Icon name={name} size={24} />
+                <span className="text-xs text-muted">{name}</span>
+              </li>
+            ))}
+          </ul>
         </Section>
 
         <Section title={t('status.in_progress')}>

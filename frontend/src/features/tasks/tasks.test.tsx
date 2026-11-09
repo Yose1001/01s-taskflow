@@ -63,9 +63,9 @@ describe('board', () => {
     await openBoard(userEvent.setup())
     const todo = column(/^To do/)
     expect(within(todo).getAllByText('High').length).toBeGreaterThan(0)
-    expect(within(todo).getByText('Assigned to Bob')).toBeInTheDocument()
-    expect(within(todo).getByText('Assigned to Alice')).toBeInTheDocument()
-    expect(within(column(/^Done/)).getByText('Due 1 Jan 2020')).toBeInTheDocument()
+    expect(within(todo).getByTitle('Assigned to Bob')).toBeInTheDocument()
+    expect(within(todo).getByTitle('Assigned to Alice')).toBeInTheDocument()
+    expect(within(column(/^Done/)).getByText('1 Jan 2020')).toBeInTheDocument()
   })
 
   it('flags an overdue task with a word, but not a finished one', async () => {
@@ -74,8 +74,10 @@ describe('board', () => {
       task('b', 'Fine', { dueDate: '2099-01-01' }),
       task('c', 'Late but done', { status: 'done', dueDate: '2020-01-01' }),
     ])
-    expect(within(column(/^To do/)).getByText(/Overdue · Due 1 Jan 2020/)).toBeInTheDocument()
-    expect(within(column(/^To do/)).getByText('Due 1 Jan 2099')).toBeInTheDocument()
+    expect(within(column(/^To do/)).getByText('Overdue').parentElement).toHaveTextContent(
+      '1 Jan 2020',
+    )
+    expect(within(column(/^To do/)).getByText('1 Jan 2099')).toBeInTheDocument()
     expect(within(column(/^Done/)).queryByText(/Overdue/)).not.toBeInTheDocument()
   })
 
@@ -123,10 +125,28 @@ describe('board', () => {
   it('works in Thai too', async () => {
     const user = userEvent.setup()
     await openBoard(user)
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
+    await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
     expect(screen.getByRole('region', { name: 'รอทำ 3 งาน' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'สร้างงานใหม่' })).toBeInTheDocument()
-    expect(screen.getByText(/ครบกำหนด 1 ม\.ค\. 2563/)).toBeInTheDocument() // Buddhist-era year
+    expect(screen.getByRole('button', { name: 'สร้างงาน' })).toBeInTheDocument()
+    expect(screen.getByText('1 ม.ค. 2563')).toBeInTheDocument() // Buddhist-era year
+  })
+
+  it('marks the due date for machines and shows the full date on hover', async () => {
+    await openBoard(userEvent.setup(), [task('a', 'Dated', { dueDate: '2099-03-04' })])
+    const date = screen.getByText('4 Mar 2099')
+    expect(date.tagName).toBe('TIME')
+    expect(date).toHaveAttribute('datetime', '2099-03-04')
+    expect(date).toHaveAttribute('title', 'Due 4 Mar 2099')
+  })
+
+  it('says so when nobody is assigned, and keeps the full title available on a long one', async () => {
+    await openBoard(userEvent.setup(), [task('a', 'A very long title')])
+    expect(within(column(/^To do/)).getByRole('img', { name: 'Unassigned' })).toBeInTheDocument()
+    expect(within(column(/^To do/)).getByText('Unassigned')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'A very long title' })).toHaveAttribute(
+      'title',
+      'A very long title',
+    )
   })
 
   it('says "not found" for a project the person cannot see (tasks included)', async () => {
@@ -146,10 +166,74 @@ describe('filters', () => {
     expect(titlesIn(column(/^In progress/))).toEqual([])
     expect(screen.getByText('Showing 1 of 5 tasks')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
     expect(titlesIn(column(/^To do/))).toHaveLength(3)
     expect(screen.queryByText(/Showing/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Search tasks')).toHaveValue('')
+  })
+
+  it('shows each active filter as a chip that removes only itself', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    expect(screen.queryByText('Filtering by:')).not.toBeInTheDocument() // nothing to show at first
+
+    await user.type(screen.getByLabelText('Search tasks'), 'logo')
+    await user.selectOptions(screen.getByLabelText('Priority'), 'High')
+    expect(screen.getByText('Filtering by:')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remove filter: High' }))
+    expect(screen.getByLabelText('Priority')).toHaveValue('')
+    expect(screen.getByLabelText('Search tasks')).toHaveValue('logo')
+    expect(screen.queryByRole('button', { name: 'Remove filter: High' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remove filter: logo' }))
+    expect(screen.queryByText('Filtering by:')).not.toBeInTheDocument()
+  })
+
+  it('on a phone, the sheet changes nothing until "Show N tasks"', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    const opener = screen.getByRole('button', { name: 'Filters' })
+    await user.click(opener)
+    const sheet = await screen.findByRole('dialog', { name: 'Filters' })
+
+    await user.selectOptions(within(sheet).getByLabelText('Priority'), 'High')
+    const show = within(sheet).getByRole('button', { name: /^Show \d+ tasks$/ })
+    expect(document.getElementById('filter-priority')).toHaveValue('')
+    expect(titlesIn(column(/^To do/))).toHaveLength(3) // the board has not changed yet
+
+    const number = Number(/\d+/.exec(show.textContent!)![0])
+    await user.click(show)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.getElementById('filter-priority')).toHaveValue('high')
+    expect(screen.getByText(new RegExp(`^Showing ${number} of`))).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filters (1)' })).toHaveFocus()
+  })
+
+  it('in the sheet, Clear all empties the choices; closing without Show keeps the board', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    await user.selectOptions(screen.getByLabelText('Priority'), 'High')
+
+    await user.click(screen.getByRole('button', { name: 'Filters (1)' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Filters' })
+    expect(within(sheet).getByLabelText('Priority')).toHaveValue('high')
+    await user.click(within(sheet).getByRole('button', { name: 'Clear all' }))
+    expect(within(sheet).getByLabelText('Priority')).toHaveValue('')
+
+    await user.keyboard('{Escape}')
+    expect(document.getElementById('filter-priority')).toHaveValue('high')
+  })
+
+  it('offers New task in the project header, opening on the first column', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    const dialog = await screen.findByRole('dialog', { name: 'New task' })
+    expect(within(dialog).getByLabelText('Column')).toHaveValue('todo')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New task' })).toHaveFocus()
   })
 
   it('filters by priority and by person (including "Unassigned")', async () => {
@@ -486,7 +570,7 @@ describe('deleting and restoring', () => {
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }),
     )
-    const confirm = await screen.findByRole('dialog', { name: 'Delete this task?' })
+    const confirm = await screen.findByRole('dialog', { name: /^Delete task "/ })
     return { api, confirm }
   }
 
@@ -532,7 +616,7 @@ describe('deleting and restoring', () => {
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }),
     )
-    const confirm = await screen.findByRole('dialog', { name: 'Delete this task?' })
+    const confirm = await screen.findByRole('dialog', { name: /^Delete task "/ })
     await user.click(within(confirm).getByRole('button', { name: 'Move to trash' }))
     expect(await within(confirm).findByRole('alert')).toBeInTheDocument()
     expect(api.hits('DELETE /tasks/t2')).toHaveLength(1)
@@ -600,14 +684,17 @@ describe('members and tasks', () => {
     await openBoard(user, [task('t1', 'Bobs job', { assigneeId: BOB.userId })], {
       projects: [project('p1', 'Website', { members: [BOB, CAROL] })],
     })
-    expect(screen.getByText('Assigned to Bob')).toBeInTheDocument()
+    expect(screen.getByTitle('Assigned to Bob')).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Assigned to'), 'Unassigned')
     expect(screen.queryByRole('button', { name: 'Bobs job' })).not.toBeInTheDocument()
-    const members = screen.getByRole('region', { name: 'Members' })
-    const row = (await within(members).findByText('Bob')).closest('li')!
-    await user.click(within(row).getByRole('button', { name: /^Remove/ }))
+    await user.click(screen.getByRole('button', { name: /^Members \d+$/ }))
+    const members = await screen.findByRole('dialog', { name: 'Members' })
+    await user.click(await within(members).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove member' }),
+      within(
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
+      ).getByRole('button', { name: 'Remove' }),
     )
     // The task itself changed on the server (no assignee any more), so the board must reload it.
     expect(await screen.findByRole('button', { name: 'Bobs job' })).toBeInTheDocument()

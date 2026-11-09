@@ -7,17 +7,18 @@
     "login": "Log in",
     "signup": "Sign up",
     "logout": "Log out",
-    "menu": "Menu"
+    "account": "Account menu"
   },
   "theme": {
-    "label": "Theme",
-    "light": "Light",
-    "dark": "Dark"
+    "switchToDark": "Switch to dark theme",
+    "switchToLight": "Switch to light theme"
   },
   "language": {
-    "label": "Language",
     "th": "ไทย",
-    "en": "English"
+    "en": "English",
+    "switchTo": "Switch language to {{name}}",
+    "code_th": "TH",
+    "code_en": "EN"
   },
   "auth": {
     "loginTitle": "Log in",
@@ -80,7 +81,8 @@
     "previous": "Previous",
     "next": "Next",
     "pagination": "Pagination",
-    "pageOf": "Page {{page}} of {{pages}}"
+    "pageOf": "Page {{page}} of {{pages}}",
+    "close": "Close"
   },
   "dashboard": {
     "hello": "Hello, {{name}}"
@@ -106,9 +108,8 @@
     "saving": "Saving...",
     "saved": "Changes saved.",
     "edit": "Edit",
-    "delete": "Delete",
-    "deleteTitle": "Delete this project?",
-    "deleteMessage": "\"{{name}}\" will move to the trash. You can restore it until it is removed for good.",
+    "deleteTitle": "Delete project \"{{name}}\"?",
+    "deleteMessage": "This project moves to the trash and can be restored within 30 days. Tasks that go with it: {{count}}. Other members stop seeing it right away.",
     "deleteConfirm": "Move to trash",
     "deleting": "Moving...",
     "movedToTrash": "\"{{name}}\" moved to the trash.",
@@ -119,24 +120,32 @@
     "back": "Back to projects",
     "progress": "{{done}} of {{total}} done",
     "noTasks": "No tasks yet",
-    "membersLink": "Members ({{count}})"
+    "myProjects": "My projects",
+    "membersButton": "Members {{count}}",
+    "moreActions": "More actions",
+    "deleteProject": "Delete project"
   },
   "members": {
     "title": "Members",
     "joined": "Joined {{date}}",
     "loadError": "Could not load the members.",
-    "invite": "Invite someone by email",
+    "invite": "Invite by email",
     "inviteEmail": "Their email",
     "inviteButton": "Invite",
     "inviting": "Inviting...",
     "invited": "{{name}} was added to the project.",
     "noAccount": "No account uses this email. Ask them to sign up first.",
     "remove": "Remove",
-    "removeTitle": "Remove this member?",
+    "removeTitle": "Remove {{name}} from this project?",
     "removeMessage": "{{name}} will lose access to this project, and tasks assigned to them become unassigned.",
-    "removeConfirm": "Remove member",
+    "removeConfirm": "Remove",
     "removing": "Removing...",
-    "removed": "{{name}} was removed."
+    "removed": "{{name}} was removed.",
+    "you": "(you)",
+    "inviteHelp": "The person must already have a TaskFlow account. The system does not send them an email yet.",
+    "ownerOnly": "Only the project owner can invite or remove members.",
+    "actionsFor": "Actions for {{name}}",
+    "removeFromProject": "Remove from project"
   },
   "trash": {
     "title": "Trash",
@@ -163,7 +172,7 @@
     "assigneeFilter": "Assigned to",
     "all": "All",
     "unassigned": "Unassigned",
-    "clearFilters": "Clear filters",
+    "clearFilters": "Clear all",
     "showing": "Showing {{shown}} of {{total}} tasks",
     "dragHandle": "Move task: {{title}}",
     "dragInstructions": "To move a task, press Space or Enter on its handle, use the arrow keys to choose a place, then press Space or Enter again to drop it. Press Escape to cancel.",
@@ -192,8 +201,8 @@
     "overdue": "Overdue",
     "assignedTo": "Assigned to {{name}}",
     "delete": "Delete",
-    "deleteTitle": "Delete this task?",
-    "deleteMessage": "\"{{title}}\" will move to the trash. You can restore it for 30 days.",
+    "deleteTitle": "Delete task \"{{title}}\"?",
+    "deleteMessage": "This task moves to the trash and can be restored within 30 days.",
     "deleteConfirm": "Move to trash",
     "deleting": "Moving...",
     "movedToTrash": "\"{{title}}\" moved to the trash.",
@@ -207,7 +216,11 @@
     "loadError": "Could not load the tasks.",
     "filters": "Filters",
     "filtersCount": "Filters ({{count}})",
-    "swipeHint": "Swipe sideways to see the other columns."
+    "dueWord": "Due",
+    "assignedWord": "Assigned to",
+    "filteringBy": "Filtering by:",
+    "removeFilter": "Remove filter: {{name}}",
+    "showCount": "Show {{count}} tasks"
   },
   "status": {
     "todo": "To do",
@@ -231,7 +244,13 @@
     "secondaryButton": "Cancel",
     "sampleTaskTitle": "Design the login page",
     "sampleTaskMeta": "Due 1 Dec 2026",
-    "errorSample": "Something went wrong. Please try again."
+    "errorSample": "Something went wrong. Please try again.",
+    "ghostButton": "Skip",
+    "dangerTitle": "Dangerous actions",
+    "dangerButton": "Move to trash",
+    "dangerOutlineButton": "Delete task",
+    "dangerSoftButton": "Remove from project",
+    "iconsTitle": "Icons"
   },
   "notFound": {
     "title": "Page not found",

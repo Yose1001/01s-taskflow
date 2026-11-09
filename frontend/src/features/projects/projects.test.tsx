@@ -26,6 +26,18 @@ const many = (n: number): FakeProject[] =>
     project(`p${i + 1}`, `Project ${String(i + 1).padStart(2, '0')}`),
   )
 
+/** "Delete project" is the last item of the project's "More actions" menu. */
+async function chooseDelete(user: U) {
+  await user.click(await screen.findByRole('button', { name: 'More actions' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Delete project' }))
+}
+
+/** The member list opens from the project header. */
+async function openMembers(user: U) {
+  await user.click(await screen.findByRole('button', { name: /^Members \d+$/ }))
+  return screen.findByRole('dialog', { name: 'Members' })
+}
+
 describe('project list', () => {
   it('shows the projects with name, description, role and date, each linking to its page', async () => {
     fakeBackend({
@@ -193,7 +205,7 @@ describe('project list', () => {
     const user = userEvent.setup()
     await openSignedIn(user)
     await screen.findByRole('link', { name: /เว็บไซต์/ })
-    await user.click(screen.getByRole('button', { name: 'ไทย' }))
+    await user.click(screen.getByRole('button', { name: 'Switch language to ไทย' }))
     expect(screen.getByRole('heading', { level: 2, name: 'โปรเจกต์ของคุณ' })).toBeInTheDocument()
     expect(screen.getByText(/สร้างเมื่อ .*2569/)).toBeInTheDocument() // Buddhist-era year
     expect(screen.getByText('เจ้าของ')).toBeInTheDocument()
@@ -203,7 +215,7 @@ describe('project list', () => {
 describe('creating a project', () => {
   async function openDialog(user: U) {
     await screen.findByText('You have no projects yet.')
-    await user.click(screen.getAllByRole('button', { name: 'New project' })[0]!)
+    await user.click(screen.getByRole('button', { name: /New project|Create your first project/ })!)
     return screen.findByRole('dialog', { name: 'New project' })
   }
 
@@ -220,7 +232,7 @@ describe('creating a project', () => {
     fakeBackend()
     const user = userEvent.setup()
     await openSignedIn(user)
-    const opener = screen.getAllByRole('button', { name: 'New project' })[0]!
+    const opener = await screen.findByRole('button', { name: 'Create your first project' })
     await openDialog(user)
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -322,7 +334,7 @@ describe('creating a project', () => {
     await user.type(within(dialog).getByLabelText('Project name'), 'Brand new')
     await user.click(within(dialog).getByRole('button', { name: 'Create project' }))
     await screen.findByRole('heading', { level: 1, name: 'Brand new' })
-    await user.click(screen.getByRole('link', { name: /Back to projects/ }))
+    await user.click(screen.getByRole('link', { name: 'My projects' }))
     expect(await screen.findByRole('link', { name: /Brand new/ })).toBeInTheDocument()
   })
 })
@@ -330,26 +342,38 @@ describe('creating a project', () => {
 describe('project page', () => {
   it('shows the details and, for the owner, Edit and Delete', async () => {
     fakeBackend({ projects: [project('p1', 'Website', { description: 'Line one\nLine two' })] })
-    await openSignedIn(userEvent.setup(), '/projects/p1')
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
     expect(await screen.findByRole('heading', { level: 1, name: 'Website' })).toBeInTheDocument()
     expect(screen.getByText(/Line one/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Task trash' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Delete project' })).toBeInTheDocument()
   })
 
   it('shows a member the project but NO owner actions', async () => {
     fakeBackend({
       projects: [project('p1', 'Team space', { owner: BOB_USER, members: [ME_AS_MEMBER] })],
     })
-    await openSignedIn(userEvent.setup(), '/projects/p1')
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
     await screen.findByRole('heading', { level: 1, name: 'Team space' })
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Task trash' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Delete project' })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
     expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument()
-    // the member list itself is visible
-    const members = await screen.findByRole('region', { name: 'Members' })
+    // the member list itself is available, without the owner's tools
+    const members = await openMembers(user)
     expect(await within(members).findByText('Bob')).toBeInTheDocument()
+    expect(within(members).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument()
+    expect(within(members).queryByLabelText('Their email')).not.toBeInTheDocument()
+    expect(
+      within(members).getByText('Only the project owner can invite or remove members.'),
+    ).toBeInTheDocument()
   })
 
   it('says "not found" (without retrying) for a project that is missing or not theirs', async () => {
@@ -395,13 +419,18 @@ describe('project page', () => {
   })
 
   it('deleting asks first; Cancel has the focus and changes nothing', async () => {
-    const api = fakeBackend({ projects: [project('p1', 'Website')] })
+    const api = fakeBackend({
+      projects: [project('p1', 'Website')],
+      tasks: [task('t1', 'One', { project: 'p1' }), task('t2', 'Two', { project: 'p1' })],
+    })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await chooseDelete(user)
 
-    const dialog = await screen.findByRole('dialog', { name: 'Delete this project?' })
-    expect(within(dialog).getByText(/"Website" will move to the trash/)).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: 'Delete project "Website"?' })
+    expect(within(dialog).getByText(/can be restored within 30 days/)).toHaveTextContent(
+      'Tasks that go with it: 2.',
+    )
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus() // the safe choice first
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -412,7 +441,7 @@ describe('project page', () => {
     const api = fakeBackend({ projects: [project('p1', 'Website'), project('p2', 'Other')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await chooseDelete(user)
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Move to trash' }),
     )
@@ -432,13 +461,14 @@ describe('project page', () => {
     fakeBackend({ projects: [project('p1', 'Website'), project('p2', 'Other')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await chooseDelete(user)
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Move to trash' }),
     )
     expect(await screen.findByText('"Website" moved to the trash.')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     await screen.findByRole('heading', { level: 1, name: 'Log in' })
     expect(screen.queryByText('"Website" moved to the trash.')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
@@ -462,7 +492,7 @@ describe('project page', () => {
     })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await chooseDelete(user)
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Move to trash' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Something went wrong')
@@ -473,19 +503,64 @@ describe('project page', () => {
 describe('members', () => {
   it('lists members with roles; the owner row has no Remove button', async () => {
     fakeBackend({ projects: [project('p1', 'Website', { members: [BOB] })] })
-    await openSignedIn(userEvent.setup(), '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
+    const section = await openMembers(user)
     expect(await within(section).findByText('Bob')).toBeInTheDocument()
     expect(within(section).getByText(/Joined 1 Feb 2026/)).toBeInTheDocument()
-    expect(within(section).getAllByRole('button', { name: /^Remove/ })).toHaveLength(1)
-    expect(within(section).getByRole('button', { name: 'Remove: Bob' })).toBeInTheDocument()
+    expect(within(section).getByText('(you)')).toBeInTheDocument()
+    expect(within(section).getAllByRole('button', { name: /^Actions for/ })).toHaveLength(1)
+    expect(within(section).getByRole('button', { name: 'Actions for Bob' })).toBeInTheDocument()
+  })
+
+  it('closes with Escape, the close button or the background, and returns the focus', async () => {
+    fakeBackend({ projects: [project('p1', 'Website')] })
+    const user = userEvent.setup()
+    await openSignedIn(user, '/projects/p1')
+    const opener = await screen.findByRole('button', { name: 'Members 1' })
+
+    await user.click(opener)
+    const panel = await screen.findByRole('dialog', { name: 'Members' })
+    expect(panel).toHaveAttribute('aria-modal', 'true')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
+
+    await user.click(opener)
+    await user.click(await screen.findByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(opener)
+    await user.click((await screen.findByRole('dialog')).parentElement!)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps the page inert until every dialog on top of it has closed', async () => {
+    fakeBackend({ projects: [project('p1', 'Website', { members: [BOB] })] })
+    const user = userEvent.setup()
+    const { container } = await openSignedIn(user, '/projects/p1')
+    container.id = 'root'
+    const section = await openMembers(user)
+    await user.click(await within(section).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
+    const confirm = await screen.findByRole('dialog', { name: 'Remove Bob from this project?' })
+    expect(within(confirm).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+
+    await user.keyboard('{Escape}') // closes only the confirmation
+    expect(screen.getByRole('dialog', { name: 'Members' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Actions for Bob' })).toHaveFocus()
+    expect(container).toHaveAttribute('inert')
+
+    await user.keyboard('{Escape}') // now the panel itself
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(container).not.toHaveAttribute('inert')
   })
 
   it('invites by email, clears the box, and shows the new member', async () => {
     const api = fakeBackend({ projects: [project('p1', 'Website')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const section = await openMembers(user)
     await user.type(within(section).getByLabelText('Their email'), '  BOB@example.com ')
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
 
@@ -499,7 +574,7 @@ describe('members', () => {
     fakeBackend({ projects: [project('p1', 'Website')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const section = await openMembers(user)
     await user.type(within(section).getByLabelText('Their email'), 'nobody@example.com')
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
     expect(
@@ -512,7 +587,7 @@ describe('members', () => {
     fakeBackend({ projects: [project('p1', 'Website', { members: [BOB] })] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const section = await openMembers(user)
     await user.type(within(section).getByLabelText('Their email'), 'bob@example.com')
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
     expect(await within(section).findByRole('alert')).toHaveTextContent(
@@ -524,7 +599,7 @@ describe('members', () => {
     const api = fakeBackend({ projects: [project('p1', 'Website')] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
+    const section = await openMembers(user)
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
     expect(within(section).getByText('This field is required.')).toBeInTheDocument()
     await user.type(within(section).getByLabelText('Their email'), 'not-an-email')
@@ -537,21 +612,28 @@ describe('members', () => {
     const api = fakeBackend({ projects: [project('p1', 'Website', { members: [BOB, CAROL] })] })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
-    const section = await screen.findByRole('region', { name: 'Members' })
-    await user.click(await within(section).findByRole('button', { name: 'Remove: Bob' }))
+    const section = await openMembers(user)
+    await user.click(await within(section).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
 
-    const dialog = await screen.findByRole('dialog', { name: 'Remove this member?' })
+    const dialog = await screen.findByRole('dialog', { name: 'Remove Bob from this project?' })
     expect(within(dialog).getByText(/Bob will lose access/)).toBeInTheDocument()
+    // Removing someone does not use the trash, so the dialog must not promise it can be restored.
+    expect(dialog).not.toHaveTextContent(/trash|restore/i)
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(api.hits('DELETE /projects/p1/members/' + BOB.userId)).toHaveLength(0)
 
-    await user.click(within(section).getByRole('button', { name: 'Remove: Bob' }))
+    await user.click(within(section).getByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove member' }),
+      within(
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
+      ).getByRole('button', { name: 'Remove' }),
     )
     await waitFor(() => expect(within(section).queryByText('Bob')).not.toBeInTheDocument())
     expect(within(section).getByText('Carol')).toBeInTheDocument()
     expect(await screen.findByText('Bob was removed.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
   })
 })
 
@@ -618,7 +700,8 @@ describe('privacy between people on the same browser', () => {
     await screen.findByRole('link', { name: /Alice private plan/ })
     expect(queryClient.getQueryCache().getAll().length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     await screen.findByRole('heading', { level: 1, name: 'Log in' })
 
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
@@ -630,7 +713,8 @@ describe('privacy between people on the same browser', () => {
     const user = userEvent.setup()
     await openSignedIn(user)
     await screen.findByRole('link', { name: /Alice private plan/ })
-    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
     await screen.findByRole('heading', { level: 1, name: 'Log in' })
 
     // Bob signs in on the same browser. His server answers slowly, so any leftover data would be visible.

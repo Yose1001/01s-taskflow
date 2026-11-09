@@ -2,7 +2,7 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  TouchSensor,
   closestCorners,
   pointerWithin,
   useDroppable,
@@ -26,7 +26,9 @@ import type { Member, Task, TaskStatus } from '../../api/types'
 import { useAuth } from '../../auth/context'
 import { errorMessage } from '../../auth/errors'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { Button, SelectField, TextField } from '../../components/forms'
+import { Button, CompactSelectField, CompactTextField, SelectField } from '../../components/forms'
+import { Icon, type IconName } from '../../components/Icon'
+import { Modal } from '../../components/Modal'
 import { ErrorState, LoadingState } from '../../components/states'
 import { StatusBadge } from '../../components/StatusBadge'
 import { useToast } from '../../components/toast'
@@ -48,6 +50,7 @@ import {
   type Filters,
 } from './boardLogic'
 import { taskKeys, useDeleteTask, useMoveTask, useTasks } from './hooks'
+import { MouseOrPenSensor } from './sensors'
 import { SortableTaskCard, TaskCardView } from './TaskCard'
 import { TaskFormDialog } from './TaskFormDialog'
 
@@ -66,7 +69,16 @@ type Dialog = { kind: 'create'; status: TaskStatus } | { kind: 'edit'; task: Tas
 const MAX_QUERY = 100
 
 /** The Kanban board of one project: four columns, drag and drop, filters, and the task dialogs. */
-export function TaskBoard({ projectId }: { projectId: string }) {
+export function TaskBoard({
+  projectId,
+  newTaskOpen,
+  onNewTaskClose,
+}: {
+  projectId: string
+  /** The page's "New task" button lives outside the board, in the project header. */
+  newTaskOpen: boolean
+  onNewTaskClose: () => void
+}) {
   const { t } = useTranslation()
   const toast = useToast()
   const qc = useQueryClient()
@@ -76,9 +88,26 @@ export function TaskBoard({ projectId }: { projectId: string }) {
   const move = useMoveTask(projectId)
   const del = useDeleteTask(projectId)
 
-  const [dialog, setDialog] = useState<Dialog>(null)
+  const [columnDialog, setColumnDialog] = useState<Dialog>(null)
+  const dialog: Dialog = newTaskOpen ? { kind: 'create', status: 'todo' } : columnDialog
+  function closeDialog() {
+    setColumnDialog(null)
+    onNewTaskClose()
+  }
   const [deleting, setDeleting] = useState<Task | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [movedByKeyboard, setMovedByKeyboard] = useState(false)
+
+  // Which column is in view when the board is swiped sideways on a phone.
+  const scroller = useRef<HTMLDivElement>(null)
+  const [columnInView, setColumnInView] = useState(0)
+  function onBoardScroll() {
+    const el = scroller.current
+    if (!el || el.children.length < 2) return
+    const [first, second] = [...el.children] as [HTMLElement, HTMLElement]
+    const step = second.offsetLeft - first.offsetLeft
+    if (step > 0) setColumnInView(Math.round(el.scrollLeft / step))
+  }
 
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data])
   const [filters, setFilters] = useFilters(membersQuery.isSuccess ? members : null)
@@ -91,7 +120,9 @@ export function TaskBoard({ projectId }: { projectId: string }) {
 
   const sensors = useSensors(
     // A little movement is needed before a drag starts, so a plain click never counts as one.
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseOrPenSensor, { activationConstraint: { distance: 6 } }),
+    // A finger must rest on the handle for a moment first, so scrolling and swiping never pick up a card.
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -122,6 +153,7 @@ export function TaskBoard({ projectId }: { projectId: string }) {
 
   function onDragStart(event: DragStartEvent) {
     pointerY.current = null // stays null for a keyboard drag, which never moves a pointer
+    setMovedByKeyboard(event.activatorEvent instanceof KeyboardEvent)
     setActiveId(String(event.active.id))
   }
 
@@ -166,27 +198,17 @@ export function TaskBoard({ projectId }: { projectId: string }) {
     )
 
   return (
-    <section aria-labelledby="tasks-title" className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="tasks-title" className="text-xl font-semibold">
-          {t('tasks.title')}
-        </h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            to={`/projects/${encodeURIComponent(projectId)}/trash`}
-            className="text-sm font-medium text-primary underline"
-          >
-            {t('tasks.trash')}
-          </Link>
-          <Button type="button" onClick={() => setDialog({ kind: 'create', status: 'todo' })}>
-            {t('tasks.new')}
-          </Button>
-        </div>
-      </div>
+    // On phones the extra space at the bottom keeps the last cards clear of the floating "New task" button.
+    <section aria-labelledby="tasks-title" className="space-y-4 max-sm:pb-20">
+      <h2 id="tasks-title" className="sr-only">
+        {t('tasks.title')}
+      </h2>
 
       <FilterBar
+        projectId={projectId}
         filters={filters}
         members={members}
+        tasks={all}
         onChange={setFilters}
         shown={visible.length}
         total={all.length}
@@ -198,6 +220,8 @@ export function TaskBoard({ projectId }: { projectId: string }) {
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
+        // Near the edge of a phone screen the board scrolls sideways by itself during a drag.
+        autoScroll={{ threshold: { x: 0.2, y: 0.2 } }}
         accessibility={{
           announcements,
           screenReaderInstructions: { draggable: t('tasks.dragInstructions') },
@@ -206,28 +230,56 @@ export function TaskBoard({ projectId }: { projectId: string }) {
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveId(null)}
       >
-        <p className="text-sm text-muted md:hidden" aria-hidden="true">
-          {t('tasks.swipeHint')}
-        </p>
-        {/* Phones: one column at a time, swipe sideways. Tablets: 2 x 2. Wide screens: all four. */}
-        <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-4">
+        {/*
+          Phones: one column at a time, swipe sideways. Tablets: 2 x 2. Wide screens: all four.
+          Snapping is off during a drag: it would fight with scrolling by itself near the edge.
+        */}
+        <div
+          ref={scroller}
+          onScroll={onBoardScroll}
+          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4 ${
+            dragging ? '' : 'snap-x snap-mandatory'
+          }`}
+        >
           {STATUSES.map((status) => (
             <Column
               key={status}
               status={status}
               tasks={columns[status]}
               nameOf={nameOf}
-              onAdd={() => setDialog({ kind: 'create', status })}
-              onOpen={(task) => setDialog({ kind: 'edit', task })}
+              onAdd={() => setColumnDialog({ kind: 'create', status })}
+              onOpen={(task) => setColumnDialog({ kind: 'edit', task })}
+            />
+          ))}
+        </div>
+        {/* Decoration only: each column already announces its own name and task count. */}
+        <div aria-hidden="true" className="flex items-center justify-center gap-1.5 sm:hidden">
+          {STATUSES.map((status, index) => (
+            <span
+              key={status}
+              className={`h-1.5 rounded-full ${
+                index === columnInView ? 'w-4 bg-primary' : 'w-1.5 bg-border'
+              }`}
             />
           ))}
         </div>
         <DragOverlay>
+          {/*
+            The plain outer div must stay: dnd-kit measures the overlay's first child, and a tilted element
+            measures wider than it is. Keyboard moves would then pick the card itself as the next place.
+            The tilt is for dragging by hand only.
+          */}
           {activeTask ? (
-            <TaskCardView
-              task={activeTask}
-              assigneeName={nameOf.get(activeTask.assigneeId ?? '')}
-            />
+            <div>
+              <div className={movedByKeyboard ? '' : '-rotate-[1.5deg] motion-reduce:rotate-0'}>
+                <TaskCardView
+                  task={activeTask}
+                  assigneeName={nameOf.get(activeTask.assigneeId ?? '')}
+                  picked
+                  lifted
+                />
+              </div>
+            </div>
           ) : null}
         </DragOverlay>
       </DndContext>
@@ -237,13 +289,13 @@ export function TaskBoard({ projectId }: { projectId: string }) {
           projectId={projectId}
           members={members}
           {...(dialog.kind === 'edit' ? { task: dialog.task } : { initialStatus: dialog.status })}
-          onClose={() => setDialog(null)}
+          onClose={closeDialog}
           onSaved={() => {
             toast.show({ message: dialog.kind === 'edit' ? t('tasks.saved') : t('tasks.created') })
-            setDialog(null)
+            closeDialog()
           }}
           onDelete={(task) => {
-            setDialog(null)
+            closeDialog()
             setDeleting(task)
           }}
         />
@@ -251,8 +303,8 @@ export function TaskBoard({ projectId }: { projectId: string }) {
 
       {deleting && (
         <ConfirmDialog
-          title={t('tasks.deleteTitle')}
-          message={t('tasks.deleteMessage', { title: deleting.title })}
+          title={t('tasks.deleteTitle', { title: deleting.title })}
+          message={t('tasks.deleteMessage')}
           confirmLabel={t('tasks.deleteConfirm')}
           pendingLabel={t('tasks.deleting')}
           pending={del.isPending}
@@ -296,6 +348,14 @@ interface ColumnProps {
   onOpen: (task: Task) => void
 }
 
+// The soft "-bg" tints would vanish against the column, so the line uses each status's strong color.
+const COLUMN_LINE: Record<TaskStatus, string> = {
+  todo: 'bg-primary',
+  in_progress: 'bg-sky-fg',
+  review: 'bg-peach-fg',
+  done: 'bg-mint-fg',
+}
+
 function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
   const { t } = useTranslation()
   // The whole column accepts drops, so a card can go into an empty column or below the last card.
@@ -304,8 +364,12 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
   return (
     <section
       aria-label={t('tasks.columnLabel', { column: name, count: tasks.length })}
-      className="w-[85%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 md:w-auto"
+      className="relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto"
     >
+      <span
+        aria-hidden="true"
+        className={`absolute inset-x-4 top-0 h-[3px] rounded-b-full ${COLUMN_LINE[status]}`}
+      />
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2">
           <StatusBadge status={status} />
@@ -317,15 +381,17 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
           type="button"
           onClick={onAdd}
           aria-label={t('tasks.addIn', { column: name })}
-          className="grid h-8 w-8 place-items-center rounded-full text-lg font-semibold text-primary-fg hover:bg-primary-bg"
+          className="grid h-[30px] w-[30px] place-items-center rounded-full text-primary-fg hover:bg-primary-bg"
         >
-          <span aria-hidden="true">+</span>
+          <Icon name="plus" />
         </button>
       </div>
       <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
         <ul
           ref={setNodeRef}
-          className={`min-h-24 space-y-2 rounded-xl p-1 ${isOver ? 'bg-primary-bg' : ''}`}
+          // No side padding: the list's edge must line up with its cards. Otherwise the left arrow key
+          // counts the card's own column as "to the left", and needs two presses to leave it.
+          className={`min-h-24 space-y-2 rounded-xl py-1 ${isOver ? 'bg-primary-bg' : ''}`}
         >
           {tasks.map((task) => (
             <SortableTaskCard
@@ -345,36 +411,133 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
 }
 
 interface FilterBarProps {
+  projectId: string
   filters: Filters
   members: Member[]
+  tasks: Task[]
   /** Only the filter(s) that changed, so two quick changes in a row cannot undo each other. */
   onChange: (changed: Partial<Filters>) => void
   shown: number
   total: number
 }
 
-function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps) {
+const SELECT_WIDTH = 'flex-[0_1_150px] max-sm:hidden'
+
+function PriorityOptions() {
   const { t } = useTranslation()
-  // On phones the filters fold away behind one button, so the board is visible without scrolling.
-  // They start open when the address already has filters in it.
-  const [open, setOpen] = useState(() => hasFilters(filters))
-  const active = [filters.q, filters.priority, filters.assignee].filter(Boolean).length
+  return (
+    <>
+      <option value="">{t('tasks.all')}</option>
+      {PRIORITIES.map((p) => (
+        <option key={p} value={p}>
+          {t(`priority.${p}`)}
+        </option>
+      ))}
+    </>
+  )
+}
+
+function AssigneeOptions({ members }: { members: Member[] }) {
+  const { t } = useTranslation()
+  return (
+    <>
+      <option value="">{t('tasks.all')}</option>
+      <option value={UNASSIGNED}>{t('tasks.unassigned')}</option>
+      {members.map((m) => (
+        <option key={m.userId} value={m.userId}>
+          {m.displayName}
+        </option>
+      ))}
+    </>
+  )
+}
+
+/** The phone version of the two lists. Nothing changes on the board or in the address until "Show N tasks". */
+function FilterSheet({
+  filters,
+  members,
+  tasks,
+  onChange,
+  onClose,
+}: {
+  filters: Filters
+  members: Member[]
+  tasks: Task[]
+  onChange: (changed: Partial<Filters>) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const [priority, setPriority] = useState(filters.priority)
+  const [assignee, setAssignee] = useState(filters.assignee)
+  const count = filterTasks(tasks, { ...filters, priority, assignee }).length
+  return (
+    <Modal
+      title={t('tasks.filters')}
+      variant="drawer"
+      closeLabel={t('common.close')}
+      onClose={onClose}
+    >
+      <div className="space-y-3">
+        <SelectField
+          id="sheet-priority"
+          label={t('tasks.priorityFilter')}
+          value={priority}
+          onChange={(e) => setPriority(isPriority(e.target.value) ? e.target.value : '')}
+        >
+          <PriorityOptions />
+        </SelectField>
+        <SelectField
+          id="sheet-assignee"
+          label={t('tasks.assigneeFilter')}
+          value={assignee}
+          onChange={(e) => setAssignee(e.target.value)}
+        >
+          <AssigneeOptions members={members} />
+        </SelectField>
+        <div className="flex flex-col gap-2 pt-1">
+          <Button
+            type="button"
+            className="w-full"
+            onClick={() => {
+              onChange({ priority, assignee })
+              onClose()
+            }}
+          >
+            {t('tasks.showCount', { count })}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setPriority('')
+              setAssignee('')
+            }}
+          >
+            {t('tasks.clearFilters')}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function FilterBar({ projectId, filters, members, tasks, onChange, shown, total }: FilterBarProps) {
+  const { t } = useTranslation()
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const inSheet = [filters.priority, filters.assignee].filter(Boolean).length
+  const assigneeName =
+    filters.assignee === UNASSIGNED
+      ? t('tasks.unassigned')
+      : members.find((m) => m.userId === filters.assignee)?.displayName
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls="task-filters"
-        onClick={() => setOpen((v) => !v)}
-        className="rounded-full border border-border bg-surface px-3 py-1 text-sm font-medium sm:hidden"
-      >
-        {active > 0 ? t('tasks.filtersCount', { count: active }) : t('tasks.filters')}
-        <span aria-hidden="true"> {open ? '▴' : '▾'}</span>
-      </button>
-      <div id="task-filters" className={`${open ? 'grid' : 'hidden'} gap-3 sm:grid sm:grid-cols-3`}>
-        <TextField
+      <div className="flex items-center gap-2">
+        <CompactTextField
           id="filter-q"
           type="search"
+          icon="search"
+          className="flex-1"
           label={t('tasks.search')}
           placeholder={t('tasks.searchPlaceholder')}
           value={filters.q}
@@ -382,37 +545,82 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
           autoComplete="off"
           onChange={(e) => onChange({ q: e.target.value })}
         />
-        <SelectField
+        <Button
+          type="button"
+          variant="soft"
+          className="shrink-0 sm:hidden"
+          aria-label={inSheet > 0 ? t('tasks.filtersCount', { count: inSheet }) : undefined}
+          onClick={() => setSheetOpen(true)}
+        >
+          <Icon name="filter" />
+          {t('tasks.filters')}
+          {inSheet > 0 && (
+            <span
+              aria-hidden="true"
+              className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-xs text-on-primary"
+            >
+              {inSheet}
+            </span>
+          )}
+        </Button>
+        <CompactSelectField
           id="filter-priority"
+          icon="filter"
+          className={SELECT_WIDTH}
           label={t('tasks.priorityFilter')}
           value={filters.priority}
           onChange={(e) => onChange({ priority: isPriority(e.target.value) ? e.target.value : '' })}
         >
-          <option value="">{t('tasks.all')}</option>
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {t(`priority.${p}`)}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField
+          <PriorityOptions />
+        </CompactSelectField>
+        <CompactSelectField
           id="filter-assignee"
+          icon="users"
+          className={SELECT_WIDTH}
           label={t('tasks.assigneeFilter')}
           value={filters.assignee}
           onChange={(e) => onChange({ assignee: e.target.value })}
         >
-          <option value="">{t('tasks.all')}</option>
-          <option value={UNASSIGNED}>{t('tasks.unassigned')}</option>
-          {members.map((m) => (
-            <option key={m.userId} value={m.userId}>
-              {m.displayName}
-            </option>
-          ))}
-        </SelectField>
+          <AssigneeOptions members={members} />
+        </CompactSelectField>
+        {/* On phones the same page is in the project's "More actions" menu. */}
+        <Link
+          to={`/projects/${encodeURIComponent(projectId)}/trash`}
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 font-medium text-text hover:bg-primary-bg max-sm:hidden"
+        >
+          <Icon name="trash" />
+          {t('tasks.trash')}
+        </Link>
       </div>
+      {sheetOpen && (
+        <FilterSheet
+          filters={filters}
+          members={members}
+          tasks={tasks}
+          onChange={onChange}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
       {hasFilters(filters) && (
-        <p className="flex flex-wrap items-center gap-3 text-sm text-muted" role="status">
-          {t('tasks.showing', { shown, total })}
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">{t('tasks.filteringBy')}</span>
+          {filters.q.trim() !== '' && (
+            <FilterChip icon="search" text={filters.q} onRemove={() => onChange({ q: '' })} />
+          )}
+          {filters.priority !== '' && (
+            <FilterChip
+              icon="filter"
+              text={t(`priority.${filters.priority}`)}
+              onRemove={() => onChange({ priority: '' })}
+            />
+          )}
+          {assigneeName && (
+            <FilterChip
+              icon="users"
+              text={assigneeName}
+              onRemove={() => onChange({ assignee: '' })}
+            />
+          )}
           <button
             type="button"
             onClick={() => onChange(NO_FILTERS)}
@@ -420,9 +628,38 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
           >
             {t('tasks.clearFilters')}
           </button>
-        </p>
+          <span className="text-muted" role="status">
+            {t('tasks.showing', { shown, total })}
+          </span>
+        </div>
       )}
     </div>
+  )
+}
+
+function FilterChip({
+  icon,
+  text,
+  onRemove,
+}: {
+  icon: IconName
+  text: string
+  onRemove: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-primary-bg py-1 pl-3 pr-1.5 font-medium text-primary-fg">
+      <Icon name={icon} size={14} />
+      <span className="min-w-0 truncate">{text}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={t('tasks.removeFilter', { name: text })}
+        className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-surface"
+      >
+        <Icon name="x" size={12} />
+      </button>
+    </span>
   )
 }
 
