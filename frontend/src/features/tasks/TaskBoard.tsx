@@ -4,6 +4,7 @@ import {
   KeyboardSensor,
   TouchSensor,
   closestCorners,
+  defaultDropAnimation,
   pointerWithin,
   useDroppable,
   useSensor,
@@ -115,6 +116,7 @@ export function TaskBoard({
   // Which column is in view when the board is swiped sideways on a phone.
   const scroller = useRef<HTMLDivElement>(null)
   const [columnInView, setColumnInView] = useState(0)
+  const [boardScrolls, setBoardScrolls] = useState(false)
   function onBoardScroll() {
     const el = scroller.current
     if (!el || el.children.length < 2) return
@@ -183,6 +185,8 @@ export function TaskBoard({
   function onDragStart(event: DragStartEvent) {
     pointerY.current = null // stays null for a keyboard drag, which never moves a pointer
     setMovedByKeyboard(event.activatorEvent instanceof KeyboardEvent)
+    const el = scroller.current
+    setBoardScrolls(!!el && el.scrollWidth > el.clientWidth)
     setActiveId(String(event.active.id))
   }
 
@@ -205,8 +209,9 @@ export function TaskBoard({
     }
   }, [dragging])
 
-  // Snapping is off during a drag. When it comes back the browser returns to the column the drag started
-  // from, which on a phone would hide the card that was just moved. So stay where the person let go.
+  // Snapping is off during a drag. When it comes back the browser picks a column by itself, which on a phone
+  // could hide the card that was just moved. So go to the column it was dropped in, or, when it was dropped
+  // on nothing, stay where the person let go.
   const scrollAtDrop = useRef<number | null>(null)
   useLayoutEffect(() => {
     if (dragging || scrollAtDrop.current === null) return
@@ -214,13 +219,19 @@ export function TaskBoard({
     scrollAtDrop.current = null
   }, [dragging])
 
-  function endDrag() {
-    scrollAtDrop.current = scroller.current?.scrollLeft ?? null
+  function endDrag(droppedIn?: TaskStatus) {
+    const el = scroller.current
+    const column = droppedIn && el?.children[STATUSES.indexOf(droppedIn)]
+    if (el) {
+      scrollAtDrop.current = column
+        ? el.scrollLeft + column.getBoundingClientRect().left - el.getBoundingClientRect().left
+        : el.scrollLeft
+    }
     setActiveId(null)
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
-    endDrag()
+    endDrag(over ? statusOf(columns, String(over.id)) : undefined)
     if (!over) return
     // Dropped on the lower half of a task in another column = behind it. With a mouse or finger that is
     // judged by where the pointer really is; with the keyboard (no pointer) by the middle of the moved card.
@@ -300,7 +311,7 @@ export function TaskBoard({
         }}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
-        onDragCancel={endDrag}
+        onDragCancel={() => endDrag()}
       >
         {/*
           Phones: one column at a time, swipe sideways. Tablets: two across, with Done filling the last row.
@@ -337,7 +348,11 @@ export function TaskBoard({
             />
           ))}
         </div>
-        <DragOverlay>
+        {/*
+          The drop animation first scrolls the board back to where the card came from, away from where it was
+          just dropped. So a board that scrolls sideways goes without it.
+        */}
+        <DragOverlay dropAnimation={boardScrolls ? null : defaultDropAnimation}>
           {/*
             The plain outer div must stay: dnd-kit measures the overlay's first child, and a tilted element
             measures wider than it is. Keyboard moves would then pick the card itself as the next place.

@@ -244,6 +244,48 @@ describe('dropping a card', () => {
   })
 })
 
+describe('on a phone, where the board scrolls sideways', () => {
+  /** The test browser has no layout, so this puts the columns where a phone would: 320px apart. */
+  function boardLaidOutLikeAPhone() {
+    const board = screen.getByRole('region', { name: /^To do/ }).parentElement!
+    ;[...board.children].forEach((column, index) =>
+      vi
+        .spyOn(column, 'getBoundingClientRect')
+        .mockImplementation(() => ({ left: 16 + 320 * index - board.scrollLeft }) as DOMRect),
+    )
+    return board
+  }
+
+  it('shows the column the card was dropped in, even when the board stopped nearer another one', async () => {
+    await openBoard()
+    const board = boardLaidOutLikeAPhone()
+    board.scrollLeft = 466 // most of "In progress" shows, but the finger is over the start of "In review"
+    dropOn('t4', 'column:review')
+    expect(board.scrollLeft).toBe(656)
+  })
+
+  it('goes by the column of the card it was dropped on', async () => {
+    await openBoard()
+    const board = boardLaidOutLikeAPhone()
+    board.scrollLeft = 200
+    dropOn('t1', 't4')
+    expect(board.scrollLeft).toBe(336)
+  })
+
+  it('stays where it is when the card was dropped on nothing, or the drag was cancelled', async () => {
+    await openBoard()
+    const board = boardLaidOutLikeAPhone()
+    board.scrollLeft = 466
+    dropOn('t4', null)
+    expect(board.scrollLeft).toBe(466)
+
+    const active = { id: 't4', rect: { current: { translated: null, initial: null } } }
+    act(() => caught.props!.onDragStart!({ active } as never))
+    act(() => caught.props!.onDragCancel!({ active, over: null } as never))
+    expect(board.scrollLeft).toBe(466)
+  })
+})
+
 describe('dropping a card on "On hold"', () => {
   it('asks why first, and only then moves it, with the reason', async () => {
     const { api, user } = await openBoard()
