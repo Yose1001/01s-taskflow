@@ -73,8 +73,10 @@ check "after logging out the cookie is useless" 401 "$(status -X POST -H "Cookie
 echo "sign-in limit"
 # A caller can invent X-Forwarded-For values. The proxy appends the real address, so the API must
 # still count all these attempts as one person and stop them. (Needs the default limit of 10 a minute.)
+# The count restarts every minute, and a restart can fall in the middle of this loop. 25 attempts is more
+# than two full allowances, so one side of a restart always goes over the limit.
 limited=0
-for i in $(seq 1 14); do
+for i in $(seq 1 25); do
   code="$(status -X POST -H 'Content-Type: application/json' -H "X-Forwarded-For: 203.0.113.$i" \
     -d '{"email":"nobody@smoke.test","password":"wrong-password-123"}' "$BASE/api/v1/auth/login")"
   [[ "$code" == "429" ]] && limited=1
