@@ -66,7 +66,8 @@ func TestCreateTaskDefaultsAndOrdering(t *testing.T) {
 		t.Fatalf("create = %d %s", r.code, r.raw)
 	}
 	if r.body["title"] != "First" || r.body["status"] != "todo" || r.body["priority"] != "medium" ||
-		r.body["createdBy"] != alice.id || r.body["assigneeId"] != nil || r.body["dueDate"] != nil || r.body["deletedAt"] != nil {
+		r.body["createdBy"] != alice.id || assignees(r) == nil || len(assignees(r)) != 0 || r.body["startDate"] != nil ||
+		r.body["dueDate"] != nil || r.body["deletedAt"] != nil {
 		t.Errorf("defaults wrong: %s", r.raw)
 	}
 
@@ -94,23 +95,26 @@ func TestCreateTaskValidation(t *testing.T) {
 		body   string
 		status int
 	}{
-		"empty title":          {`{"title":""}`, 422},
-		"blank title":          {`{"title":"   "}`, 422},
-		"title too long":       {`{"title":"` + strings.Repeat("x", 201) + `"}`, 422},
-		"control char":         {`{"title":"a\u0000b"}`, 422},
-		"description too long": {`{"title":"t","description":"` + strings.Repeat("x", 5001) + `"}`, 422},
-		"bad status":           {`{"title":"t","status":"archived"}`, 422},
-		"bad priority":         {`{"title":"t","priority":"urgent"}`, 422},
-		"bad date":             {`{"title":"t","dueDate":"2026-13-45"}`, 422},
-		"date wrong format":    {`{"title":"t","dueDate":"05/11/2026"}`, 422},
-		"assignee not a uuid":  {`{"title":"t","assigneeId":"bob"}`, 422},
-		"assignee not member":  {fmt.Sprintf(`{"title":"t","assigneeId":%q}`, bob.id), 422},
-		"assignee unknown":     {`{"title":"t","assigneeId":"` + zeroUUID + `"}`, 422},
-		"cannot set project":   {`{"title":"t","projectId":"` + zeroUUID + `"}`, 400},
-		"cannot set createdBy": {`{"title":"t","createdBy":"` + zeroUUID + `"}`, 400},
-		"cannot set position":  {`{"title":"t","position":0}`, 400},
+		"empty title":           {`{"title":""}`, 422},
+		"blank title":           {`{"title":"   "}`, 422},
+		"title too long":        {`{"title":"` + strings.Repeat("x", 201) + `"}`, 422},
+		"control char":          {`{"title":"a\u0000b"}`, 422},
+		"description too long":  {`{"title":"t","description":"` + strings.Repeat("x", 5001) + `"}`, 422},
+		"bad status":            {`{"title":"t","status":"archived"}`, 422},
+		"bad priority":          {`{"title":"t","priority":"urgent"}`, 422},
+		"bad date":              {`{"title":"t","dueDate":"2026-13-45"}`, 422},
+		"date wrong format":     {`{"title":"t","dueDate":"05/11/2026"}`, 422},
+		"assignee not a uuid":   {`{"title":"t","assigneeIds":["bob"]}`, 422},
+		"assignee not member":   {fmt.Sprintf(`{"title":"t","assigneeIds":[%q]}`, bob.id), 422},
+		"assignee unknown":      {`{"title":"t","assigneeIds":["` + zeroUUID + `"]}`, 422},
+		"one of two not member": {fmt.Sprintf(`{"title":"t","assigneeIds":[%q,%q]}`, alice.id, bob.id), 422},
+		"assignees not a list":  {`{"title":"t","assigneeIds":"` + zeroUUID + `"}`, 400},
+		"old single field":      {fmt.Sprintf(`{"title":"t","assigneeId":%q}`, alice.id), 400},
+		"cannot set project":    {`{"title":"t","projectId":"` + zeroUUID + `"}`, 400},
+		"cannot set createdBy":  {`{"title":"t","createdBy":"` + zeroUUID + `"}`, 400},
+		"cannot set position":   {`{"title":"t","position":0}`, 400},
 		"valid with everything": {fmt.Sprintf(
-			`{"title":"โจทย์ภาษาไทย","description":"d","status":"review","priority":"high","assigneeId":%q,"dueDate":"2026-12-31"}`, alice.id), 201},
+			`{"title":"โจทย์ภาษาไทย","description":"d","status":"review","priority":"high","assigneeIds":[%q],"startDate":"2026-12-01","dueDate":"2026-12-31"}`, alice.id), 201},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -173,8 +177,8 @@ func TestMemberHasFullTaskAccess(t *testing.T) {
 	pid := e.createProject(alice, "Team")
 	e.addMember(alice, pid, bob)
 
-	tid := e.createTask(bob, pid, fmt.Sprintf(`{"title":"By bob","assigneeId":%q}`, bob.id)) // members may assign teammates
-	if r := e.task(alice, tid); r.body["createdBy"] != bob.id || r.body["assigneeId"] != bob.id {
+	tid := e.createTask(bob, pid, fmt.Sprintf(`{"title":"By bob","assigneeIds":[%q]}`, bob.id)) // members may assign teammates
+	if r := e.task(alice, tid); r.body["createdBy"] != bob.id || !eq(assignees(r), []string{bob.id}) {
 		t.Errorf("task = %s", r.raw)
 	}
 	for _, c := range []struct{ method, path, body string }{
@@ -206,18 +210,18 @@ func TestUpdateTask(t *testing.T) {
 	}
 
 	// Assign, set due date, then clear both with null.
-	r = do(t, e.h, "PATCH", path, alice.token, fmt.Sprintf(`{"assigneeId":%q,"dueDate":"2026-12-31","priority":"high"}`, bob.id))
-	if r.code != 200 || r.body["assigneeId"] != bob.id || r.body["dueDate"] != "2026-12-31" || r.body["priority"] != "high" {
+	r = do(t, e.h, "PATCH", path, alice.token, fmt.Sprintf(`{"assigneeIds":[%q],"dueDate":"2026-12-31","priority":"high"}`, bob.id))
+	if r.code != 200 || !eq(assignees(r), []string{bob.id}) || r.body["dueDate"] != "2026-12-31" || r.body["priority"] != "high" {
 		t.Errorf("assign = %d %s", r.code, r.raw)
 	}
-	r = do(t, e.h, "PATCH", path, alice.token, `{"assigneeId":null,"dueDate":null}`)
-	if r.code != 200 || r.body["assigneeId"] != nil || r.body["dueDate"] != nil {
+	r = do(t, e.h, "PATCH", path, alice.token, `{"assigneeIds":[],"dueDate":null}`)
+	if r.code != 200 || len(assignees(r)) != 0 || r.body["dueDate"] != nil {
 		t.Errorf("clear = %d %s", r.code, r.raw)
 	}
 	// Absent is different from null: untouched fields stay.
-	do(t, e.h, "PATCH", path, alice.token, fmt.Sprintf(`{"assigneeId":%q}`, bob.id))
+	do(t, e.h, "PATCH", path, alice.token, fmt.Sprintf(`{"assigneeIds":[%q]}`, bob.id))
 	r = do(t, e.h, "PATCH", path, alice.token, `{"title":"again"}`)
-	if r.body["assigneeId"] != bob.id {
+	if !eq(assignees(r), []string{bob.id}) {
 		t.Errorf("absent field changed the assignee: %s", r.raw)
 	}
 
@@ -229,7 +233,7 @@ func TestUpdateTask(t *testing.T) {
 		"blank title":       {`{"title":" "}`, 422},
 		"bad priority":      {`{"priority":"x"}`, 422},
 		"bad date":          {`{"dueDate":"tomorrow"}`, 422},
-		"stranger assignee": {`{"assigneeId":"` + zeroUUID + `"}`, 422},
+		"stranger assignee": {`{"assigneeIds":["` + zeroUUID + `"]}`, 422},
 		"status via patch":  {`{"status":"done"}`, 400},
 		"position":          {`{"position":1}`, 400},
 		"projectId":         {`{"projectId":"` + zeroUUID + `"}`, 400},
@@ -248,7 +252,7 @@ func TestListFiltersAndSearch(t *testing.T) {
 	pid := e.createProject(alice, "Board")
 	e.addMember(alice, pid, bob)
 
-	e.createTask(alice, pid, fmt.Sprintf(`{"title":"Fix login bug","priority":"high","assigneeId":%q}`, bob.id))
+	e.createTask(alice, pid, fmt.Sprintf(`{"title":"Fix login bug","priority":"high","assigneeIds":[%q]}`, bob.id))
 	e.createTask(alice, pid, `{"title":"Write docs","priority":"low"}`)
 	e.createTask(alice, pid, `{"title":"100% done_ish","status":"done"}`)
 	e.createTask(alice, pid, `{"title":"Deploy","status":"review","priority":"high"}`)
@@ -518,19 +522,19 @@ func TestRemovingMemberUnassignsTheirTasks(t *testing.T) {
 	alice, bob := e.newUser("alice"), e.newUser("bob")
 	pid := e.createProject(alice, "Board")
 	e.addMember(alice, pid, bob)
-	active := e.createTask(alice, pid, fmt.Sprintf(`{"title":"active","assigneeId":%q}`, bob.id))
-	trashed := e.createTask(alice, pid, fmt.Sprintf(`{"title":"trashed","assigneeId":%q}`, bob.id))
+	active := e.createTask(alice, pid, fmt.Sprintf(`{"title":"active","assigneeIds":[%q]}`, bob.id))
+	trashed := e.createTask(alice, pid, fmt.Sprintf(`{"title":"trashed","assigneeIds":[%q]}`, bob.id))
 	e.status(alice, "DELETE", "/api/v1/tasks/"+trashed, "")
 
 	if got := e.status(alice, "DELETE", "/api/v1/projects/"+pid+"/members/"+bob.id, ""); got != 204 {
 		t.Fatalf("remove member = %d", got)
 	}
-	if r := e.task(alice, active); r.code != 200 || r.body["assigneeId"] != nil {
+	if r := e.task(alice, active); r.code != 200 || len(assignees(r)) != 0 {
 		t.Errorf("active task still assigned to removed member: %s", r.raw)
 	}
 	// A trashed task is also unassigned, so restoring it never resurrects a stale assignee.
 	r := do(t, e.h, "POST", "/api/v1/tasks/"+trashed+"/restore", alice.token, "")
-	if r.code != 200 || r.body["assigneeId"] != nil {
+	if r.code != 200 || len(assignees(r)) != 0 {
 		t.Errorf("restored task still assigned to removed member: %d %s", r.code, r.raw)
 	}
 	// And the removed member can no longer see anything.

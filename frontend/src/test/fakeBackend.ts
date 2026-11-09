@@ -76,7 +76,7 @@ export function project(
   }
 }
 
-const STATUS_ORDER = ['todo', 'in_progress', 'review', 'done']
+const STATUS_ORDER = ['todo', 'in_progress', 'review', 'on_hold', 'done']
 
 /** Builds a task. Positions follow the creation order unless given. */
 export function task(
@@ -92,8 +92,11 @@ export function task(
     description: '',
     status: 'todo',
     priority: 'medium',
-    assigneeId: null,
+    holdReason: null,
+    assigneeIds: [],
+    subtasks: [],
     createdBy: ME.id,
+    startDate: null,
     dueDate: null,
     position: 1024,
     createdAt: '2026-02-01T00:00:00Z',
@@ -175,11 +178,28 @@ export function fakeBackend(options: Options = {}) {
       const trashed = req.query.get('trashed') === 'true'
       const page = Number(req.query.get('page') ?? 1)
       const size = Number(req.query.get('pageSize') ?? 20)
+      const sort = req.query.get('sort')
+      if (sort && !['newest', 'oldest', 'progress_high', 'progress_low'].includes(sort))
+        return err(422, 'validation_failed', { sort: 'invalid_sort' })
       const all = projects.filter((p) => {
         const r = roleOf(p)
         if (!r) return false
         return trashed ? r === 'owner' && p.deletedAt !== null : p.deletedAt === null
       })
+      // Like the real API: a project with no tasks goes last when sorting by progress.
+      const progress = (p: FakeProject) => {
+        const { taskCount, doneCount } = view(p)
+        return taskCount === 0 ? null : doneCount / taskCount
+      }
+      if (sort === 'oldest') all.reverse()
+      if (sort === 'progress_high' || sort === 'progress_low') {
+        const direction = sort === 'progress_high' ? -1 : 1
+        all.sort((a, b) => {
+          const [x, y] = [progress(a), progress(b)]
+          if (x === null || y === null) return Number(x === null) - Number(y === null)
+          return (x - y) * direction
+        })
+      }
       return {
         body: { items: all.slice((page - 1) * size, page * size).map(view), total: all.length },
       }
@@ -251,7 +271,8 @@ export function fakeBackend(options: Options = {}) {
       p.members = p.members.filter((m) => m !== target)
       // Like the real API: their tasks stay, but nobody is responsible for them any more.
       for (const t of tasks)
-        if (t.projectId === p.id && t.assigneeId === target.userId) t.assigneeId = null
+        if (t.projectId === p.id)
+          t.assigneeIds = t.assigneeIds.filter((userId) => userId !== target.userId)
       return { status: 204 }
     },
     ...taskRoutes(),
@@ -298,13 +319,23 @@ export function fakeBackend(options: Options = {}) {
         fields.status = 'invalid_status'
       if (body.priority !== undefined && !['low', 'medium', 'high'].includes(String(body.priority)))
         fields.priority = 'invalid_priority'
-      if (body.assigneeId !== undefined && body.assigneeId !== null) {
-        if (!isMember(projectId, String(body.assigneeId))) fields.assigneeId = 'not_a_member'
+      if (creating && body.status === 'on_hold' && !String(body.holdReason ?? '').trim())
+        fields.holdReason = 'hold_reason_required'
+      if (body.assigneeIds !== undefined) {
+        const ids = body.assigneeIds as string[]
+        if (ids.some((userId) => !isMember(projectId, userId))) fields.assigneeIds = 'not_a_member'
       }
-      if (body.dueDate !== undefined && body.dueDate !== null) {
-        const d = String(body.dueDate)
+      if (body.subtasks !== undefined) {
+        const titles = body.subtasks as string[]
+        if (titles.length > 100) fields.subtasks = 'too_many_subtasks'
+        else if (titles.some((title) => title.trim() === ''))
+          fields.subtasks = 'invalid_subtask_title'
+      }
+      for (const name of ['startDate', 'dueDate']) {
+        if (body[name] === undefined || body[name] === null) continue
+        const d = String(body[name])
         if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d)))
-          fields.dueDate = 'invalid_date'
+          fields[name] = 'invalid_date'
       }
       return fields
     }
@@ -321,7 +352,8 @@ export function fakeBackend(options: Options = {}) {
         let list = tasks.filter((t) => t.projectId === p.id && (t.deletedAt !== null) === trashed)
         if (q.get('status')) list = list.filter((t) => t.status === q.get('status'))
         if (q.get('priority')) list = list.filter((t) => t.priority === q.get('priority'))
-        if (q.get('assigneeId')) list = list.filter((t) => t.assigneeId === q.get('assigneeId'))
+        if (q.get('assigneeId'))
+          list = list.filter((t) => t.assigneeIds.includes(q.get('assigneeId')!))
         if (needle) list = list.filter((t) => t.title.toLowerCase().includes(needle))
         list = trashed
           ? list.sort((a, b) => Date.parse(b.deletedAt!) - Date.parse(a.deletedAt!))
@@ -350,7 +382,14 @@ export function fakeBackend(options: Options = {}) {
           status,
           description: (body.description as string | undefined) ?? '',
           priority: (body.priority as Task['priority'] | undefined) ?? 'medium',
-          assigneeId: (body.assigneeId as string | null | undefined) ?? null,
+          holdReason: status === 'on_hold' ? String(body.holdReason).trim() : null,
+          assigneeIds: (body.assigneeIds as string[] | undefined) ?? [],
+          subtasks: ((body.subtasks as string[] | undefined) ?? []).map((title) => ({
+            id: `s${nextId++}`,
+            title: title.trim(),
+            done: false,
+          })),
+          startDate: (body.startDate as string | null | undefined) ?? null,
           dueDate: (body.dueDate as string | null | undefined) ?? null,
           position: last ? last.position + 1024 : 1024,
           createdBy: me.id,
@@ -367,18 +406,60 @@ export function fakeBackend(options: Options = {}) {
         if (!t) return err(404, 'not_found')
         const body = req.body as Record<string, unknown>
         if ('status' in body || 'position' in body) return err(400, 'bad_request') // only /move changes these
-        const known = ['title', 'description', 'priority', 'assigneeId', 'dueDate'].filter(
-          (k) => k in body,
-        )
+        const known = [
+          'title',
+          'description',
+          'priority',
+          'holdReason',
+          'assigneeIds',
+          'startDate',
+          'dueDate',
+        ].filter((k) => k in body)
         if (known.length === 0) return err(422, 'validation_failed', { body: 'nothing_to_update' })
         const fields = checkFields(t.projectId, body, false)
         if (Object.keys(fields).length) return err(422, 'validation_failed', fields)
         if (body.title !== undefined) t.title = String(body.title).trim()
         if (body.description !== undefined) t.description = String(body.description)
         if (body.priority !== undefined) t.priority = body.priority as Task['priority']
-        if (body.assigneeId !== undefined) t.assigneeId = body.assigneeId as string | null
+        if (body.holdReason !== undefined) {
+          if (t.status !== 'on_hold')
+            return err(422, 'validation_failed', { holdReason: 'not_on_hold' })
+          t.holdReason = String(body.holdReason).trim()
+        }
+        if (body.assigneeIds !== undefined) t.assigneeIds = body.assigneeIds as string[]
+        if (body.startDate !== undefined) t.startDate = body.startDate as string | null
         if (body.dueDate !== undefined) t.dueDate = body.dueDate as string | null
         return { body: taskView(t) }
+      },
+      'POST /tasks/:id/subtasks': (req) => {
+        const t = activeTask(req.params.id!)
+        if (!t) return err(404, 'not_found')
+        const title = String((req.body as { title?: string }).title ?? '').trim()
+        if (title === '') return err(422, 'validation_failed', { title: 'invalid_subtask_title' })
+        if (t.subtasks.length >= 100)
+          return err(422, 'validation_failed', { title: 'too_many_subtasks' })
+        const subtask = { id: `s${nextId++}`, title, done: false }
+        t.subtasks = [...t.subtasks, subtask]
+        return { status: 201, body: subtask }
+      },
+      'PATCH /tasks/:id/subtasks/:subtaskId': (req) => {
+        const t = activeTask(req.params.id!)
+        const subtask = t?.subtasks.find((s) => s.id === req.params.subtaskId)
+        if (!t || !subtask) return err(404, 'not_found')
+        const body = req.body as { title?: string; done?: boolean }
+        const changed = {
+          ...subtask,
+          ...(body.title !== undefined && { title: body.title.trim() }),
+          ...(body.done !== undefined && { done: body.done }),
+        }
+        t.subtasks = t.subtasks.map((s) => (s.id === subtask.id ? changed : s))
+        return { body: changed }
+      },
+      'DELETE /tasks/:id/subtasks/:subtaskId': (req) => {
+        const t = activeTask(req.params.id!)
+        if (!t?.subtasks.some((s) => s.id === req.params.subtaskId)) return err(404, 'not_found')
+        t.subtasks = t.subtasks.filter((s) => s.id !== req.params.subtaskId)
+        return { status: 204 }
       },
       'DELETE /tasks/:id': (req) => {
         const t = activeTask(req.params.id!)
@@ -390,16 +471,23 @@ export function fakeBackend(options: Options = {}) {
         const t = tasks.find((x) => x.id === req.params.id && x.deletedAt && memberOf(x.projectId))
         if (!t) return err(404, 'not_found')
         t.deletedAt = null
-        if (t.assigneeId && !isMember(t.projectId, t.assigneeId)) t.assigneeId = null
+        t.assigneeIds = t.assigneeIds.filter((userId) => isMember(t.projectId, userId))
         return { body: taskView(t) }
       },
       'POST /tasks/:id/move': (req) => {
         const t = activeTask(req.params.id!)
         if (!t) return err(404, 'not_found')
-        const body = req.body as { status?: string; beforeTaskId?: string | null }
+        const body = req.body as {
+          status?: string
+          beforeTaskId?: string | null
+          holdReason?: string
+        }
         if (!STATUS_ORDER.includes(String(body.status)))
           return err(422, 'validation_failed', { status: 'invalid_status' })
         const status = body.status as Task['status']
+        const reason = body.holdReason?.trim()
+        if (status === 'on_hold' && t.status !== 'on_hold' && !reason)
+          return err(422, 'validation_failed', { holdReason: 'hold_reason_required' })
         const others = columnOf(t.projectId, status, t.id)
         let position: number
         if (body.beforeTaskId == null) {
@@ -413,6 +501,7 @@ export function fakeBackend(options: Options = {}) {
         }
         t.status = status
         t.position = position
+        t.holdReason = status === 'on_hold' ? (reason ?? t.holdReason) : null
         return { body: taskView(t) }
       },
     }

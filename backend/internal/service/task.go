@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -12,10 +13,13 @@ import (
 )
 
 const (
-	maxTaskTitleLen = 200
-	maxTaskDescLen  = 5000
-	maxSearchLen    = 100
-	dateLayout      = "2006-01-02"
+	maxTaskTitleLen  = 200
+	maxTaskDescLen   = 5000
+	maxSearchLen     = 100
+	maxTaskAssignees = 50
+	maxTaskSubtasks  = 100
+	maxHoldReasonLen = 500
+	dateLayout       = "2006-01-02"
 
 	// A move needs room between two neighbours; below this gap the column is renumbered.
 	minPositionGap = 1e-6
@@ -28,12 +32,15 @@ type TaskStore interface {
 	GetTask(ctx context.Context, taskID, userID string) (model.Task, error)
 	ListTasks(ctx context.Context, projectID string, f model.TaskFilter, limit, offset int) ([]model.Task, int, error)
 	UpdateTask(ctx context.Context, taskID string, u model.TaskUpdate, at time.Time) error
+	CreateSubtask(ctx context.Context, taskID, title string, at time.Time) (model.Subtask, error)
+	UpdateSubtask(ctx context.Context, taskID, subtaskID string, p model.SubtaskPatch, at time.Time) (model.Subtask, error)
+	DeleteSubtask(ctx context.Context, taskID, subtaskID string, at time.Time) error
 	SoftDeleteTask(ctx context.Context, taskID, deletedBy string, at time.Time) error
 	RestoreTask(ctx context.Context, taskID string, at, cutoff time.Time) error
 	BeforePosition(ctx context.Context, projectID, status, beforeTaskID string) (float64, error)
 	MaxPositionBelow(ctx context.Context, projectID, status, excludeTaskID string, below *float64) (*float64, error)
 	RebalanceColumn(ctx context.Context, projectID, status string) error
-	MoveTask(ctx context.Context, taskID, status string, position float64, at time.Time) error
+	MoveTask(ctx context.Context, taskID, status string, position float64, holdReason *string, at time.Time) error
 }
 
 // ProjectAccess is the part of the project store used to check membership.
@@ -70,10 +77,13 @@ func NewTasks(store TaskStore, projects ProjectAccess, retentionDays int, opts .
 type TaskCreate struct {
 	Title       string
 	Description string
-	Status      string // default "todo"
-	Priority    string // default "medium"
-	AssigneeID  *string
-	DueDate     *string // "YYYY-MM-DD"
+	Status      string  // default "todo"
+	Priority    string  // default "medium"
+	HoldReason  *string // needed when Status is on hold, ignored otherwise
+	AssigneeIDs []string
+	Subtasks    []string // titles, in order
+	StartDate   *string  // "YYYY-MM-DD"
+	DueDate     *string  // "YYYY-MM-DD", the end date
 }
 
 // TaskPage is a page of tasks with the overall total.
@@ -109,21 +119,39 @@ func (s *Tasks) Create(ctx context.Context, userID, projectID string, in TaskCre
 	if !contains(model.Priorities, priority) {
 		fields["priority"] = "invalid_priority"
 	}
-	if in.AssigneeID != nil {
-		if code := s.checkAssignee(ctx, projectID, *in.AssigneeID); code != "" {
-			fields["assigneeId"] = code
+	var holdReason *string
+	if status == model.StatusOnHold {
+		reason, code := checkHoldReason(in.HoldReason)
+		if code != "" {
+			fields["holdReason"] = code
 		}
+		holdReason = reason
+	}
+	assignees, code := s.checkAssignees(ctx, projectID, in.AssigneeIDs)
+	if code != "" {
+		fields["assigneeIds"] = code
+	}
+	subtasks, code := checkNewSubtasks(in.Subtasks)
+	if code != "" {
+		fields["subtasks"] = code
+	}
+	start, code := parseDate(in.StartDate)
+	if code != "" {
+		fields["startDate"] = code
 	}
 	due, code := parseDate(in.DueDate)
 	if code != "" {
 		fields["dueDate"] = code
+	}
+	if endsBeforeStart(start, due) {
+		fields["dueDate"] = "end_before_start"
 	}
 	if len(fields) > 0 {
 		return model.Task{}, &ValidationError{Fields: fields}
 	}
 
 	return s.store.CreateTask(ctx, projectID, userID, model.TaskInput{
-		Title: title, Description: in.Description, Status: status, Priority: priority, AssigneeID: in.AssigneeID, DueDate: due,
+		Title: title, Description: in.Description, Status: status, Priority: priority, HoldReason: holdReason, AssigneeIDs: assignees, Subtasks: subtasks, StartDate: start, DueDate: due,
 	})
 }
 
@@ -141,7 +169,7 @@ func (s *Tasks) List(ctx context.Context, userID, projectID string, f model.Task
 		fields["priority"] = "invalid_priority"
 	}
 	if f.AssigneeID != "" && !uuidRe.MatchString(f.AssigneeID) {
-		fields["assigneeId"] = "invalid_assignee"
+		fields["assigneeId"] = "invalid_assignee" // the query parameter stays singular: tasks of this one person
 	}
 	if utf8.RuneCountInString(f.Query) > maxSearchLen {
 		fields["q"] = "query_too_long"
@@ -177,7 +205,7 @@ func (s *Tasks) Update(ctx context.Context, userID, taskID string, p model.TaskP
 	fields := map[string]string{}
 	u := model.TaskUpdate{}
 
-	if p.Title == nil && p.Description == nil && p.Priority == nil && !p.AssigneeID.Set && !p.DueDate.Set {
+	if p.Title == nil && p.Description == nil && p.Priority == nil && p.HoldReason == nil && p.AssigneeIDs == nil && !p.StartDate.Set && !p.DueDate.Set {
 		fields["body"] = "nothing_to_update"
 	}
 	if p.Title != nil {
@@ -199,20 +227,44 @@ func (s *Tasks) Update(ctx context.Context, userID, taskID string, p model.TaskP
 		}
 		u.Priority = p.Priority
 	}
-	if p.AssigneeID.Set {
-		u.SetAssignee, u.AssigneeID = true, p.AssigneeID.Value // null clears the assignee
-		if u.AssigneeID != nil {
-			if code := s.checkAssignee(ctx, t.ProjectID, *u.AssigneeID); code != "" {
-				fields["assigneeId"] = code
+	if p.HoldReason != nil {
+		if t.Status != model.StatusOnHold {
+			fields["holdReason"] = "not_on_hold"
+		} else {
+			reason, code := checkHoldReason(p.HoldReason)
+			if code != "" {
+				fields["holdReason"] = code
 			}
+			u.HoldReason = reason
 		}
 	}
+	if p.AssigneeIDs != nil {
+		assignees, code := s.checkAssignees(ctx, t.ProjectID, *p.AssigneeIDs)
+		if code != "" {
+			fields["assigneeIds"] = code
+		}
+		u.SetAssignees, u.AssigneeIDs = true, assignees // an empty list clears them
+	}
+	// Dates a request leaves out keep their value, and still count when checking the order of the two.
+	start, due := t.StartDate, t.DueDate
+	if p.StartDate.Set {
+		var code string
+		start, code = parseDate(p.StartDate.Value)
+		if code != "" {
+			fields["startDate"] = code
+		}
+		u.SetStartDate, u.StartDate = true, start // null clears the date
+	}
 	if p.DueDate.Set {
-		due, code := parseDate(p.DueDate.Value)
+		var code string
+		due, code = parseDate(p.DueDate.Value)
 		if code != "" {
 			fields["dueDate"] = code
 		}
 		u.SetDueDate, u.DueDate = true, due // null clears the date
+	}
+	if (p.StartDate.Set || p.DueDate.Set) && endsBeforeStart(start, due) {
+		fields["dueDate"] = "end_before_start"
 	}
 	if len(fields) > 0 {
 		return model.Task{}, &ValidationError{Fields: fields}
@@ -222,6 +274,54 @@ func (s *Tasks) Update(ctx context.Context, userID, taskID string, p model.TaskP
 		return model.Task{}, err
 	}
 	return s.active(ctx, userID, taskID)
+}
+
+// AddSubtask adds a subtask at the end of a task's list. Any member of the project may do it.
+func (s *Tasks) AddSubtask(ctx context.Context, userID, taskID, title string) (model.Subtask, error) {
+	t, err := s.active(ctx, userID, taskID)
+	if err != nil {
+		return model.Subtask{}, err
+	}
+	title = strings.TrimSpace(title)
+	if validateTaskTitle(title) != "" {
+		return model.Subtask{}, &ValidationError{Fields: map[string]string{"title": "invalid_subtask_title"}}
+	}
+	if len(t.Subtasks) >= maxTaskSubtasks {
+		return model.Subtask{}, &ValidationError{Fields: map[string]string{"title": "too_many_subtasks"}}
+	}
+	return s.store.CreateSubtask(ctx, taskID, title, s.now())
+}
+
+// UpdateSubtask renames a subtask, or ticks it off or back on.
+func (s *Tasks) UpdateSubtask(ctx context.Context, userID, taskID, subtaskID string, p model.SubtaskPatch) (model.Subtask, error) {
+	if _, err := s.active(ctx, userID, taskID); err != nil {
+		return model.Subtask{}, err
+	}
+	if !uuidRe.MatchString(subtaskID) {
+		return model.Subtask{}, model.ErrNotFound
+	}
+	if p.Title == nil && p.Done == nil {
+		return model.Subtask{}, &ValidationError{Fields: map[string]string{"body": "nothing_to_update"}}
+	}
+	if p.Title != nil {
+		title := strings.TrimSpace(*p.Title)
+		if validateTaskTitle(title) != "" {
+			return model.Subtask{}, &ValidationError{Fields: map[string]string{"title": "invalid_subtask_title"}}
+		}
+		p.Title = &title
+	}
+	return s.store.UpdateSubtask(ctx, taskID, subtaskID, p, s.now())
+}
+
+// DeleteSubtask removes a subtask from a task.
+func (s *Tasks) DeleteSubtask(ctx context.Context, userID, taskID, subtaskID string) error {
+	if _, err := s.active(ctx, userID, taskID); err != nil {
+		return err
+	}
+	if !uuidRe.MatchString(subtaskID) {
+		return model.ErrNotFound
+	}
+	return s.store.DeleteSubtask(ctx, taskID, subtaskID, s.now())
 }
 
 // Delete moves a task to the trash.
@@ -250,8 +350,9 @@ func (s *Tasks) Restore(ctx context.Context, userID, taskID string) (model.Task,
 	return s.active(ctx, userID, taskID)
 }
 
-// Move puts a task into a column, before another task (or at the end when beforeTaskID is nil).
-func (s *Tasks) Move(ctx context.Context, userID, taskID, status string, beforeTaskID *string) (model.Task, error) {
+// Move puts a task into a column, before another task (or at the end when beforeTaskID is nil). Going on
+// hold needs a reason; a task already on hold keeps its own unless it is given a new one.
+func (s *Tasks) Move(ctx context.Context, userID, taskID, status string, beforeTaskID, holdReason *string) (model.Task, error) {
 	t, err := s.active(ctx, userID, taskID)
 	if err != nil {
 		return model.Task{}, err
@@ -264,6 +365,14 @@ func (s *Tasks) Move(ctx context.Context, userID, taskID, status string, beforeT
 	if beforeTaskID != nil && (!uuidRe.MatchString(*beforeTaskID) || *beforeTaskID == taskID) {
 		fields["beforeTaskId"] = "invalid_before_task"
 	}
+	var reason *string
+	if status == model.StatusOnHold && (holdReason != nil || t.Status != model.StatusOnHold) {
+		checked, code := checkHoldReason(holdReason)
+		if code != "" {
+			fields["holdReason"] = code
+		}
+		reason = checked
+	}
 	if len(fields) > 0 {
 		return model.Task{}, &ValidationError{Fields: fields}
 	}
@@ -272,7 +381,7 @@ func (s *Tasks) Move(ctx context.Context, userID, taskID, status string, beforeT
 	if err != nil {
 		return model.Task{}, err
 	}
-	if err := s.store.MoveTask(ctx, taskID, status, pos, s.now()); err != nil {
+	if err := s.store.MoveTask(ctx, taskID, status, pos, reason, s.now()); err != nil {
 		return model.Task{}, err
 	}
 	return s.active(ctx, userID, taskID)
@@ -351,15 +460,63 @@ func (s *Tasks) active(ctx context.Context, userID, taskID string) (model.Task, 
 	return t, nil
 }
 
-// checkAssignee returns an error code when the user is not a valid assignee for the project.
-func (s *Tasks) checkAssignee(ctx context.Context, projectID, assigneeID string) string {
-	if !uuidRe.MatchString(assigneeID) {
-		return "invalid_assignee"
+// checkAssignees returns the assignees sorted and without repeats, or an error code when one of them
+// is not a valid assignee for the project. The result is never nil.
+func (s *Tasks) checkAssignees(ctx context.Context, projectID string, ids []string) ([]string, string) {
+	unique := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if !uuidRe.MatchString(id) {
+			return nil, "invalid_assignee"
+		}
+		unique = append(unique, strings.ToLower(id))
 	}
-	if _, err := s.projects.GetMemberRole(ctx, projectID, assigneeID); err != nil {
-		return "not_a_member"
+	slices.Sort(unique)
+	unique = slices.Compact(unique)
+	if len(unique) > maxTaskAssignees {
+		return nil, "too_many_assignees"
 	}
-	return ""
+	for _, id := range unique {
+		if _, err := s.projects.GetMemberRole(ctx, projectID, id); err != nil {
+			return nil, "not_a_member"
+		}
+	}
+	return unique, ""
+}
+
+// checkHoldReason returns the reason trimmed, or an error code. A task on hold must say why.
+func checkHoldReason(reason *string) (*string, string) {
+	if reason == nil {
+		return nil, "hold_reason_required"
+	}
+	trimmed := strings.TrimSpace(*reason)
+	if trimmed == "" {
+		return nil, "hold_reason_required"
+	}
+	if utf8.RuneCountInString(trimmed) > maxHoldReasonLen {
+		return nil, "hold_reason_too_long"
+	}
+	return &trimmed, ""
+}
+
+// checkNewSubtasks returns the titles trimmed, or an error code. The result is never nil.
+func checkNewSubtasks(titles []string) ([]string, string) {
+	if len(titles) > maxTaskSubtasks {
+		return nil, "too_many_subtasks"
+	}
+	clean := make([]string, 0, len(titles))
+	for _, title := range titles {
+		title = strings.TrimSpace(title)
+		if validateTaskTitle(title) != "" {
+			return nil, "invalid_subtask_title"
+		}
+		clean = append(clean, title)
+	}
+	return clean, ""
+}
+
+// endsBeforeStart says whether both dates are set and in the wrong order. One day is fine: start == end.
+func endsBeforeStart(start, end *time.Time) bool {
+	return start != nil && end != nil && end.Before(*start)
 }
 
 func (s *Tasks) cutoff() time.Time { return s.now().Add(-s.retention) }

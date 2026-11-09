@@ -106,17 +106,18 @@ describe('badges', () => {
         <StatusBadge status="todo" />
         <StatusBadge status="in_progress" />
         <StatusBadge status="review" />
+        <StatusBadge status="on_hold" />
         <StatusBadge status="done" />
       </>,
     )
-    for (const label of ['To do', 'In progress', 'In review', 'Done']) {
+    for (const label of ['To do', 'In progress', 'In review', 'On hold', 'Done']) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
     // The icons are decoration: hidden from screen readers, the text carries the meaning.
     const icons = document.querySelectorAll('svg[aria-hidden="true"]')
-    expect(icons.length).toBe(4)
+    expect(icons.length).toBe(5)
     const shapes = new Set([...icons].map((i) => i.innerHTML))
-    expect(shapes.size).toBe(4) // four different shapes, so they differ without color too
+    expect(shapes.size).toBe(5) // five different shapes, so they differ without color too
   })
 
   it('translate with the language', async () => {

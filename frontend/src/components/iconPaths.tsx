@@ -26,6 +26,12 @@ export const ICON_PATHS = {
       <path d="M8 12.5l2.7 2.7L16 9.5" />
     </>
   ),
+  pause: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 9v6M14 9v6" />
+    </>
+  ),
   // Task priority
   'arrow-down': (
     <>
@@ -114,6 +120,8 @@ export const ICON_PATHS = {
     </>
   ),
   'chevron-down': <path d="M6 9l6 6 6-6" />,
+  'chevron-left': <path d="M15 6l-6 6 6 6" />,
+  'chevron-right': <path d="M9 6l6 6-6 6" />,
   'chevron-up': <path d="M6 15l6-6 6 6" />,
   'arrow-left': (
     <>
@@ -169,6 +177,35 @@ export const ICON_PATHS = {
     </>
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  logout: <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12h-9" />,
+  checklist: (
+    <path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M12 6h8M12 12h8M12 18h8" />
+  ),
+  sort: (
+    <>
+      <path d="M4 6h16" />
+      <path d="M7 12h10" />
+      <path d="M10 18h4" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <rect x="13" y="13" width="7" height="7" rx="1.5" />
+    </>
+  ),
+  list: (
+    <>
+      <path d="M9 6h11" />
+      <path d="M9 12h11" />
+      <path d="M9 18h11" />
+      <path d="M4.5 6h.01" />
+      <path d="M4.5 12h.01" />
+      <path d="M4.5 18h.01" />
+    </>
+  ),
   menu: (
     <>
       <path d="M4 7h16" />

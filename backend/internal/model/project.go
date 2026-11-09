@@ -43,3 +43,11 @@ type Member struct {
 	Role        string
 	JoinedAt    time.Time
 }
+
+// How the project list can be sorted. The default is the newest first.
+const (
+	ProjectSortNewest       = "newest"
+	ProjectSortOldest       = "oldest"
+	ProjectSortProgressHigh = "progress_high"
+	ProjectSortProgressLow  = "progress_low"
+)

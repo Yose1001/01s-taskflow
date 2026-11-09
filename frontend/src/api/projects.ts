@@ -6,10 +6,17 @@ const id = encodeURIComponent
 
 export function listProjects(
   request: RequestFn,
-  query: { page: number; pageSize: number; trashed: boolean; signal?: AbortSignal | undefined },
+  query: {
+    page: number
+    pageSize: number
+    trashed: boolean
+    sort?: string | undefined
+    signal?: AbortSignal | undefined
+  },
 ): Promise<Page<Project>> {
   const params = new URLSearchParams({ page: String(query.page), pageSize: String(query.pageSize) })
   if (query.trashed) params.set('trashed', 'true')
+  if (query.sort) params.set('sort', query.sort)
   return request<Page<Project>>(`/projects?${params}`, query.signal ? { signal: query.signal } : {})
 }
 

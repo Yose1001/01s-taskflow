@@ -2,42 +2,66 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
 import type { TaskInput, TaskPatch } from '../../api/tasks'
-import type { Member, Task, TaskPriority, TaskStatus } from '../../api/types'
+import type { Member, Subtask, Task, TaskPriority, TaskStatus } from '../../api/types'
 import { errorMessage, fieldErrorMessage } from '../../auth/errors'
+import { DatePicker } from '../../components/DatePicker'
 import { Alert, Button, SelectField, TextAreaField, TextField } from '../../components/forms'
 import { Modal } from '../../components/Modal'
-import { PRIORITIES, STATUSES } from './boardLogic'
-import { useCreateTask, useUpdateTask } from './hooks'
+import { AssigneePicker } from './AssigneePicker'
+import { PRIORITIES, STATUSES, holdReasonError } from './boardLogic'
+import { useCreateTask, useSubtasks, useUpdateTask } from './hooks'
+import { SubtaskList } from './SubtaskList'
 
 const MAX_TITLE = 200
 const MAX_DESCRIPTION = 5000
+const MAX_SUBTASKS = 100
 
-type FieldName = 'title' | 'description' | 'assigneeId' | 'dueDate' | 'priority' | 'status'
+type FieldName =
+  | 'title'
+  | 'description'
+  | 'assigneeIds'
+  | 'subtasks'
+  | 'startDate'
+  | 'dueDate'
+  | 'priority'
+  | 'status'
+  | 'holdReason'
 type Errors = Partial<Record<FieldName, string>>
 
 // Field id in the form, in the order they appear (so the first mistake gets the focus).
 const FIELD_IDS: Record<FieldName, string> = {
   title: 'task-title',
   description: 'task-description',
+  subtasks: 'task-subtask-new',
   priority: 'task-priority',
-  assigneeId: 'task-assignee',
-  dueDate: 'task-due',
   status: 'task-status',
+  holdReason: 'task-hold-reason',
+  startDate: 'task-start',
+  dueDate: 'task-due',
+  assigneeIds: 'task-assignee',
 }
 const FIELD_ORDER: FieldName[] = [
   'title',
   'description',
+  'subtasks',
   'priority',
-  'assigneeId',
-  'dueDate',
   'status',
+  'holdReason',
+  'startDate',
+  'dueDate',
+  'assigneeIds',
 ]
+
+const sameIds = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((id) => b.includes(id))
 
 interface Props {
   projectId: string
   members: Member[]
   /** Present when editing; absent when creating. */
   task?: Task
+  /** Editing only: the task's subtasks as they are now, which change while the dialog is open. */
+  subtasks?: Subtask[]
   /** The column a new task starts in. */
   initialStatus?: TaskStatus
   onClose: () => void
@@ -51,6 +75,7 @@ export function TaskFormDialog({
   projectId,
   members,
   task,
+  subtasks: savedSubtasks = [],
   initialStatus = 'todo',
   onClose,
   onSaved,
@@ -61,20 +86,49 @@ export function TaskFormDialog({
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'medium')
-  const [assigneeId, setAssigneeId] = useState(task?.assigneeId ?? '')
+  const [assigneeIds, setAssigneeIds] = useState(task?.assigneeIds ?? [])
+  const [startDate, setStartDate] = useState(task?.startDate ?? '')
   const [dueDate, setDueDate] = useState(task?.dueDate ?? '')
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? initialStatus)
+  const [holdReason, setHoldReason] = useState(task?.holdReason ?? '')
   const [errors, setErrors] = useState<Errors>({})
+  // While creating, the lines live here and go to the server with the task.
+  const [newLines, setNewLines] = useState<Subtask[]>([])
+  const [nextLine, setNextLine] = useState(0)
+  const [subtaskDraft, setSubtaskDraft] = useState('')
 
   const create = useCreateTask(projectId)
   const update = useUpdateTask(projectId)
+  const subtasks = useSubtasks(projectId, task?.id ?? '')
   const mutation = editing ? update : create
-  const pending = mutation.isPending
+  const pending = mutation.isPending || subtasks.add.isPending
+  const lines = editing ? savedSubtasks : newLines
+  const subtaskFailure = subtasks.add.error ?? subtasks.update.error ?? subtasks.remove.error
 
   function showErrors(next: Errors) {
     setErrors(next)
     const first = FIELD_ORDER.find((name) => next[name])
     if (first) document.getElementById(FIELD_IDS[first])?.focus()
+  }
+
+  /** Adds what is in the box as a new line. On a saved task, andThen runs once the server has it. */
+  function addLine(andThen?: () => void) {
+    const title = subtaskDraft.trim()
+    if (title === '') return
+    if (lines.length >= MAX_SUBTASKS) return showErrors({ subtasks: 'too_many_subtasks' })
+    setErrors({})
+    if (!editing) {
+      setNewLines([...newLines, { id: String(nextLine), title, done: false }])
+      setNextLine(nextLine + 1)
+      setSubtaskDraft('')
+      return
+    }
+    subtasks.add.mutate(title, {
+      onSuccess: () => {
+        setSubtaskDraft('')
+        andThen?.()
+      },
+    })
   }
 
   function onSubmit(event: FormEvent) {
@@ -86,7 +140,12 @@ export function TaskFormDialog({
     else if (length > MAX_TITLE) next.title = 'invalid_title'
     if (Array.from(description).length > MAX_DESCRIPTION)
       next.description = 'task_description_too_long'
-    if (dueDate !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) next.dueDate = 'invalid_date'
+    const onHold = status === 'on_hold'
+    const holdError = onHold ? holdReasonError(holdReason) : null
+    if (holdError) next.holdReason = holdError
+    const toCreate = [...newLines.map((line) => line.title)]
+    if (!editing && subtaskDraft.trim() !== '') toCreate.push(subtaskDraft.trim()) // left in the box: not lost
+    if (toCreate.length > MAX_SUBTASKS) next.subtasks = 'too_many_subtasks'
     if (Object.keys(next).length > 0) return showErrors(next)
     setErrors({})
 
@@ -106,27 +165,49 @@ export function TaskFormDialog({
       },
     }
 
-    const assignee = assigneeId === '' ? null : assigneeId
+    const start = startDate === '' ? null : startDate
     const due = dueDate === '' ? null : dueDate
 
     if (!editing) {
       const input: TaskInput = { title: trimmed, description, priority, status }
-      if (assignee !== null) input.assigneeId = assignee
+      if (onHold) input.holdReason = holdReason.trim()
+      if (assigneeIds.length > 0) input.assigneeIds = assigneeIds
+      if (start !== null) input.startDate = start
       if (due !== null) input.dueDate = due
+      if (toCreate.length > 0) input.subtasks = toCreate
       create.mutate(input, handlers)
       return
     }
 
-    // Editing: send only what changed, so someone else's edits to other fields are not overwritten.
-    const patch: TaskPatch = {}
-    if (trimmed !== task.title) patch.title = trimmed
-    if (description !== task.description) patch.description = description
-    if (priority !== task.priority) patch.priority = priority
-    if (assignee !== task.assigneeId) patch.assigneeId = assignee
-    if (due !== task.dueDate) patch.dueDate = due
-    const moved = status !== task.status
-    if (Object.keys(patch).length === 0 && !moved) return onClose() // nothing to save
-    update.mutate({ task, patch, ...(moved && { status }) }, handlers)
+    // A line left in the box is saved first, so that it is not lost when the dialog closes.
+    if (subtaskDraft.trim() !== '') return addLine(saveChanges)
+    saveChanges()
+
+    function saveChanges() {
+      if (!task) return
+      // Send only what changed, so someone else's edits to other fields are not overwritten.
+      const patch: TaskPatch = {}
+      if (trimmed !== task.title) patch.title = trimmed
+      if (description !== task.description) patch.description = description
+      if (priority !== task.priority) patch.priority = priority
+      if (!sameIds(assigneeIds, task.assigneeIds)) patch.assigneeIds = assigneeIds
+      if (start !== task.startDate) patch.startDate = start
+      if (due !== task.dueDate) patch.dueDate = due
+      const moved = status !== task.status
+      // Staying on hold, the reason is an ordinary field. Going on hold, it travels with the move.
+      if (onHold && !moved && holdReason.trim() !== task.holdReason)
+        patch.holdReason = holdReason.trim()
+      if (Object.keys(patch).length === 0 && !moved) return onClose() // nothing to save
+      update.mutate(
+        {
+          task,
+          patch,
+          ...(moved && { status }),
+          ...(moved && onHold && { holdReason: holdReason.trim() }),
+        },
+        handlers,
+      )
+    }
   }
 
   const serverError = mutation.error
@@ -134,6 +215,13 @@ export function TaskFormDialog({
     serverError && !(serverError instanceof ApiError && serverError.code === 'validation_failed')
   const fieldMessage = (name: FieldName) =>
     errors[name] ? fieldErrorMessage(t, errors[name]) : undefined
+
+  function subtaskMessage() {
+    if (errors.subtasks) return fieldMessage('subtasks')
+    if (!subtaskFailure) return undefined
+    const code = subtaskFailure instanceof ApiError ? subtaskFailure.fields?.title : undefined
+    return code ? fieldErrorMessage(t, code) : t('tasks.subtaskSaveFailed')
+  }
 
   return (
     <Modal
@@ -157,6 +245,28 @@ export function TaskFormDialog({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={fieldMessage('description')}
+        />
+        <SubtaskList
+          inputId={FIELD_IDS.subtasks}
+          items={lines}
+          tickable={editing}
+          hint={editing ? t('tasks.subtasksHint') : undefined}
+          draft={subtaskDraft}
+          onDraftChange={setSubtaskDraft}
+          onAdd={() => addLine()}
+          onToggle={(item) => subtasks.update.mutate({ id: item.id, patch: { done: !item.done } })}
+          onRename={(item, newTitle) => {
+            if (editing) subtasks.update.mutate({ id: item.id, patch: { title: newTitle } })
+            else
+              setNewLines(
+                newLines.map((line) => (line.id === item.id ? { ...line, title: newTitle } : line)),
+              )
+          }}
+          onRemove={(item) => {
+            if (editing) subtasks.remove.mutate(item.id)
+            else setNewLines(newLines.filter((line) => line.id !== item.id))
+          }}
+          error={subtaskMessage()}
         />
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField
@@ -186,29 +296,43 @@ export function TaskFormDialog({
               </option>
             ))}
           </SelectField>
-          <SelectField
-            id={FIELD_IDS.assigneeId}
-            label={t('tasks.assigneeLabel')}
-            value={assigneeId}
-            onChange={(e) => setAssigneeId(e.target.value)}
-            error={fieldMessage('assigneeId')}
-          >
-            <option value="">{t('tasks.unassigned')}</option>
-            {members.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {m.displayName}
-              </option>
-            ))}
-          </SelectField>
-          <TextField
+          {status === 'on_hold' && (
+            <div className="sm:col-span-2">
+              <TextAreaField
+                id={FIELD_IDS.holdReason}
+                label={t('tasks.holdLabel')}
+                hint={t('tasks.holdHint')}
+                value={holdReason}
+                onChange={(e) => setHoldReason(e.target.value)}
+                error={fieldMessage('holdReason')}
+              />
+            </div>
+          )}
+          {/* Each calendar stops at the other date, so the two can never end up in the wrong order. */}
+          <DatePicker
+            id={FIELD_IDS.startDate}
+            label={t('tasks.startLabel')}
+            value={startDate}
+            onChange={setStartDate}
+            max={dueDate || undefined}
+            error={fieldMessage('startDate')}
+          />
+          <DatePicker
             id={FIELD_IDS.dueDate}
-            type="date"
             label={t('tasks.dueLabel')}
             value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
+            onChange={setDueDate}
+            min={startDate || undefined}
             error={fieldMessage('dueDate')}
           />
         </div>
+        <AssigneePicker
+          id={FIELD_IDS.assigneeIds}
+          members={members}
+          selected={assigneeIds}
+          onChange={setAssigneeIds}
+          error={fieldMessage('assigneeIds')}
+        />
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           <div>
             {editing && onDelete && (

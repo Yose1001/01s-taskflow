@@ -9,7 +9,7 @@ import {
   type TaskStatus,
 } from '../components/StatusBadge'
 
-const STATUSES: TaskStatus[] = ['todo', 'in_progress', 'review', 'done']
+const STATUSES: TaskStatus[] = ['todo', 'in_progress', 'review', 'on_hold', 'done']
 const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high']
 
 // Names are token names from index.css, shown as swatches so the whole palette is visible at a glance.

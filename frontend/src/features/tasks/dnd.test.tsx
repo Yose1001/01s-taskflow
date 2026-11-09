@@ -244,6 +244,132 @@ describe('dropping a card', () => {
   })
 })
 
+describe('dropping a card on "On hold"', () => {
+  it('asks why first, and only then moves it, with the reason', async () => {
+    const { api, user } = await openBoard()
+    dropOn('t4', 'column:on_hold')
+    const dialog = await screen.findByRole('dialog', { name: 'Put on hold: Build header' })
+    expect(moves(api, 't4')).toHaveLength(0)
+    expect(titlesIn(/^In progress/)).toEqual(['Build header'])
+    expect(within(dialog).getByLabelText('Why is it on hold?')).toHaveFocus()
+
+    await user.type(within(dialog).getByLabelText('Why is it on hold?'), '  Waiting for the API  ')
+    await user.click(within(dialog).getByRole('button', { name: 'Put on hold' }))
+
+    await waitFor(() => expect(titlesIn(/^On hold/)).toEqual(['Build header']))
+    expect(moves(api, 't4')).toEqual([
+      { status: 'on_hold', beforeTaskId: null, holdReason: 'Waiting for the API' },
+    ])
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(await screen.findByText('Waiting for the API')).toBeInTheDocument()
+  })
+
+  it('refuses an empty reason, without calling the server', async () => {
+    const { api, user } = await openBoard()
+    dropOn('t4', 'column:on_hold')
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Why is it on hold?'), '   ')
+    await user.click(within(dialog).getByRole('button', { name: 'Put on hold' }))
+    expect(await within(dialog).findByText('Enter why this task is on hold.')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Why is it on hold?')).toHaveFocus()
+    expect(moves(api, 't4')).toHaveLength(0)
+  })
+
+  it('leaves the card where it was on Cancel or Escape', async () => {
+    const { api, user } = await openBoard()
+    dropOn('t4', 'column:on_hold')
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    dropOn('t4', 'column:on_hold')
+    await screen.findByRole('dialog')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    expect(moves(api, 't4')).toHaveLength(0)
+    expect(titlesIn(/^In progress/)).toEqual(['Build header'])
+  })
+
+  it('does not ask again when re-ordering inside the column, and keeps the reason', async () => {
+    const { api } = await openBoard({
+      tasks: [
+        task('a', 'First', { status: 'on_hold', holdReason: 'one', position: 1024 }),
+        task('b', 'Second', { status: 'on_hold', holdReason: 'two', position: 2048 }),
+      ],
+    })
+    dropOn('b', 'a')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(moves(api, 'b')).toHaveLength(1))
+    expect(moves(api, 'b')[0]).toEqual({ status: 'on_hold', beforeTaskId: 'a' })
+    expect(await screen.findByText('two')).toBeInTheDocument()
+  })
+
+  it('moves straight out without asking, and the reason goes away', async () => {
+    const { api } = await openBoard({
+      tasks: [task('a', 'Paused', { status: 'on_hold', holdReason: 'waiting' })],
+    })
+    expect(screen.getByText('waiting')).toBeInTheDocument()
+    dropOn('a', 'column:done')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(titlesIn(/^Done/)).toEqual(['Paused']))
+    expect(moves(api, 'a')).toEqual([{ status: 'done', beforeTaskId: null }])
+    expect(screen.queryByText('waiting')).not.toBeInTheDocument()
+  })
+
+  it('puts the card back and says so when the server refuses', async () => {
+    const { user } = await openBoard({
+      routes: {
+        'POST /tasks/:id/move': () => ({ status: 500, body: { code: 'internal', message: 'x' } }),
+      },
+    })
+    dropOn('t4', 'column:on_hold')
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Why is it on hold?'), 'Waiting')
+    await user.click(within(dialog).getByRole('button', { name: 'Put on hold' }))
+    expect(
+      await screen.findByText('The task could not be moved, so it went back.'),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(titlesIn(/^In progress/)).toEqual(['Build header']))
+    expect(screen.queryByText('Waiting')).not.toBeInTheDocument()
+  })
+
+  it('tells a screen reader the reason on the card', async () => {
+    await openBoard({ tasks: [task('a', 'Paused', { status: 'on_hold', holdReason: 'waiting' })] })
+    expect(screen.getByText('On hold because:', { exact: false })).toHaveClass('sr-only')
+  })
+})
+
+describe('dropping a card when columns are sorted', () => {
+  it('inside a sorted column: nothing moves, and it says why', async () => {
+    localStorage.setItem('tf-column-sorts:p1', JSON.stringify({ todo: 'priority' }))
+    const { api } = await openBoard()
+    expect(titlesIn(/^To do/)).toEqual(['Draw logo', 'Pick colors', 'Write copy'])
+    dropOn('t1', 't2')
+    expect(await screen.findByText(/This column is sorted/)).toBeInTheDocument()
+    expect(api.calls.filter((c) => c.pathname.endsWith('/move'))).toHaveLength(0)
+    expect(titlesIn(/^To do/)).toEqual(['Draw logo', 'Pick colors', 'Write copy'])
+  })
+
+  it('into a sorted column: joins it, and shows where the sort puts it', async () => {
+    localStorage.setItem('tf-column-sorts:p1', JSON.stringify({ todo: 'priority' }))
+    const { api } = await openBoard()
+    dropOn('t4', 't2') // landed on "Write copy", but the sort decides the place
+    await waitFor(() => expect(moves(api, 't4')).toHaveLength(1))
+    expect(moves(api, 't4')[0]).toEqual({ status: 'todo', beforeTaskId: null })
+    expect(titlesIn(/^To do/)).toEqual(['Draw logo', 'Build header', 'Pick colors', 'Write copy'])
+  })
+
+  it('out of a sorted column into an arranged one: lands where it was dropped', async () => {
+    localStorage.setItem('tf-column-sorts:p1', JSON.stringify({ todo: 'priority' }))
+    const { api } = await openBoard()
+    dropOn('t2', 't4')
+    await waitFor(() => expect(moves(api, 't2')).toHaveLength(1))
+    expect(moves(api, 't2')[0]).toEqual({ status: 'in_progress', beforeTaskId: 't4' })
+  })
+})
+
 describe('screen reader announcements', () => {
   it('say which task was picked up, where it is, and where it was dropped (in the UI language)', async () => {
     await openBoard()

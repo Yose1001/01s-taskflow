@@ -1,8 +1,11 @@
 import type { Task, TaskPriority, TaskStatus } from '../../api/types'
+import { today } from '../../lib/calendar'
+
+export { today }
 
 // The rules of the board, as plain functions (no React), so they can be tested without a browser.
 
-export const STATUSES: readonly TaskStatus[] = ['todo', 'in_progress', 'review', 'done']
+export const STATUSES: readonly TaskStatus[] = ['todo', 'in_progress', 'review', 'on_hold', 'done']
 export const PRIORITIES: readonly TaskPriority[] = ['low', 'medium', 'high']
 
 /** Same spacing the API uses when a column is empty or a task goes last. */
@@ -39,15 +42,34 @@ export function filterTasks(tasks: Task[], f: Filters): Task[] {
   return tasks.filter((task) => {
     if (q && !task.title.toLowerCase().includes(q)) return false
     if (f.priority && task.priority !== f.priority) return false
-    if (f.assignee === UNASSIGNED) return task.assigneeId === null
-    if (f.assignee && task.assigneeId !== f.assignee) return false
+    if (f.assignee === UNASSIGNED) return task.assigneeIds.length === 0
+    if (f.assignee && !task.assigneeIds.includes(f.assignee)) return false
     return true
   })
 }
 
+/** Someone working on a task, as a card shows them. */
+export interface Assignee {
+  id: string
+  name: string
+}
+
+/**
+ * The people on a task whose names are known, in alphabetical order. The result is empty while the
+ * member list has not arrived, even when the task has assignees.
+ */
+export function assigneesOf(task: Task, nameOf: ReadonlyMap<string, string>): Assignee[] {
+  return task.assigneeIds
+    .flatMap((id) => {
+      const name = nameOf.get(id)
+      return name ? [{ id, name }] : []
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
 /** Splits tasks into the four columns, each in board order (by position). */
 export function byColumn(tasks: Task[]): Columns {
-  const columns: Columns = { todo: [], in_progress: [], review: [], done: [] }
+  const columns: Columns = { todo: [], in_progress: [], review: [], on_hold: [], done: [] }
   for (const task of tasks) columns[task.status].push(task)
   for (const status of STATUSES) columns[status].sort((a, b) => a.position - b.position)
   return columns
@@ -61,6 +83,19 @@ export interface Move {
   status: TaskStatus
   /** The task it goes in front of; null = the end of the column. */
   beforeTaskId: string | null
+  /** Why it is going on hold. */
+  holdReason?: string
+}
+
+const MAX_HOLD_REASON = 500
+
+/** What is wrong with a reason for holding a task, as an error code, or null when it is fine. */
+export function holdReasonError(
+  reason: string,
+): 'hold_reason_required' | 'hold_reason_too_long' | null {
+  const trimmed = reason.trim()
+  if (trimmed === '') return 'hold_reason_required'
+  return Array.from(trimmed).length > MAX_HOLD_REASON ? 'hold_reason_too_long' : null
 }
 
 /**
@@ -150,15 +185,15 @@ export function applyMove(tasks: Task[], move: Move): Task[] {
   }
 
   return tasks.map((task) =>
-    task.id === move.taskId ? { ...task, status: move.status, position } : task,
+    task.id === move.taskId
+      ? {
+          ...task,
+          status: move.status,
+          position,
+          holdReason: move.status === 'on_hold' ? (move.holdReason ?? task.holdReason) : null,
+        }
+      : task,
   )
-}
-
-/** Today as "YYYY-MM-DD" in the person's own time zone (due dates are plain calendar days). */
-export function today(now: Date = new Date()): string {
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${now.getFullYear()}-${month}-${day}`
 }
 
 /** A task is overdue when its day has passed and it is not done. Plain string compare works for ISO days. */

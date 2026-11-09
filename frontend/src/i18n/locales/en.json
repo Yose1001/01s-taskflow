@@ -7,7 +7,8 @@
     "login": "Log in",
     "signup": "Sign up",
     "logout": "Log out",
-    "account": "Account menu"
+    "account": "Account menu",
+    "signedInAs": "Signed in as"
   },
   "theme": {
     "switchToDark": "Switch to dark theme",
@@ -71,7 +72,14 @@
     "invalid_priority": "Choose a priority.",
     "invalid_assignee": "Choose someone from the list.",
     "not_a_member": "This person is not a member of the project.",
-    "invalid_date": "Enter a valid date."
+    "invalid_date": "Enter a valid date.",
+    "end_before_start": "The end date can't be before the start date.",
+    "too_many_assignees": "Choose at most 50 people.",
+    "invalid_subtask_title": "A subtask needs 1 to 200 characters.",
+    "too_many_subtasks": "A task can have at most 100 subtasks.",
+    "hold_reason_required": "Enter why this task is on hold.",
+    "hold_reason_too_long": "The reason can be at most 500 characters.",
+    "not_on_hold": "This task is not on hold."
   },
   "common": {
     "cancel": "Cancel",
@@ -107,7 +115,6 @@
     "save": "Save changes",
     "saving": "Saving...",
     "saved": "Changes saved.",
-    "edit": "Edit",
     "deleteTitle": "Delete project \"{{name}}\"?",
     "deleteMessage": "This project moves to the trash and can be restored within 30 days. Tasks that go with it: {{count}}. Other members stop seeing it right away.",
     "deleteConfirm": "Move to trash",
@@ -123,7 +130,15 @@
     "myProjects": "My projects",
     "membersButton": "Members {{count}}",
     "moreActions": "More actions",
-    "deleteProject": "Delete project"
+    "deleteProject": "Delete project",
+    "viewLabel": "Project view",
+    "viewCards": "Cards",
+    "viewList": "List",
+    "sortLabel": "Sort projects: {{sort}}",
+    "sort_newest": "Newest first",
+    "sort_oldest": "Oldest first",
+    "sort_progress_high": "Most progress first",
+    "sort_progress_low": "Least progress first"
   },
   "members": {
     "title": "Members",
@@ -160,7 +175,6 @@
     "title": "Tasks",
     "board": "Task board",
     "new": "New task",
-    "addIn": "Add a task to {{column}}",
     "loading": "Loading tasks...",
     "empty": "Nothing here yet",
     "emptyBoard": "No tasks yet. Add the first one to get started.",
@@ -188,7 +202,7 @@
     "descriptionHint": "Up to 5000 characters.",
     "priorityLabel": "Priority",
     "assigneeLabel": "Assigned to",
-    "dueLabel": "Due date (optional)",
+    "dueLabel": "End date (optional)",
     "statusLabel": "Column",
     "statusMoveHint": "Changing the column moves the task to the end of it.",
     "create": "Create task",
@@ -197,7 +211,7 @@
     "saving": "Saving...",
     "created": "Task created.",
     "saved": "Task saved.",
-    "due": "Due {{date}}",
+    "due": "Ends {{date}}",
     "overdue": "Overdue",
     "assignedTo": "Assigned to {{name}}",
     "delete": "Delete",
@@ -216,16 +230,42 @@
     "loadError": "Could not load the tasks.",
     "filters": "Filters",
     "filtersCount": "Filters ({{count}})",
-    "dueWord": "Due",
+    "dueWord": "Ends",
     "assignedWord": "Assigned to",
     "filteringBy": "Filtering by:",
     "removeFilter": "Remove filter: {{name}}",
-    "showCount": "Show {{count}} tasks"
+    "showCount": "Show {{count}} tasks",
+    "sortIn": "Sort {{column}}: {{sort}}",
+    "sort_manual": "My order",
+    "sort_priority": "Highest priority first",
+    "sort_due": "Ending soonest",
+    "sort_newest": "Newest first",
+    "sortedNoArrange": "This column is sorted. To arrange it by hand, choose \"My order\" in its sort menu.",
+    "assigneeHint": "You can choose more than one person.",
+    "startLabel": "Start date (optional)",
+    "starts": "Starts {{date}}",
+    "startWord": "Starts",
+    "subtasksLabel": "Subtasks (optional)",
+    "subtasksHint": "Ticking, renaming and removing are saved right away.",
+    "subtaskAddLabel": "Add a subtask",
+    "subtaskPlaceholder": "Type something to do",
+    "subtaskAdd": "Add",
+    "subtaskDone": "Done: {{title}}",
+    "subtaskEdit": "Rename subtask: {{title}}",
+    "subtaskRemove": "Remove subtask: {{title}}",
+    "subtasksProgress": "{{done}} of {{total}} subtasks done",
+    "subtaskSaveFailed": "Couldn't save the subtask. Please try again.",
+    "holdTitle": "Put on hold: {{title}}",
+    "holdLabel": "Why is it on hold?",
+    "holdHint": "Tell the team what it is waiting for.",
+    "holdConfirm": "Put on hold",
+    "holdWord": "On hold because"
   },
   "status": {
     "todo": "To do",
     "in_progress": "In progress",
     "review": "In review",
+    "on_hold": "On hold",
     "done": "Done"
   },
   "priority": {
@@ -262,5 +302,14 @@
     "step2": "Add tasks and drag them across the board as the work moves along.",
     "step3": "Invite people by email and give each task someone to look after it.",
     "cta": "Create your first project"
+  },
+  "datePicker": {
+    "placeholder": "Choose a date",
+    "clear": "Clear {{label}}",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "month": "Month",
+    "year": "Year",
+    "today": "Today"
   }
 }

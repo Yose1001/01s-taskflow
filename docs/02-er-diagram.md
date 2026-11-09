@@ -5,7 +5,9 @@ erDiagram
     users ||--o{ project_members : "เป็นสมาชิก"
     projects ||--o{ project_members : "มีสมาชิก"
     projects ||--o{ tasks : "มีงาน"
-    users ||--o{ tasks : "ได้รับมอบหมาย (assignee)"
+    users ||--o{ task_assignees : "ได้รับมอบหมาย"
+    tasks ||--o{ task_assignees : "มีผู้รับผิดชอบ"
+    tasks ||--o{ task_subtasks : "มีรายการย่อย"
     users ||--o{ tasks : "สร้าง (created_by)"
     users ||--o{ projects : "เป็นเจ้าของ (owner)"
 
@@ -39,31 +41,47 @@ erDiagram
         uuid project_id FK
         text title
         text description
-        text status "todo | in_progress | review | done"
+        text status "todo | in_progress | review | on_hold | done"
+        text hold_reason "สาเหตุที่พักงาน; มีค่าเมื่อ status = on_hold เท่านั้น"
         text priority "low | medium | high"
-        uuid assignee_id FK "nullable"
         uuid created_by FK
-        date due_date "nullable"
+        date start_date "nullable; ต้องไม่อยู่หลัง due_date"
+        date due_date "วันที่สิ้นสุดงาน; nullable"
         double position "เรียงลำดับในคอลัมน์"
         timestamptz created_at
         timestamptz updated_at
         timestamptz deleted_at "null = ปกติ; มีค่า = อยู่ในถังขยะ"
         uuid deleted_by FK "nullable"
     }
+    task_assignees {
+        uuid task_id PK, FK
+        uuid project_id FK
+        uuid user_id PK, FK
+    }
+    task_subtasks {
+        uuid id PK
+        uuid task_id FK
+        text title
+        boolean done
+        double position "เรียงลำดับในงาน"
+        timestamptz created_at
+        timestamptz updated_at
+    }
 ```
 
 ## กติกาของข้อมูล
 - `project_members` ใช้ primary key คู่ (`project_id`, `user_id`)
 - Owner ต้องมีแถวใน `project_members` ที่ `role = 'owner'` เสมอ (สร้างพร้อมโปรเจกต์ใน transaction เดียว)
-- `tasks.assignee_id` ต้องเป็นสมาชิกของ `tasks.project_id` (ตรวจใน service และเสริมด้วย composite foreign key ได้ภายหลัง)
+- งานหนึ่งมีผู้รับผิดชอบได้หลายคนผ่าน `task_assignees` ทุกคนต้องเป็นสมาชิกของโปรเจกต์เดียวกับงาน (ตรวจใน service และบังคับด้วย composite foreign key) เอาสมาชิกออกจากโปรเจกต์แล้วแถวของเขาใน `task_assignees` จะหายไปเอง (`ON DELETE CASCADE`)
+- รายการย่อยใน `task_subtasks` เป็นของงานเดียว งานละไม่เกิน 100 รายการ และลบตามงานเมื่องานถูกลบถาวร (`ON DELETE CASCADE`) ไม่มีถังขยะของตัวเอง ติ๊กครบแล้วงานไม่ย้ายคอลัมน์เอง
 - `tasks.position` เป็นเลขทศนิยม: ย้ายงานไปแทรกระหว่างสองใบใช้ค่าเฉลี่ยของ position เพื่อไม่ต้องเขียนทับทั้งคอลัมน์
-- ดัชนีที่ควรมี: `users(email)`, `tasks(project_id, status, position) WHERE deleted_at IS NULL` (partial index), `tasks(assignee_id)`, `project_members(user_id)`, `tasks(deleted_at) WHERE deleted_at IS NOT NULL` และ `projects(deleted_at) WHERE deleted_at IS NOT NULL` (ให้งานลบถาวรหาแถวหมดอายุได้เร็ว)
+- ดัชนีที่ควรมี: `users(email)`, `tasks(project_id, status, position) WHERE deleted_at IS NULL` (partial index), `task_assignees(project_id, user_id)`, `project_members(user_id)`, `tasks(deleted_at) WHERE deleted_at IS NOT NULL` และ `projects(deleted_at) WHERE deleted_at IS NOT NULL` (ให้งานลบถาวรหาแถวหมดอายุได้เร็ว)
 - ใช้ CHECK constraint กับ `status`, `priority`, `role`, `locale`, `theme`
 
 ## ถังขยะ (soft delete 30 วัน)
 - ทุก query ปกติของ `tasks` และ `projects` ต้องมีเงื่อนไข `deleted_at IS NULL` (ควรห่อไว้ใน repository จุดเดียว กันลืม)
 - งานในโปรเจกต์ที่ถูกลบ ไม่ต้องตั้ง `deleted_at` ทีละใบ ซ่อนตามสถานะโปรเจกต์ (ตรวจ `projects.deleted_at` ตอน join)
-- **กู้คืน:** ตั้ง `deleted_at = NULL, deleted_by = NULL` ใน transaction เดียว ถ้า `assignee_id` ไม่ได้เป็นสมาชิกแล้วให้ตั้งเป็น NULL
+- **กู้คืน:** ตั้ง `deleted_at = NULL, deleted_by = NULL` ใน transaction เดียว ผู้รับผิดชอบที่ออกจากโปรเจกต์ไปแล้วถูกลบออกจาก `task_assignees` ตั้งแต่ตอนที่เขาออก
 - **ลบถาวร (purge job รายวัน):** ลบแถวที่ `deleted_at < now() - interval '30 days'` เป็นชุดเล็ก ๆ (batch) ใน transaction ลบ `tasks` ก่อน แล้ว `projects` ที่หมดอายุ (การลบโปรเจกต์ถาวรต้องลบงานและสมาชิกทั้งหมดของมันด้วย `ON DELETE CASCADE` หรือสั่งลบตามลำดับ)
 - ระยะเก็บมาจาก config `TRASH_RETENTION_DAYS` (ค่าเริ่มต้น 30) ไม่ฝังตัวเลขในโค้ด
-- `deleted_by` และ `assignee_id` ใช้ `ON DELETE SET NULL` (MVP ยังไม่มีฟีเจอร์ลบผู้ใช้ แต่กันไว้ไม่ให้ติดข้อจำกัดภายหลัง)
+- `deleted_by` ใช้ `ON DELETE SET NULL` (MVP ยังไม่มีฟีเจอร์ลบผู้ใช้ แต่กันไว้ไม่ให้ติดข้อจำกัดภายหลัง)

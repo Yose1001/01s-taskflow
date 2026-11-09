@@ -6,6 +6,7 @@ import { ApiError } from '../api/client'
 import { useAuth, type RegisterInput } from '../auth/context'
 import { errorMessage, fieldErrorMessage } from '../auth/errors'
 import { Alert, Button, PasswordField, TextField } from '../components/forms'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MIN_PASSWORD_CHARS = 8
@@ -24,6 +25,7 @@ const ORDER: Field[] = ['displayName', 'email', 'password']
 
 export function RegisterPage() {
   const { t } = useTranslation()
+  useDocumentTitle(t('auth.signupTitle'))
   const { register } = useAuth()
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')

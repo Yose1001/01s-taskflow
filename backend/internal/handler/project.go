@@ -15,7 +15,7 @@ import (
 // ProjectService is what the project handlers need from the service layer.
 type ProjectService interface {
 	Create(ctx context.Context, userID, name, description string) (model.Project, error)
-	List(ctx context.Context, userID string, trashed bool, page, pageSize int) (service.Page, error)
+	List(ctx context.Context, userID string, trashed bool, sort string, page, pageSize int) (service.Page, error)
 	Get(ctx context.Context, userID, projectID string) (model.Project, error)
 	Update(ctx context.Context, userID, projectID string, patch model.ProjectPatch) (model.Project, error)
 	Delete(ctx context.Context, userID, projectID string) error
@@ -93,7 +93,7 @@ func (h *Projects) Create(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, toProjectResponse(p))
 }
 
-// List handles GET /projects?trashed=&page=&pageSize=.
+// List handles GET /projects?trashed=&sort=&page=&pageSize=.
 func (h *Projects) List(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(w, r)
 	if !ok {
@@ -117,7 +117,7 @@ func (h *Projects) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.svc.List(r.Context(), uid, trashed, page, size)
+	res, err := h.svc.List(r.Context(), uid, trashed, q.Get("sort"), page, size)
 	if err != nil {
 		writeServiceError(w, r, err)
 		return

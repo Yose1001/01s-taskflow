@@ -40,7 +40,7 @@ export function ConfirmDialog({
       }
       onClose={pending ? () => {} : onCancel}
     >
-      <p className="text-muted">{message}</p>
+      <p className="break-words text-muted">{message}</p>
       {error && (
         <div className="mt-3">
           <Alert>{error}</Alert>
