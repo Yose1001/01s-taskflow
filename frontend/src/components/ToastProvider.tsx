@@ -81,8 +81,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     item.onAction?.()
                     dismiss(item.id)
                   }}
-                  className="shrink-0 rounded-full bg-bg px-3 py-1 font-semibold text-text hover:opacity-90"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-bg px-3 py-1 font-semibold text-text hover:opacity-90"
                 >
+                  <Icon name="undo" size={14} />
                   {item.actionLabel}
                 </button>
               )}

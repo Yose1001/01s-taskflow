@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { initials } from '../lib/format'
+import { Icon } from './Icon'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { ThemeSwitcher } from './ThemeSwitcher'
 
@@ -18,7 +19,7 @@ export function AppShell() {
               aria-hidden="true"
               className="grid h-8 w-8 place-items-center rounded-xl bg-primary-bg text-primary"
             >
-              ✓
+              <Icon name="check" size={20} />
             </span>
             {t('app.name')}
           </Link>
@@ -127,7 +128,7 @@ function MobileMenu() {
         onClick={() => setOpen((v) => !v)}
         className="grid h-9 min-w-9 place-items-center rounded-full border border-border bg-surface-2 px-2 text-sm font-semibold text-primary-fg"
       >
-        <span aria-hidden="true">{user ? initials(user.displayName) : '☰'}</span>
+        {user ? <span aria-hidden="true">{initials(user.displayName)}</span> : <Icon name="menu" />}
       </button>
       {open && (
         <div

@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../../api/types'
+import { Icon } from '../../components/Icon'
 import { PriorityBadge } from '../../components/StatusBadge'
 import { formatDay, initials } from '../../lib/format'
 import { isOverdue } from './boardLogic'
@@ -30,7 +31,7 @@ export function TaskCardView({ task, assigneeName, onOpen, handle }: ViewProps) 
           aria-label={t('tasks.dragHandle', { title: task.title })}
           className="mt-0.5 cursor-grab touch-none rounded-lg px-1.5 py-0.5 text-muted hover:bg-primary-bg active:cursor-grabbing"
         >
-          <span aria-hidden="true">⠿</span>
+          <Icon name="grip" />
         </button>
         <button
           type="button"
@@ -43,8 +44,10 @@ export function TaskCardView({ task, assigneeName, onOpen, handle }: ViewProps) 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <PriorityBadge priority={task.priority} />
         {task.dueDate && (
-          <span className={`text-sm ${overdue ? 'font-semibold text-danger-fg' : 'text-muted'}`}>
-            {overdue && <span aria-hidden="true">⚠ </span>}
+          <span
+            className={`inline-flex items-center gap-1 text-sm ${overdue ? 'font-semibold text-danger-fg' : 'text-muted'}`}
+          >
+            {overdue && <Icon name="warning" size={14} />}
             {overdue && `${t('tasks.overdue')} · `}
             {t('tasks.due', { date: formatDay(task.dueDate, i18n.language) })}
           </span>

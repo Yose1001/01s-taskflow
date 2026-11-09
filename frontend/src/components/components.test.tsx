@@ -120,10 +120,10 @@ describe('badges', () => {
     for (const label of ['To do', 'In progress', 'In review', 'Done']) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
-    // The icon characters are decoration: hidden from screen readers, the text carries the meaning.
-    const icons = document.querySelectorAll('[aria-hidden="true"]')
+    // The icons are decoration: hidden from screen readers, the text carries the meaning.
+    const icons = document.querySelectorAll('svg[aria-hidden="true"]')
     expect(icons.length).toBe(4)
-    const shapes = new Set([...icons].map((i) => i.textContent))
+    const shapes = new Set([...icons].map((i) => i.innerHTML))
     expect(shapes.size).toBe(4) // four different shapes, so they differ without color too
   })
 

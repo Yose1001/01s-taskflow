@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { errorMessage } from '../auth/errors'
 import { Alert, Button } from '../components/forms'
+import { Icon } from '../components/Icon'
 import { EmptyState, ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
 import { useToast } from '../components/toast'
@@ -29,9 +30,10 @@ export function TaskTrashPage() {
     <p>
       <Link
         to={`/projects/${encodeURIComponent(projectId)}`}
-        className="text-sm font-medium text-primary underline"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline"
       >
-        ← {t('tasks.backToBoard')}
+        <Icon name="arrow-left" />
+        {t('tasks.backToBoard')}
       </Link>
     </p>
   )
@@ -100,6 +102,7 @@ export function TaskTrashPage() {
                     })
                   }
                 >
+                  <Icon name="restore" />
                   {restoring ? t('trash.restoring') : t('trash.restore')}
                 </Button>
               </li>

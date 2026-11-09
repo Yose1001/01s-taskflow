@@ -231,7 +231,13 @@
     "secondaryButton": "Cancel",
     "sampleTaskTitle": "Design the login page",
     "sampleTaskMeta": "Due 1 Dec 2026",
-    "errorSample": "Something went wrong. Please try again."
+    "errorSample": "Something went wrong. Please try again.",
+    "ghostButton": "Skip",
+    "dangerTitle": "Dangerous actions",
+    "dangerButton": "Move to trash",
+    "dangerOutlineButton": "Delete task",
+    "dangerSoftButton": "Remove from project",
+    "iconsTitle": "Icons"
   },
   "notFound": {
     "title": "Page not found",

@@ -8,6 +8,7 @@ import { useAuth } from '../auth/context'
 import { errorMessage } from '../auth/errors'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Button } from '../components/forms'
+import { Icon } from '../components/Icon'
 import { RoleBadge } from '../components/RoleBadge'
 import { ErrorState, LoadingState } from '../components/states'
 import { useToast } from '../components/toast'
@@ -69,8 +70,12 @@ export function ProjectPage() {
   return (
     <div className="space-y-5">
       <header className="space-y-2">
-        <Link to="/" className="text-sm font-medium text-primary underline">
-          ← {t('projects.back')}
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline"
+        >
+          <Icon name="arrow-left" />
+          {t('projects.back')}
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -95,9 +100,11 @@ export function ProjectPage() {
           {isOwner && (
             <div className="flex shrink-0 gap-2">
               <Button type="button" variant="soft" onClick={() => setEditing(true)}>
+                <Icon name="pencil" />
                 {t('projects.edit')}
               </Button>
               <Button type="button" variant="soft" onClick={() => setConfirmDelete(true)}>
+                <Icon name="trash" />
                 {t('projects.delete')}
               </Button>
             </div>

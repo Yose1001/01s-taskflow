@@ -27,6 +27,7 @@ import { useAuth } from '../../auth/context'
 import { errorMessage } from '../../auth/errors'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Button, SelectField, TextField } from '../../components/forms'
+import { Icon } from '../../components/Icon'
 import { ErrorState, LoadingState } from '../../components/states'
 import { StatusBadge } from '../../components/StatusBadge'
 import { useToast } from '../../components/toast'
@@ -319,7 +320,7 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
           aria-label={t('tasks.addIn', { column: name })}
           className="grid h-8 w-8 place-items-center rounded-full text-lg font-semibold text-primary-fg hover:bg-primary-bg"
         >
-          <span aria-hidden="true">+</span>
+          <Icon name="plus" />
         </button>
       </div>
       <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
@@ -366,10 +367,11 @@ function FilterBar({ filters, members, onChange, shown, total }: FilterBarProps)
         aria-expanded={open}
         aria-controls="task-filters"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-full border border-border bg-surface px-3 py-1 text-sm font-medium sm:hidden"
+        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-sm font-medium sm:hidden"
       >
+        <Icon name="filter" size={14} />
         {active > 0 ? t('tasks.filtersCount', { count: active }) : t('tasks.filters')}
-        <span aria-hidden="true"> {open ? '▴' : '▾'}</span>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} />
       </button>
       <div id="task-filters" className={`${open ? 'grid' : 'hidden'} gap-3 sm:grid sm:grid-cols-3`}>
         <TextField

@@ -231,7 +231,13 @@
     "secondaryButton": "ยกเลิก",
     "sampleTaskTitle": "ออกแบบหน้าล็อกอิน",
     "sampleTaskMeta": "ครบกำหนด 1 ธ.ค. 2569",
-    "errorSample": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    "errorSample": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
+    "ghostButton": "ข้าม",
+    "dangerTitle": "การกระทำที่ต้องระวัง",
+    "dangerButton": "ย้ายไปถังขยะ",
+    "dangerOutlineButton": "ลบงาน",
+    "dangerSoftButton": "เอาออกจากโปรเจกต์",
+    "iconsTitle": "ไอคอน"
   },
   "notFound": {
     "title": "ไม่พบหน้านี้",
