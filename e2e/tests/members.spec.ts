@@ -98,7 +98,7 @@ test.describe('working together', () => {
 
     const members = page.getByRole('region', { name: 'Members' })
     await members.getByRole('button', { name: /^Remove/ }).click()
-    await page.getByRole('dialog').getByRole('button', { name: 'Remove member' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click()
     await expect(page.getByText('Bob was removed.')).toBeVisible()
     await expect(page.getByText('Assigned to Bob')).toHaveCount(0)
     await page.getByLabel('Assigned to', { exact: true }).selectOption('Unassigned')

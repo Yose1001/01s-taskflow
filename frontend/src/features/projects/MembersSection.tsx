@@ -87,7 +87,7 @@ export function MembersSection({ projectId, isOwner }: { projectId: string; isOw
                 {isOwner && m.role !== 'owner' && (
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="danger-soft"
                     onClick={() => setToRemove(m)}
                     aria-label={`${t('members.remove')}: ${m.displayName}`}
                   >
@@ -121,7 +121,12 @@ export function MembersSection({ projectId, isOwner }: { projectId: string; isOw
               />
             </div>
             <div className="pt-6">
-              <Button type="submit" disabled={invite.isPending} aria-busy={invite.isPending}>
+              <Button
+                type="submit"
+                variant="soft"
+                disabled={invite.isPending}
+                aria-busy={invite.isPending}
+              >
                 {invite.isPending ? t('members.inviting') : t('members.inviteButton')}
               </Button>
             </div>
@@ -131,7 +136,8 @@ export function MembersSection({ projectId, isOwner }: { projectId: string; isOw
 
       {toRemove && (
         <ConfirmDialog
-          title={t('members.removeTitle')}
+          icon="users" // nothing goes to the trash here: the person simply loses access
+          title={t('members.removeTitle', { name: toRemove.displayName })}
           message={t('members.removeMessage', { name: toRemove.displayName })}
           confirmLabel={t('members.removeConfirm')}
           pendingLabel={t('members.removing')}

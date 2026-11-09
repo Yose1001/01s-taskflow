@@ -7,7 +7,7 @@ test.describe('projects', () => {
     await loginViaUi(page, person)
 
     // Create (Thai text and a stray space on purpose)
-    await page.getByRole('button', { name: 'New project' }).first().click()
+    await page.getByRole('button', { name: /New project|Create your first project/ }).first().click()
     const create = page.getByRole('dialog', { name: 'New project' })
     await create.getByLabel('Project name').fill('  เว็บไซต์ร้านกาแฟ  ')
     await create.getByLabel('Description (optional)').fill('Redesign and launch')
@@ -26,7 +26,7 @@ test.describe('projects', () => {
 
     // Delete: it asks first, Cancel changes nothing
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
-    const confirm = page.getByRole('dialog', { name: 'Delete this project?' })
+    const confirm = page.getByRole('dialog', { name: /^Delete project "/ })
     await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused()
     await confirm.getByRole('button', { name: 'Cancel' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Coffee shop site' })).toBeVisible()
@@ -56,7 +56,7 @@ test.describe('projects', () => {
   test('the project form checks the name and shows the problem next to the field', async ({ page, request }) => {
     const { person } = await newUser(request, 'Bob')
     await loginViaUi(page, person)
-    await page.getByRole('button', { name: 'New project' }).first().click()
+    await page.getByRole('button', { name: /New project|Create your first project/ }).first().click()
     const dialog = page.getByRole('dialog', { name: 'New project' })
 
     await dialog.getByRole('button', { name: 'Create project' }).click()
@@ -69,7 +69,7 @@ test.describe('projects', () => {
 
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
-    await expect(page.getByRole('button', { name: 'New project' }).first()).toBeFocused() // focus returns
+    await expect(page.getByRole('button', { name: /New project|Create your first project/ }).first()).toBeFocused() // focus returns
   })
 
   test('long lists are split into pages of 12', async ({ page, request }) => {

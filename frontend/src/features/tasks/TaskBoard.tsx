@@ -251,8 +251,8 @@ export function TaskBoard({ projectId }: { projectId: string }) {
 
       {deleting && (
         <ConfirmDialog
-          title={t('tasks.deleteTitle')}
-          message={t('tasks.deleteMessage', { title: deleting.title })}
+          title={t('tasks.deleteTitle', { title: deleting.title })}
+          message={t('tasks.deleteMessage')}
           confirmLabel={t('tasks.deleteConfirm')}
           pendingLabel={t('tasks.deleting')}
           pending={del.isPending}

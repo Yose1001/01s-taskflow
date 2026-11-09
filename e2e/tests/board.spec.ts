@@ -163,7 +163,7 @@ test.describe('the task board', () => {
     // Delete: asks first, then Undo
     await card(page, 'Test the order system').click()
     await page.getByRole('dialog', { name: 'Edit task' }).getByRole('button', { name: 'Delete' }).click()
-    const confirm = page.getByRole('dialog', { name: 'Delete this task?' })
+    const confirm = page.getByRole('dialog', { name: /^Delete task "/ })
     await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused()
     await confirm.getByRole('button', { name: 'Move to trash' }).click()
     await expect(card(page, 'Test the order system')).toHaveCount(0)

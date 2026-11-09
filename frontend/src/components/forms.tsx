@@ -154,19 +154,28 @@ export function PasswordField({ id, label, error, hint, ...input }: Omit<FieldPr
   )
 }
 
+const BUTTON_STYLES = {
+  // A page has one primary button. Everything else is soft or ghost.
+  primary: 'bg-primary text-on-primary hover:opacity-90',
+  soft: 'border border-border bg-surface-2 text-text hover:bg-primary-bg',
+  ghost: 'text-text hover:bg-primary-bg',
+  // Only for the confirm button of a delete dialog.
+  danger: 'bg-danger text-on-danger hover:opacity-90',
+  'danger-outline': 'border border-danger text-danger hover:bg-danger-bg hover:text-danger-fg',
+  'danger-soft': 'bg-danger-bg text-danger-fg hover:opacity-90',
+}
+
+export type ButtonVariant = keyof typeof BUTTON_STYLES
+
 export function Button({
   children,
   variant = 'primary',
   ...props
-}: { variant?: 'primary' | 'secondary' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const style =
-    variant === 'primary'
-      ? 'bg-primary text-on-primary hover:opacity-90'
-      : 'border border-border bg-surface-2 text-text hover:bg-primary-bg'
+}: { variant?: ButtonVariant } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`rounded-xl px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-60 ${style}`}
+      className={`rounded-xl px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-60 ${BUTTON_STYLES[variant]}`}
     >
       {children}
     </button>

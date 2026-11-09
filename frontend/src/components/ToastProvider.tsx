@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../auth/context'
+import { Icon } from './Icon'
 import { ToastContext, type ToastInput } from './toast'
 
 interface Item extends ToastInput {
@@ -59,34 +60,43 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         aria-live="polite"
         className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-2 px-4"
       >
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="pointer-events-auto flex max-w-md items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm shadow-lg"
-          >
-            <span>{item.message}</span>
-            {item.actionLabel && item.onAction && (
+        {items.map((item) => {
+          // Only "moved to the trash" messages offer Undo. They stand out with reversed colors.
+          const undoable = Boolean(item.actionLabel && item.onAction)
+          return (
+            <div
+              key={item.id}
+              className={`pointer-events-auto flex max-w-md items-center gap-3 px-4 py-3 text-sm shadow-lg ${
+                undoable
+                  ? 'rounded-[1.75rem] bg-text text-bg'
+                  : 'rounded-xl border border-border bg-surface'
+              }`}
+            >
+              {undoable && <Icon name="trash" />}
+              <span className="min-w-0 break-words">{item.message}</span>
+              {undoable && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    item.onAction?.()
+                    dismiss(item.id)
+                  }}
+                  className="shrink-0 rounded-full bg-bg px-3 py-1 font-semibold text-text hover:opacity-90"
+                >
+                  {item.actionLabel}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => {
-                  item.onAction?.()
-                  dismiss(item.id)
-                }}
-                className="font-semibold text-primary underline"
+                onClick={() => dismiss(item.id)}
+                aria-label={t('common.dismiss')}
+                className={`shrink-0 ${undoable ? 'hover:opacity-80' : 'text-muted hover:text-text'}`}
               >
-                {item.actionLabel}
+                <Icon name="x" />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => dismiss(item.id)}
-              aria-label={t('common.dismiss')}
-              className="text-muted hover:text-text"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
+            </div>
+          )
+        })}
       </div>
     </ToastContext.Provider>
   )

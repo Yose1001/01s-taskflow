@@ -13,10 +13,13 @@ const FOCUSABLE =
  */
 export function Modal({
   title,
+  icon,
   onClose,
   children,
 }: {
   title: string
+  /** Shown beside the title, for dialogs that warn about something. */
+  icon?: ReactNode
   onClose: () => void
   children: ReactNode
 }) {
@@ -74,9 +77,12 @@ export function Modal({
         onKeyDown={onKeyDown}
         className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl border border-border bg-surface p-6 text-text shadow-xl"
       >
-        <h2 id={titleId} className="mb-4 text-xl font-bold">
-          {title}
-        </h2>
+        <div className="mb-4 flex items-start gap-3">
+          {icon}
+          <h2 id={titleId} className="min-w-0 break-words text-xl font-bold">
+            {title}
+          </h2>
+        </div>
         {children}
       </div>
     </div>,

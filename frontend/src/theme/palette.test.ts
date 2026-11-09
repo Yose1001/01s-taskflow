@@ -58,7 +58,15 @@ const PAIRS: [string, string][] = [
   ['peach-fg', 'peach-bg'],
   ['lemon-fg', 'lemon-bg'],
   ['danger-fg', 'danger-bg'],
+  ['on-danger', 'danger'],
+  ['danger', 'surface'],
+  ['danger', 'surface-2'],
+  ['danger', 'bg'],
+  ['bg', 'text'], // the Undo bar: colors reversed
 ]
+
+// Controls that are not text (WCAG 1.4.11) need 3:1 against what they sit on.
+const CONTROL_PAIRS: [string, string][] = [['handle', 'surface']]
 
 describe('palette', () => {
   it('defines exactly the same color names in light and dark', () => {
@@ -86,6 +94,17 @@ describe('palette', () => {
             ratio,
             `${fg} ${tokens[fg]} on ${bg} ${tokens[bg]} = ${ratio.toFixed(2)}`,
           ).toBeGreaterThanOrEqual(4.5)
+        })
+      }
+      for (const [fg, bg] of CONTROL_PAIRS) {
+        it(`${fg} on ${bg} is visible (>= 3:1)`, () => {
+          expect(tokens[fg], `missing token ${fg}`).toBeDefined()
+          expect(tokens[bg], `missing token ${bg}`).toBeDefined()
+          const ratio = contrast(tokens[fg]!, tokens[bg]!)
+          expect(
+            ratio,
+            `${fg} ${tokens[fg]} on ${bg} ${tokens[bg]} = ${ratio.toFixed(2)}`,
+          ).toBeGreaterThanOrEqual(3)
         })
       }
     })

@@ -214,7 +214,7 @@ export function TaskFormDialog({
             {editing && onDelete && (
               <Button
                 type="button"
-                variant="secondary"
+                variant="danger-outline"
                 onClick={() => onDelete(task)}
                 disabled={pending}
               >
@@ -223,7 +223,7 @@ export function TaskFormDialog({
             )}
           </div>
           <div className="flex flex-wrap justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
+            <Button type="button" variant="soft" onClick={onClose} disabled={pending}>
               {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={pending} aria-busy={pending}>

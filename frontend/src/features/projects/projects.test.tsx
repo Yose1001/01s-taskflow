@@ -203,7 +203,7 @@ describe('project list', () => {
 describe('creating a project', () => {
   async function openDialog(user: U) {
     await screen.findByText('You have no projects yet.')
-    await user.click(screen.getAllByRole('button', { name: 'New project' })[0]!)
+    await user.click(screen.getByRole('button', { name: /New project|Create your first project/ })!)
     return screen.findByRole('dialog', { name: 'New project' })
   }
 
@@ -220,7 +220,7 @@ describe('creating a project', () => {
     fakeBackend()
     const user = userEvent.setup()
     await openSignedIn(user)
-    const opener = screen.getAllByRole('button', { name: 'New project' })[0]!
+    const opener = screen.getByRole('button', { name: /New project|Create your first project/ })!
     await openDialog(user)
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -395,13 +395,18 @@ describe('project page', () => {
   })
 
   it('deleting asks first; Cancel has the focus and changes nothing', async () => {
-    const api = fakeBackend({ projects: [project('p1', 'Website')] })
+    const api = fakeBackend({
+      projects: [project('p1', 'Website')],
+      tasks: [task('t1', 'One', { project: 'p1' }), task('t2', 'Two', { project: 'p1' })],
+    })
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
 
-    const dialog = await screen.findByRole('dialog', { name: 'Delete this project?' })
-    expect(within(dialog).getByText(/"Website" will move to the trash/)).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: 'Delete project "Website"?' })
+    expect(within(dialog).getByText(/can be restored within 30 days/)).toHaveTextContent(
+      'Tasks that go with it: 2.',
+    )
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus() // the safe choice first
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -540,18 +545,21 @@ describe('members', () => {
     const section = await screen.findByRole('region', { name: 'Members' })
     await user.click(await within(section).findByRole('button', { name: 'Remove: Bob' }))
 
-    const dialog = await screen.findByRole('dialog', { name: 'Remove this member?' })
+    const dialog = await screen.findByRole('dialog', { name: 'Remove Bob from this project?' })
     expect(within(dialog).getByText(/Bob will lose access/)).toBeInTheDocument()
+    // Removing someone does not use the trash, so the dialog must not promise it can be restored.
+    expect(dialog).not.toHaveTextContent(/trash|restore/i)
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(api.hits('DELETE /projects/p1/members/' + BOB.userId)).toHaveLength(0)
 
     await user.click(within(section).getByRole('button', { name: 'Remove: Bob' }))
     await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove member' }),
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove' }),
     )
     await waitFor(() => expect(within(section).queryByText('Bob')).not.toBeInTheDocument())
     expect(within(section).getByText('Carol')).toBeInTheDocument()
     expect(await screen.findByText('Bob was removed.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
   })
 })
 

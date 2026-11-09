@@ -90,7 +90,7 @@ export function ProjectFormDialog({ project, onClose, onSaved }: Props) {
           error={errors.description ? fieldErrorMessage(t, errors.description) : undefined}
         />
         <div className="flex flex-wrap justify-end gap-3 pt-2">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
+          <Button type="button" variant="soft" onClick={onClose} disabled={pending}>
             {t('common.cancel')}
           </Button>
           <Button type="submit" disabled={pending} aria-busy={pending}>

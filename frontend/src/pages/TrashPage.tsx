@@ -64,7 +64,7 @@ export function TrashPage() {
                   </div>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="soft"
                     disabled={restore.isPending}
                     aria-busy={restoring}
                     aria-label={`${t('trash.restore')}: ${p.name}`}

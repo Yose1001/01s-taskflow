@@ -94,10 +94,10 @@ export function ProjectPage() {
           </div>
           {isOwner && (
             <div className="flex shrink-0 gap-2">
-              <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
+              <Button type="button" variant="soft" onClick={() => setEditing(true)}>
                 {t('projects.edit')}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => setConfirmDelete(true)}>
+              <Button type="button" variant="soft" onClick={() => setConfirmDelete(true)}>
                 {t('projects.delete')}
               </Button>
             </div>
@@ -122,8 +122,8 @@ export function ProjectPage() {
 
       {confirmDelete && (
         <ConfirmDialog
-          title={t('projects.deleteTitle')}
-          message={t('projects.deleteMessage', { name: p.name })}
+          title={t('projects.deleteTitle', { name: p.name })}
+          message={t('projects.deleteMessage', { count: p.taskCount })}
           confirmLabel={t('projects.deleteConfirm')}
           pendingLabel={t('projects.deleting')}
           pending={del.isPending}

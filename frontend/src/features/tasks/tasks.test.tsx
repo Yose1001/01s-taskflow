@@ -486,7 +486,7 @@ describe('deleting and restoring', () => {
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }),
     )
-    const confirm = await screen.findByRole('dialog', { name: 'Delete this task?' })
+    const confirm = await screen.findByRole('dialog', { name: /^Delete task "/ })
     return { api, confirm }
   }
 
@@ -532,7 +532,7 @@ describe('deleting and restoring', () => {
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }),
     )
-    const confirm = await screen.findByRole('dialog', { name: 'Delete this task?' })
+    const confirm = await screen.findByRole('dialog', { name: /^Delete task "/ })
     await user.click(within(confirm).getByRole('button', { name: 'Move to trash' }))
     expect(await within(confirm).findByRole('alert')).toBeInTheDocument()
     expect(api.hits('DELETE /tasks/t2')).toHaveLength(1)
@@ -607,7 +607,7 @@ describe('members and tasks', () => {
     const row = (await within(members).findByText('Bob')).closest('li')!
     await user.click(within(row).getByRole('button', { name: /^Remove/ }))
     await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove member' }),
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove' }),
     )
     // The task itself changed on the server (no assignee any more), so the board must reload it.
     expect(await screen.findByRole('button', { name: 'Bobs job' })).toBeInTheDocument()
