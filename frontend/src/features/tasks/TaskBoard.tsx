@@ -341,10 +341,11 @@ export function TaskBoard({
           {/*
             The plain outer div must stay: dnd-kit measures the overlay's first child, and a tilted element
             measures wider than it is. Keyboard moves would then pick the card itself as the next place.
-            The tilt is for dragging by hand only.
+            The tilt is for dragging by hand only. It is only a picture of the card: its buttons are the real
+            card's, so they must not be announced or reached a second time.
           */}
           {activeTask ? (
-            <div>
+            <div aria-hidden="true" inert>
               <div className={movedByKeyboard ? '' : '-rotate-[1.5deg] motion-reduce:rotate-0'}>
                 <TaskCardView
                   task={activeTask}

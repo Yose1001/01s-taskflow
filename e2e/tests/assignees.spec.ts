@@ -23,12 +23,12 @@ test.describe('several people and two dates on a task', () => {
 
     // The end date's calendar starts at the start date, and the days before it cannot be chosen.
     const year = new Date().getFullYear() + 1
-    await pickDay(page, 'Start date (optional)', `${year}-02-01`)
+    await pickDay(page, 'Start date (optional)', `${year}-02-02`)
     await form.getByLabel('End date (optional)', { exact: true }).click()
     const calendar = page.getByRole('dialog', { name: 'End date (optional)' })
     await expect(calendar.getByRole('grid', { name: `February ${year}` })).toBeVisible()
-    await expect(calendar.locator(`[data-day="${year}-01-31"]`)).toHaveAttribute('aria-disabled', 'true')
-    await calendar.getByLabel('Month').selectOption('2')
+    await expect(calendar.locator(`[data-day="${year}-02-01"]`)).toHaveAttribute('aria-disabled', 'true')
+    await calendar.getByLabel('Month', { exact: true }).selectOption('2')
     await calendar.locator(`[data-day="${year}-03-01"]`).click()
     await form.getByRole('button', { name: 'Create task' }).click()
     await expect(form).toHaveCount(0)
@@ -36,7 +36,7 @@ test.describe('several people and two dates on a task', () => {
     const both = [alice.person.email, bob.person.email].sort().join(', ')
     await expect(page.getByTitle(`Assigned to ${both}`)).toBeVisible()
     await expect(page.getByText('+1', { exact: true })).toBeVisible()
-    await expect(page.locator(`time[datetime="${year}-02-01"]`)).toBeVisible()
+    await expect(page.locator(`time[datetime="${year}-02-02"]`)).toBeVisible()
     await expect(page.locator(`time[datetime="${year}-03-01"]`)).toBeVisible()
 
     // Everything is really saved, and the filter finds the task under each person.

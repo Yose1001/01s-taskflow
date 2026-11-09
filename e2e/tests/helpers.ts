@@ -156,7 +156,7 @@ export async function titlesIn(page: Page, column: RegExp | string): Promise<str
 export async function pickDay(page: Page, label: string, day: string): Promise<void> {
   await page.getByLabel(label, { exact: true }).click()
   const calendar = page.getByRole('dialog', { name: label })
-  await calendar.getByLabel('Year').selectOption(day.slice(0, 4))
-  await calendar.getByLabel('Month').selectOption(String(Number(day.slice(5, 7)) - 1))
+  await calendar.getByLabel('Year', { exact: true }).selectOption(day.slice(0, 4))
+  await calendar.getByLabel('Month', { exact: true }).selectOption(String(Number(day.slice(5, 7)) - 1))
   await calendar.locator(`[data-day="${day}"]`).click()
 }

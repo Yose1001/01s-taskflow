@@ -254,7 +254,12 @@ export function TaskFormDialog({
           draft={subtaskDraft}
           onDraftChange={setSubtaskDraft}
           onAdd={() => addLine()}
-          onToggle={(item) => subtasks.update.mutate({ id: item.id, patch: { done: !item.done } })}
+          onToggle={(item) =>
+            // A failure is shown from the mutation's own state, so nothing more to do with it here.
+            subtasks.update
+              .mutateAsync({ id: item.id, patch: { done: !item.done } })
+              .catch(() => undefined)
+          }
           onRename={(item, newTitle) => {
             if (editing) subtasks.update.mutate({ id: item.id, patch: { title: newTitle } })
             else

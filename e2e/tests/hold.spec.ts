@@ -50,7 +50,9 @@ test.describe('putting a task on hold', () => {
     // This time with the keyboard, and with a reason.
     await handle(page, 'Check the API').focus()
     await page.keyboard.press('Space')
+    await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Check the API" is over In review.')
     await page.keyboard.press('ArrowRight')
+    await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Check the API" is over On hold.')
     await page.keyboard.press('Space')
     await expect(dialog).toBeVisible()
     await dialog.getByLabel('Why is it on hold?').fill('Waiting for the other team')
@@ -68,7 +70,9 @@ test.describe('putting a task on hold', () => {
     // Out again: the reason is gone, and coming back asks for a new one.
     await handle(page, 'Check the API').focus()
     await page.keyboard.press('Space')
+    await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Check the API" is over On hold.')
     await page.keyboard.press('ArrowRight')
+    await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText('"Check the API" is over Done.')
     await page.keyboard.press('Space')
     await expect.poll(() => titlesIn(page, /^Done/)).toEqual(['Check the API'])
     await expect(page.getByText('Waiting for the other team')).toHaveCount(0)

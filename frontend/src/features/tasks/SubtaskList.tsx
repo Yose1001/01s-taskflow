@@ -30,11 +30,16 @@ function SubtaskRow({
 }: {
   item: Subtask
   tickable: boolean
-  onToggle: () => void
+  /** Settles when saving is over, whether it worked or not. */
+  onToggle: () => Promise<unknown>
   onRename: (title: string) => void
   onRemove: () => void
 }) {
   const { t } = useTranslation()
+  // A tick must show in the same moment as the click. Once saving is over, the saved list speaks again,
+  // which also takes the tick back if saving failed.
+  const [tick, setTick] = useState<boolean | null>(null)
+  const done = tick ?? item.done
   const [text, setText] = useState(item.title)
   // A new title from outside (a failed save going back, a change by someone else) replaces what is shown.
   const [seenTitle, setSeenTitle] = useState(item.title)
@@ -60,8 +65,11 @@ function SubtaskRow({
       {tickable ? (
         <input
           type="checkbox"
-          checked={item.done}
-          onChange={onToggle}
+          checked={done}
+          onChange={() => {
+            setTick(!done)
+            void onToggle().finally(() => setTick(null))
+          }}
           aria-label={t('tasks.subtaskDone', { title: item.title })}
           className="h-4 w-4 shrink-0 accent-primary"
         />
@@ -77,7 +85,7 @@ function SubtaskRow({
         onKeyDown={onKeyDown}
         aria-label={t('tasks.subtaskEdit', { title: item.title })}
         className={`min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 focus:border-primary focus:bg-surface ${
-          item.done ? 'text-muted line-through' : 'text-text'
+          done ? 'text-muted line-through' : 'text-text'
         }`}
       />
       <button
@@ -118,7 +126,8 @@ export function SubtaskList({
   draft: string
   onDraftChange: (text: string) => void
   onAdd: () => void
-  onToggle: (item: Subtask) => void
+  /** Settles when saving is over, whether it worked or not. */
+  onToggle: (item: Subtask) => Promise<unknown>
   onRename: (item: Subtask, title: string) => void
   onRemove: (item: Subtask) => void
   error?: string | undefined

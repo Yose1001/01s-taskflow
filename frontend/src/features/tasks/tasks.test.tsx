@@ -1034,6 +1034,17 @@ describe('subtasks', () => {
     expect(api.hits('PATCH /tasks/b')).toHaveLength(0)
   })
 
+  it('shows a tick in the same moment as the click, before the server has answered', async () => {
+    const user = userEvent.setup()
+    await openBoard(user, [BACKEND()])
+    const dialog = await openTask(user, 'Backend')
+    const box = within(dialog).getByRole('checkbox', { name: 'Done: API route 2' })
+    fireEvent.click(box)
+    expect(box).toBeChecked() // no waiting at all
+    await waitFor(() => expect(within(column(/^To do/)).getByText('2/2')).toBeInTheDocument())
+    expect(box).toBeChecked()
+  })
+
   it('takes a tick back and says so when the server refuses it', async () => {
     const user = userEvent.setup()
     await openBoard(user, [BACKEND()], {

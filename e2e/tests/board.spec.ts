@@ -20,6 +20,7 @@ const handle = (page: Page, title: string) => page.getByRole('button', { name: `
 
 /** Drags with a real mouse: press, wiggle a little (so it counts as a drag), glide to the target, release. */
 async function dragWithMouse(page: Page, from: Locator, to: Locator, where: 'top' | 'middle' | 'bottom' = 'middle') {
+  await from.hover() // waits until it has stopped moving: cards slide up when the one above them leaves
   const a = (await from.boundingBox())!
   const b = (await to.boundingBox())!
   const targetY = where === 'top' ? b.y + 6 : where === 'bottom' ? b.y + b.height - 6 : b.y + b.height / 2
