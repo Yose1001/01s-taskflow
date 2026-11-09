@@ -60,6 +60,6 @@ test.describe('language and theme', () => {
     await page.getByRole('button', { name: 'ไทย' }).click()
     await openProject(page, 'ร้านกาแฟ')
     await expect(page.getByRole('region', { name: 'รอทำ 1 งาน' })).toBeVisible()
-    await expect(page.getByText('ครบกำหนด 1 ธ.ค. 2642')).toBeVisible() // Buddhist-era year (2099 + 543)
+    await expect(page.getByText('1 ธ.ค. 2642')).toBeVisible() // Buddhist-era year (2099 + 543)
   })
 })

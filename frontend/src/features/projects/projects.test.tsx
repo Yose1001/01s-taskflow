@@ -220,7 +220,7 @@ describe('creating a project', () => {
     fakeBackend()
     const user = userEvent.setup()
     await openSignedIn(user)
-    const opener = screen.getByRole('button', { name: /New project|Create your first project/ })!
+    const opener = await screen.findByRole('button', { name: 'Create your first project' })
     await openDialog(user)
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

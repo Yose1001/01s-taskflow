@@ -94,13 +94,13 @@ test.describe('working together', () => {
 
     await loginViaUi(page, alice.person)
     await openProject(page, 'Crew')
-    await expect(page.getByText('Assigned to Bob')).toBeVisible()
+    await expect(page.getByTitle('Assigned to Bob')).toBeVisible()
 
     const members = page.getByRole('region', { name: 'Members' })
     await members.getByRole('button', { name: /^Remove/ }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click()
     await expect(page.getByText('Bob was removed.')).toBeVisible()
-    await expect(page.getByText('Assigned to Bob')).toHaveCount(0)
+    await expect(page.getByTitle('Assigned to Bob')).toHaveCount(0)
     await page.getByLabel('Assigned to', { exact: true }).selectOption('Unassigned')
     await expect(page.getByRole('button', { name: "Bob's job", exact: true })).toBeVisible()
 

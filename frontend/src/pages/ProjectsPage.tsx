@@ -109,8 +109,9 @@ export function ProjectsPage() {
           <Link to="/projects/trash" className="font-medium text-primary underline">
             {t('projects.trash')}
           </Link>
-          {/* A new person has one big button in the welcome panel instead: one primary button per page. */}
-          {projects.data?.total !== 0 && (
+          {/* A new person has one big button in the welcome panel instead: one primary button per page.
+              Waiting for the list means the button never flashes up and disappears again. */}
+          {projects.data && projects.data.total > 0 && (
             <Button type="button" onClick={() => setCreating(true)}>
               {t('projects.new')}
             </Button>

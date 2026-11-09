@@ -148,7 +148,7 @@ test.describe('the task board', () => {
     await create.getByRole('button', { name: 'Create task' }).click()
     await expect(page.getByText('Task created.')).toBeVisible()
     await expect.poll(() => titlesIn(page, /^In review/)).toEqual(['Review checkout', 'ทดสอบระบบสั่งซื้อ'])
-    await expect(page.getByText('Overdue · Due 2 Jan 2020')).toBeVisible() // marked with words, not only color
+    await expect(page.getByText('Overdue', { exact: true })).toBeVisible() // marked with words, not only color
 
     // Edit
     await card(page, 'ทดสอบระบบสั่งซื้อ').click()

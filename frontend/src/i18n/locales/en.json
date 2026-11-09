@@ -207,7 +207,9 @@
     "loadError": "Could not load the tasks.",
     "filters": "Filters",
     "filtersCount": "Filters ({{count}})",
-    "swipeHint": "Swipe sideways to see the other columns."
+    "swipeHint": "Swipe sideways to see the other columns.",
+    "dueWord": "Due",
+    "assignedWord": "Assigned to"
   },
   "status": {
     "todo": "To do",

@@ -2,7 +2,7 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  TouchSensor,
   closestCorners,
   pointerWithin,
   useDroppable,
@@ -49,6 +49,7 @@ import {
   type Filters,
 } from './boardLogic'
 import { taskKeys, useDeleteTask, useMoveTask, useTasks } from './hooks'
+import { MouseOrPenSensor } from './sensors'
 import { SortableTaskCard, TaskCardView } from './TaskCard'
 import { TaskFormDialog } from './TaskFormDialog'
 
@@ -92,7 +93,9 @@ export function TaskBoard({ projectId }: { projectId: string }) {
 
   const sensors = useSensors(
     // A little movement is needed before a drag starts, so a plain click never counts as one.
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseOrPenSensor, { activationConstraint: { distance: 6 } }),
+    // A finger must rest on the handle for a moment first, so scrolling and swiping never pick up a card.
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -228,6 +231,8 @@ export function TaskBoard({ projectId }: { projectId: string }) {
             <TaskCardView
               task={activeTask}
               assigneeName={nameOf.get(activeTask.assigneeId ?? '')}
+              picked
+              lifted
             />
           ) : null}
         </DragOverlay>
@@ -297,6 +302,14 @@ interface ColumnProps {
   onOpen: (task: Task) => void
 }
 
+// The soft "-bg" tints would vanish against the column, so the line uses each status's strong color.
+const COLUMN_LINE: Record<TaskStatus, string> = {
+  todo: 'bg-primary',
+  in_progress: 'bg-sky-fg',
+  review: 'bg-peach-fg',
+  done: 'bg-mint-fg',
+}
+
 function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
   const { t } = useTranslation()
   // The whole column accepts drops, so a card can go into an empty column or below the last card.
@@ -305,8 +318,12 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
   return (
     <section
       aria-label={t('tasks.columnLabel', { column: name, count: tasks.length })}
-      className="w-[85%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 md:w-auto"
+      className="relative w-[85%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 md:w-auto"
     >
+      <span
+        aria-hidden="true"
+        className={`absolute inset-x-4 top-0 h-[3px] rounded-b-full ${COLUMN_LINE[status]}`}
+      />
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2">
           <StatusBadge status={status} />
@@ -318,7 +335,7 @@ function Column({ status, tasks, nameOf, onAdd, onOpen }: ColumnProps) {
           type="button"
           onClick={onAdd}
           aria-label={t('tasks.addIn', { column: name })}
-          className="grid h-8 w-8 place-items-center rounded-full text-lg font-semibold text-primary-fg hover:bg-primary-bg"
+          className="grid h-[30px] w-[30px] place-items-center rounded-full text-primary-fg hover:bg-primary-bg"
         >
           <Icon name="plus" />
         </button>

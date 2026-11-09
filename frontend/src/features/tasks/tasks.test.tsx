@@ -63,9 +63,9 @@ describe('board', () => {
     await openBoard(userEvent.setup())
     const todo = column(/^To do/)
     expect(within(todo).getAllByText('High').length).toBeGreaterThan(0)
-    expect(within(todo).getByText('Assigned to Bob')).toBeInTheDocument()
-    expect(within(todo).getByText('Assigned to Alice')).toBeInTheDocument()
-    expect(within(column(/^Done/)).getByText('Due 1 Jan 2020')).toBeInTheDocument()
+    expect(within(todo).getByTitle('Assigned to Bob')).toBeInTheDocument()
+    expect(within(todo).getByTitle('Assigned to Alice')).toBeInTheDocument()
+    expect(within(column(/^Done/)).getByText('1 Jan 2020')).toBeInTheDocument()
   })
 
   it('flags an overdue task with a word, but not a finished one', async () => {
@@ -74,8 +74,10 @@ describe('board', () => {
       task('b', 'Fine', { dueDate: '2099-01-01' }),
       task('c', 'Late but done', { status: 'done', dueDate: '2020-01-01' }),
     ])
-    expect(within(column(/^To do/)).getByText(/Overdue · Due 1 Jan 2020/)).toBeInTheDocument()
-    expect(within(column(/^To do/)).getByText('Due 1 Jan 2099')).toBeInTheDocument()
+    expect(within(column(/^To do/)).getByText('Overdue').parentElement).toHaveTextContent(
+      '1 Jan 2020',
+    )
+    expect(within(column(/^To do/)).getByText('1 Jan 2099')).toBeInTheDocument()
     expect(within(column(/^Done/)).queryByText(/Overdue/)).not.toBeInTheDocument()
   })
 
@@ -126,7 +128,25 @@ describe('board', () => {
     await user.click(screen.getByRole('button', { name: 'ไทย' }))
     expect(screen.getByRole('region', { name: 'รอทำ 3 งาน' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'สร้างงานใหม่' })).toBeInTheDocument()
-    expect(screen.getByText(/ครบกำหนด 1 ม\.ค\. 2563/)).toBeInTheDocument() // Buddhist-era year
+    expect(screen.getByText('1 ม.ค. 2563')).toBeInTheDocument() // Buddhist-era year
+  })
+
+  it('marks the due date for machines and shows the full date on hover', async () => {
+    await openBoard(userEvent.setup(), [task('a', 'Dated', { dueDate: '2099-03-04' })])
+    const date = screen.getByText('4 Mar 2099')
+    expect(date.tagName).toBe('TIME')
+    expect(date).toHaveAttribute('datetime', '2099-03-04')
+    expect(date).toHaveAttribute('title', 'Due 4 Mar 2099')
+  })
+
+  it('says so when nobody is assigned, and keeps the full title available on a long one', async () => {
+    await openBoard(userEvent.setup(), [task('a', 'A very long title')])
+    expect(within(column(/^To do/)).getByRole('img', { name: 'Unassigned' })).toBeInTheDocument()
+    expect(within(column(/^To do/)).getByText('Unassigned')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'A very long title' })).toHaveAttribute(
+      'title',
+      'A very long title',
+    )
   })
 
   it('says "not found" for a project the person cannot see (tasks included)', async () => {
@@ -600,7 +620,7 @@ describe('members and tasks', () => {
     await openBoard(user, [task('t1', 'Bobs job', { assigneeId: BOB.userId })], {
       projects: [project('p1', 'Website', { members: [BOB, CAROL] })],
     })
-    expect(screen.getByText('Assigned to Bob')).toBeInTheDocument()
+    expect(screen.getByTitle('Assigned to Bob')).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Assigned to'), 'Unassigned')
     expect(screen.queryByRole('button', { name: 'Bobs job' })).not.toBeInTheDocument()
     const members = screen.getByRole('region', { name: 'Members' })

@@ -24,6 +24,21 @@ export function formatDay(day: string, language: string): string {
   }).format(date)
 }
 
+/** A calendar day in few characters: "20 Nov" in the current year, "20 Nov 2027" in any other. */
+export function formatDayShort(day: string, language: string, now: Date = new Date()): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return ''
+  const date = new Date(`${day}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return ''
+  const locale = language.startsWith('th') ? 'th-TH' : 'en-GB'
+  const sameYear = date.getUTCFullYear() === now.getFullYear()
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' as const }),
+    timeZone: 'UTC',
+  }).format(date)
+}
+
 /**
  * One or two letters for a small avatar: "Alice Smith" -> "AS", "สมชาย" -> "ส".
  * Thai vowels written before the consonant (เ แ โ ใ ไ) are skipped, so "เอก" gives "อ".
