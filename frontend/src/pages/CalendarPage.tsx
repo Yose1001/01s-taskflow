@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import type { CalendarEvent, CalendarRange, CalendarTask } from '../api/types'
+import type { CalendarEvent, CalendarRange, CalendarTask, Person } from '../api/types'
 import { errorMessage } from '../auth/errors'
 import { useAuth } from '../auth/context'
 import { Avatar, EmptyAvatar } from '../components/Avatar'
 import { BackLink } from '../components/BackLink'
-import { Button, CompactSelectField } from '../components/forms'
+import { Button } from '../components/forms'
 import { Icon } from '../components/Icon'
+import { Menu, type MenuItem } from '../components/Menu'
 import { ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
 import { CalendarTaskDialog } from '../features/calendar/CalendarTaskDialog'
@@ -181,45 +182,27 @@ export function CalendarPage() {
             {t('calendar.today')}
           </Button>
         </div>
-        <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            checked={showTasks}
-            onChange={(e) => {
-              setShowTasks(e.target.checked)
-              saveShowTasks(e.target.checked)
-            }}
-            className="h-4 w-4 accent-primary"
-          />
-          {t('calendar.showTasks')}
-        </label>
-        <CompactSelectField
-          id="calendar-person"
-          icon="users"
-          className="w-full sm:w-64"
-          label={t('calendar.personFilter')}
-          value={person}
-          disabled={!showTasks}
-          onChange={(e) =>
+        <TasksMenu
+          show={showTasks}
+          person={person}
+          me={user ? { id: user.id, name: personName(user) } : null}
+          people={people.data?.items ?? []}
+          onChoose={(choice) => {
+            const show = choice !== null
+            setShowTasks(show)
+            saveShowTasks(show)
+            if (choice === null) return // hidden: the person stays chosen for when they come back
             setParams(
               (current) => {
                 const next = new URLSearchParams(current)
-                if (e.target.value) next.set('person', e.target.value)
+                if (choice) next.set('person', choice)
                 else next.delete('person')
                 return next
               },
               { replace: true },
             )
-          }
-        >
-          <option value="">{t('calendar.personAll')}</option>
-          {user && <option value={user.id}>{t('calendar.personMe')}</option>}
-          {(people.data?.items ?? []).map((p) => (
-            <option key={p.userId} value={p.userId}>
-              {personName(p)} · {p.email}
-            </option>
-          ))}
-        </CompactSelectField>
+          }}
+        />
       </div>
 
       {calendar.isPending ? (
@@ -429,6 +412,91 @@ function TaskPeople({ ids, nameOf }: { ids: string[]; nameOf: Map<string, string
       people={people}
       word={t('tasks.assignedWord')}
       describe={(names) => t('tasks.assignedTo', { name: names })}
+    />
+  )
+}
+
+/**
+ * Whether tasks show, and whose: everyone's, the person's own, or one other person's, in one menu.
+ * onChoose gets '' for everyone, a user id for one person, or null to hide the tasks.
+ */
+function TasksMenu({
+  show,
+  person,
+  me,
+  people,
+  onChoose,
+}: {
+  show: boolean
+  person: string
+  me: Named | null
+  people: Person[]
+  onChoose: (choice: string | null) => void
+}) {
+  const { t } = useTranslation()
+  const heading = t('calendar.showTasks')
+  const chosen = people.find((p) => p.userId === person)
+  const whose = !person
+    ? t('calendar.personAll')
+    : person === me?.id
+      ? t('calendar.personMe')
+      : chosen
+        ? personName(chosen)
+        : '…'
+  const label = show ? t('calendar.personFilter', { name: whose }) : t('calendar.tasksHidden')
+  const items: MenuItem[] = [
+    {
+      key: 'all',
+      heading,
+      icon: 'users',
+      label: t('calendar.personAll'),
+      ariaLabel: `${heading}: ${t('calendar.personAll')}`,
+      checked: show && !person,
+      onSelect: () => onChoose(''),
+    },
+    ...(me
+      ? [
+          {
+            key: me.id,
+            leading: <Avatar id={me.id} name={me.name} size={20} />,
+            label: t('calendar.personMe'),
+            ariaLabel: `${heading}: ${t('calendar.personMe')}`,
+            checked: show && person === me.id,
+            onSelect: () => onChoose(me.id),
+          },
+        ]
+      : []),
+    ...people.map((p) => ({
+      key: p.userId,
+      leading: <Avatar id={p.userId} name={personName(p)} size={20} />,
+      label: personName(p),
+      // Two people may share a name: the email tells them apart for a screen reader.
+      ariaLabel: `${heading}: ${personName(p)} · ${p.email}`,
+      checked: show && person === p.userId,
+      onSelect: () => onChoose(p.userId),
+    })),
+    {
+      key: 'hide',
+      separated: true,
+      icon: 'eye-off',
+      label: t('calendar.hideTasks'),
+      checked: !show,
+      onSelect: () => onChoose(null),
+    },
+  ]
+  return (
+    <Menu
+      floating // on a phone the button sits near the left edge, and the menu must stay on screen
+      label={label}
+      trigger={
+        <>
+          <Icon name={show ? 'users' : 'eye-off'} />
+          <span className="max-w-56 truncate">{label}</span>
+          <Icon name="chevron-down" size={16} />
+        </>
+      }
+      triggerClassName="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 text-sm font-medium text-text hover:bg-primary-bg"
+      items={items}
     />
   )
 }

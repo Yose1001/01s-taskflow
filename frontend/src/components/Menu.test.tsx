@@ -71,6 +71,22 @@ describe('Menu with choices', () => {
     act(() => void window.dispatchEvent(new Event('scroll')))
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
+
+  it('a floating menu stays open while its own long list scrolls', async () => {
+    const user = userEvent.setup()
+    render(
+      <Menu
+        floating
+        label="People"
+        trigger="..."
+        triggerClassName=""
+        items={[{ key: 'a', label: 'A', checked: true, onSelect: () => {} }]}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'People' }))
+    act(() => void screen.getByRole('menu').dispatchEvent(new Event('scroll')))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+  })
 })
 
 describe('Menu', () => {

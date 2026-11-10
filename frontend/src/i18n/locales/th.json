@@ -380,12 +380,14 @@
     "peopleEmpty": "ยังไม่มีใครอยู่ในโปรเจกต์เดียวกับคุณ",
     "sharedBy": "แชร์โดย {{name}}",
     "sharedWith": "แชร์กับ {{count}} คน",
-    "personFilter": "งานของ",
+    "personFilter": "งานของ: {{name}}",
     "personAll": "ทุกคน",
     "personMe": "ฉัน",
     "taskGone": "งานนี้ถูกลบหรือย้ายไปถังขยะแล้ว",
     "peopleWord": "ผู้เกี่ยวข้อง",
-    "peopleTitle": "ผู้เกี่ยวข้อง: {{names}}"
+    "peopleTitle": "ผู้เกี่ยวข้อง: {{names}}",
+    "hideTasks": "ซ่อนงาน",
+    "tasksHidden": "ไม่แสดงงาน"
   },
   "notifications": {
     "label": "การแจ้งเตือน",

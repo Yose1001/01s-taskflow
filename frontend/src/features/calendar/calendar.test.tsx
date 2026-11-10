@@ -138,7 +138,9 @@ describe('the calendar page', () => {
       'Day 3 of 11 · Website',
     )
 
-    await user.click(screen.getByRole('checkbox', { name: 'Show tasks' }))
+    await user.click(screen.getByRole('button', { name: 'Tasks of: Everyone' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Hide tasks' }))
+    expect(screen.getByRole('button', { name: 'Tasks hidden' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Tuesday, 10 March 2099' })).toBeInTheDocument()
     expect(twelfth.queryByRole('button', { name: /Design/ })).not.toBeInTheDocument()
     expect(localStorage.getItem('tf-calendar-show-tasks')).toBe('false')
@@ -205,14 +207,21 @@ describe('the calendar page', () => {
   it("shows only one person's tasks when chosen, and keeps the choice in the address", async () => {
     const user = userEvent.setup()
     await openCalendar(user)
-    const filter = screen.getByLabelText('Tasks of')
-    await within(filter).findByRole('option', { name: 'Bob · bob@example.com' })
-    expect(
-      within(filter)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['Everyone', 'Me', 'Bob · bob@example.com'])
-    await user.selectOptions(filter, 'Bob · bob@example.com')
+    await user.click(screen.getByRole('button', { name: 'Tasks of: Everyone' }))
+    const bob = await screen.findByRole('menuitemradio', {
+      name: 'Show tasks: Bob · bob@example.com',
+    })
+    expect(screen.getAllByRole('menuitemradio').map((o) => o.textContent)).toEqual([
+      'Everyone',
+      'AMe',
+      'BBob',
+      'Hide tasks',
+    ])
+    expect(screen.getByRole('menuitemradio', { name: 'Show tasks: Everyone' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    await user.click(bob)
     // Ship the site is Bob's; Design is nobody's, so it leaves the calendar.
     expect(within(panel()).getByRole('button', { name: /Ship the site/ })).toBeInTheDocument()
     expect(within(panel()).queryByRole('button', { name: /Design/ })).not.toBeInTheDocument()
@@ -223,10 +232,16 @@ describe('the calendar page', () => {
     // Moving through the days keeps the choice.
     await user.click(screen.getByRole('button', { name: 'Next month' }))
     expect(await screen.findByRole('grid', { name: 'April 2099' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Tasks of')).toHaveValue(BOB.userId)
+    expect(screen.getByRole('button', { name: 'Tasks of: Bob' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('checkbox', { name: 'Show tasks' }))
-    expect(screen.getByLabelText('Tasks of')).toBeDisabled()
+    // The same menu hides the tasks, and shows them again.
+    await user.click(screen.getByRole('button', { name: 'Tasks of: Bob' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Hide tasks' }))
+    expect(localStorage.getItem('tf-calendar-show-tasks')).toBe('false')
+    await user.click(screen.getByRole('button', { name: 'Tasks hidden' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Show tasks: Everyone' }))
+    expect(screen.getByRole('button', { name: 'Tasks of: Everyone' })).toBeInTheDocument()
+    expect(localStorage.getItem('tf-calendar-show-tasks')).toBe('true')
   })
 
   it('shares a personal day with chosen people from the same projects', async () => {

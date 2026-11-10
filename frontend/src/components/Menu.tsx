@@ -23,7 +23,7 @@ export interface MenuItem {
   onSelect: () => void
 }
 
-type FloatingBox = { right: number; top?: number; bottom?: number }
+type FloatingBox = { right: number; top?: number; bottom?: number; maxHeight: number }
 
 // How much room the menu wants below its button before it opens upwards instead.
 const ROOM_BELOW = 280
@@ -74,16 +74,25 @@ export function Menu({
   const menuId = useId()
   const wrapper = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   // The focused item follows the active one while the menu is open.
   useEffect(() => {
-    if (open) itemRefs.current[active]?.focus({ preventScroll: true })
+    if (!open) return
+    const item = itemRefs.current[active]
+    item?.focus({ preventScroll: true })
+    // In a long menu that scrolls, keep the focused item in sight.
+    item?.scrollIntoView?.({ block: 'nearest' })
   }, [open, active])
 
   useEffect(() => {
     if (!open || !floating) return
-    const dismiss = () => setOpen(false)
+    // Scrolling the page moves the button away from the menu; scrolling the menu itself does not.
+    const dismiss = (event: Event) => {
+      if (event.target instanceof Node && panel.current?.contains(event.target)) return
+      setOpen(false)
+    }
     window.addEventListener('scroll', dismiss, true)
     window.addEventListener('resize', dismiss)
     return () => {
@@ -103,8 +112,12 @@ export function Menu({
       )
       setBox(
         window.innerHeight - rect.bottom < ROOM_BELOW
-          ? { right, bottom: window.innerHeight - rect.top + gap }
-          : { right, top: rect.bottom + gap },
+          ? { right, bottom: window.innerHeight - rect.top + gap, maxHeight: rect.top - gap - EDGE }
+          : {
+              right,
+              top: rect.bottom + gap,
+              maxHeight: window.innerHeight - rect.bottom - gap - EDGE,
+            },
       )
     }
     // Start on the chosen item when there is one, otherwise on the first.
@@ -168,8 +181,9 @@ export function Menu({
       </button>
       {open && (
         <div
+          ref={panel}
           style={floating && box ? box : undefined}
-          className={`w-64 max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-surface p-2 shadow-xl ${
+          className={`max-h-[70vh] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-border bg-surface p-2 shadow-xl ${
             floating ? 'fixed z-40' : 'absolute right-0 top-full z-30 mt-1'
           }`}
         >

@@ -20,6 +20,13 @@ export const ICON_PATHS = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  'eye-off': (
+    <>
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M4 4l16 16" />
+    </>
+  ),
   'check-circle': (
     <>
       <circle cx="12" cy="12" r="9" />
