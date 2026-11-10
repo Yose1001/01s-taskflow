@@ -20,6 +20,13 @@ export const ICON_PATHS = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  'eye-off': (
+    <>
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M4 4l16 16" />
+    </>
+  ),
   'check-circle': (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -189,6 +196,14 @@ export const ICON_PATHS = {
       <path d="M10 18h4" />
     </>
   ),
+  bell: (
+    <>
+      <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
+      <path d="M10 20.5a2 2 0 0 0 4 0" />
+    </>
+  ),
+  // An important day on the calendar.
+  bookmark: <path d="M7 4h10v16l-5-3.5L7 20z" />,
   clock: (
     <>
       <circle cx="12" cy="12" r="8.5" />

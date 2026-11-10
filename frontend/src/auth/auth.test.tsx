@@ -24,6 +24,7 @@ function server(extra: Routes = {}) {
     'POST /auth/refresh': () => unauthorized, // no session cookie unless a test says otherwise
     'POST /auth/logout': () => ({ status: 204 }),
     'GET /projects': () => ({ body: { items: [], total: 0 } }), // the page shown right after signing in
+    'GET /notifications': () => ({ body: { items: [], unread: 0 } }), // the bell in the top bar
     'GET /me': (req) =>
       req.headers.get('Authorization') === `Bearer ${TOKEN}` ? { body: ME } : unauthorized,
     ...extra,

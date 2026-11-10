@@ -92,3 +92,74 @@ export interface SettingsPatch {
   locale?: Locale
   theme?: Theme
 }
+
+/** How many days before an important day to remind: 0 = on the day itself. */
+export type RemindDay = 0 | 1 | 3 | 7
+export const REMIND_DAYS: readonly RemindDay[] = [0, 1, 3, 7]
+
+/** Someone in a project with the signed-in person: who an important day can be shared with. */
+export interface Person {
+  userId: string
+  displayName: string
+  email: string
+}
+
+/** An important day on the calendar: the person's own (projectId null) or a project's. */
+export interface CalendarEvent {
+  id: string
+  title: string
+  note: string
+  /** "YYYY-MM-DD" */
+  day: string
+  projectId: string | null
+  projectName: string | null
+  /** Whose personal day it is; null for a project's day. */
+  ownerId: string | null
+  createdBy: string
+  remindDays: RemindDay[]
+  /** Who a personal day is shared with. Only its owner is told; for anyone else it is empty. */
+  sharedWith: Person[]
+  /** The owner's name, when the day was shared with the person looking. */
+  sharedBy: string | null
+  /** The person may change or remove it. */
+  canEdit: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** A task with a date, as the calendar shows it. */
+export interface CalendarTask {
+  id: string
+  projectId: string
+  projectName: string
+  title: string
+  status: TaskStatus
+  startDate: string | null
+  dueDate: string | null
+  /** Who works on it, so the calendar can show one person's tasks. */
+  assigneeIds: string[]
+}
+
+export interface CalendarRange {
+  events: CalendarEvent[]
+  tasks: CalendarTask[]
+}
+
+/** A reminder about an important day. */
+export interface AppNotification {
+  id: string
+  eventId: string
+  title: string
+  day: string
+  projectId: string | null
+  projectName: string | null
+  sharedBy: string | null
+  daysBefore: RemindDay
+  createdAt: string
+  readAt: string | null
+}
+
+export interface NotificationList {
+  items: AppNotification[]
+  unread: number
+}

@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthProvider'
 import { GuestOnly, RequireAuth } from './auth/guards'
 import { AppShell } from './components/AppShell'
 import { ToastProvider } from './components/ToastProvider'
+import { CalendarPage } from './pages/CalendarPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -35,6 +36,7 @@ export function AppRoutes() {
           <Route path="projects/trash" element={<TrashPage />} />
           <Route path="projects/:projectId" element={<ProjectPage />} />
           <Route path="projects/:projectId/trash" element={<TaskTrashPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
         </Route>
         {/* Open to everyone: the look-and-feel showcase */}
         <Route path="/design" element={<HomePage />} />

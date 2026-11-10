@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TaskFlow API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     REST API ของ TaskFlow (ฉบับร่างรออนุมัติ)
 
@@ -18,6 +18,7 @@ tags:
   - name: Projects
   - name: Members
   - name: Tasks
+  - name: Calendar
 
 paths:
   /ready:
@@ -500,6 +501,133 @@ paths:
         "204": { description: ลบแล้ว }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /calendar:
+    get:
+      tags: [Calendar]
+      summary: วันสำคัญและงานที่มีวันที่ ในช่วงวันที่ที่ขอ (รวมทั้งสองวัน)
+      description: |
+        คืนวันสำคัญส่วนตัวของผู้ใช้ และวันสำคัญของทุกโปรเจกต์ที่เป็นสมาชิก (โปรเจกต์ที่อยู่ในถังขยะไม่แสดง)
+        พร้อมงานที่วันเริ่มหรือวันสิ้นสุดอยู่ในช่วง หรือคร่อมทั้งช่วง (สูงสุด 500 งาน)
+        ช่วงยาวได้ไม่เกิน 100 วัน ผิดคืน 422: `fields.from`/`fields.to` = `invalid_date`, `before_from`, `range_too_long`
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events: { type: array, items: { $ref: "#/components/schemas/Event" } }
+                  tasks: { type: array, items: { $ref: "#/components/schemas/CalendarTask" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Validation" }
+  /events:
+    post:
+      tags: [Calendar]
+      summary: เพิ่มวันสำคัญ (ส่วนตัว หรือของโปรเจกต์ที่เป็นสมาชิก)
+      description: |
+        ไม่ส่ง `projectId` = วันสำคัญส่วนตัว ส่ง `projectId` = สมาชิกทุกคนเห็นและได้รับการแจ้งเตือน
+        วันส่วนตัวแชร์ให้คนที่อยู่โปรเจกต์เดียวกับเจ้าของได้ (`sharedWith` ดู `GET /people`) คนที่ถูกแชร์เห็นและได้รับการแจ้งเตือน
+        แต่แก้ไม่ได้ ผิดคืน 422: `fields.sharedWith` = `not_a_member`, `personal_only` (ส่งพร้อม `projectId`), `too_many_people` (เกิน 50), `invalid_id`
+        โปรเจกต์ที่ไม่ได้เป็นสมาชิกหรืออยู่ในถังขยะคืน 422 (`fields.projectId` = `not_a_member`)
+        `remindDays` เลือกได้จาก 0 (วันนั้น), 1, 3, 7 วันก่อน แจ้งเตือนเวลา 08:00 น. เวลาประเทศไทย
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Validation" }
+  /events/{eventId}:
+    patch:
+      tags: [Calendar]
+      summary: แก้วันสำคัญ (ย้ายไปเป็นของที่อื่นไม่ได้)
+      description: |
+        วันส่วนตัวแก้ได้เฉพาะเจ้าของ วันของโปรเจกต์แก้ได้โดยคนที่เพิ่มหรือเจ้าของโปรเจกต์ สมาชิกคนอื่นคืน 403
+        เลื่อนวันแล้วการแจ้งเตือนเดิมของวันเก่าจะถูกลบ เพื่อให้เตือนตามวันใหม่ได้
+        `sharedWith` แทนที่รายชื่อเดิมทั้งหมด (ส่ง [] = เลิกแชร์) เฉพาะเจ้าของวันส่วนตัว มิฉะนั้นคืน 422 `personal_only`
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+    delete:
+      tags: [Calendar]
+      summary: ลบวันสำคัญถาวร (พร้อมการแจ้งเตือนของวันนั้น ไม่มีถังขยะ)
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "204": { description: Deleted }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /people:
+    get:
+      tags: [Calendar]
+      summary: คนที่แชร์วันสำคัญให้ได้ (ทุกคนที่อยู่โปรเจกต์ที่ยังไม่อยู่ในถังขยะเดียวกับผู้ใช้ ไม่รวมตัวเอง สูงสุด 500)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Person" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /notifications:
+    get:
+      tags: [Calendar]
+      summary: การแจ้งเตือนล่าสุดของผู้ใช้ (สูงสุด 50) และจำนวนที่ยังไม่อ่าน
+      description: |
+        ระบบสร้างการแจ้งเตือนทุก 5 นาทีเมื่อถึงเวลา 08:00 น. (เวลาไทย) ของวันที่ต้องเตือน และเตือนแต่ละครั้งเพียงครั้งเดียว
+        การแจ้งเตือนของวันสำคัญที่ผู้ใช้มองไม่เห็นแล้ว (เช่น ถูกเอาออกจากโปรเจกต์) จะไม่แสดง
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Notification" } }
+                  unread: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /notifications/read:
+    post:
+      tags: [Calendar]
+      summary: ทำเครื่องหมายว่าอ่านแล้ว (ตามที่ระบุ หรือทั้งหมดเมื่อไม่ส่ง ids)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids: { type: array, items: { type: string, format: uuid } }
+      responses:
+        "204": { description: Done }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Validation" }
 components:
   securitySchemes:
     bearerAuth:
@@ -514,6 +642,11 @@ components:
       schema: { type: string, format: uuid }
     TaskId:
       name: taskId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    EventId:
+      name: eventId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -556,6 +689,81 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    RemindDays:
+      type: array
+      description: เตือนกี่วันก่อนวันสำคัญ (0 = วันนั้น) ไม่ซ้ำ เรียงจากน้อยไปมาก
+      items: { type: integer, enum: [0, 1, 3, 7] }
+    Person:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: string, format: email }
+    Event:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 120 }
+        note: { type: string, maxLength: 1000 }
+        day: { type: string, format: date }
+        projectId: { type: string, format: uuid, nullable: true, description: "null = วันส่วนตัว" }
+        projectName: { type: string, nullable: true }
+        ownerId: { type: string, format: uuid, nullable: true, description: "เจ้าของวันส่วนตัว (null = วันของโปรเจกต์)" }
+        createdBy: { type: string, format: uuid }
+        remindDays: { $ref: "#/components/schemas/RemindDays" }
+        sharedWith:
+          type: array
+          items: { $ref: "#/components/schemas/Person" }
+          description: คนที่วันส่วนตัวแชร์ให้ บอกเฉพาะเจ้าของ คนอื่นได้ []
+        sharedBy: { type: string, nullable: true, description: ชื่อเจ้าของ เมื่อวันนี้ถูกแชร์มาให้ผู้ใช้ }
+        canEdit: { type: boolean, description: ผู้ใช้คนนี้แก้หรือลบได้ไหม }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    EventCreate:
+      type: object
+      required: [title, day]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        note: { type: string, maxLength: 1000 }
+        day: { type: string, format: date }
+        projectId: { type: string, format: uuid }
+        sharedWith: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+        remindDays: { $ref: "#/components/schemas/RemindDays" }
+    EventPatch:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        note: { type: string, maxLength: 1000 }
+        day: { type: string, format: date }
+        remindDays: { $ref: "#/components/schemas/RemindDays" }
+        sharedWith: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+    CalendarTask:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        projectName: { type: string }
+        title: { type: string }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        startDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        assigneeIds:
+          type: array
+          items: { type: string, format: uuid }
+          description: ผู้รับผิดชอบงาน ใช้กรองดูงานของคนใดคนหนึ่งในปฏิทิน
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        title: { type: string }
+        day: { type: string, format: date }
+        projectId: { type: string, format: uuid, nullable: true }
+        projectName: { type: string, nullable: true }
+        sharedBy: { type: string, nullable: true }
+        daysBefore: { type: integer, enum: [0, 1, 3, 7] }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: string, format: date-time, nullable: true }
     Error:
       type: object
       required: [code, message]

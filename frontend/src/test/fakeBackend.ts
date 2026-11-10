@@ -1,4 +1,4 @@
-import type { Role, Task, User } from '../api/types'
+import type { AppNotification, CalendarEvent, Role, Task, User } from '../api/types'
 import { LOGIN_OK, ME, TOKEN, mockApi, type Handler, type RecordedRequest } from './mockApi'
 
 // A small in-memory stand-in for the real API with the same rules the Go backend enforces
@@ -78,6 +78,54 @@ export function project(
 
 const STATUS_ORDER = ['todo', 'in_progress', 'review', 'on_hold', 'done']
 
+/** Builds an important day: the signed-in person's own unless a project is given. */
+export function calendarEvent(
+  id: string,
+  title: string,
+  day: string,
+  opts: Partial<Omit<CalendarEvent, 'id' | 'title' | 'day'>> = {},
+): CalendarEvent {
+  return {
+    id,
+    title,
+    note: '',
+    day,
+    projectId: null,
+    projectName: null,
+    ownerId: ME.id,
+    createdBy: ME.id,
+    remindDays: [],
+    sharedWith: [],
+    sharedBy: null,
+    canEdit: true,
+    createdAt: '2026-02-01T00:00:00Z',
+    updatedAt: '2026-02-01T00:00:00Z',
+    ...opts,
+  }
+}
+
+/** Builds a reminder about an important day. */
+export function notification(
+  id: string,
+  title: string,
+  day: string,
+  opts: Partial<Omit<AppNotification, 'id' | 'title' | 'day'>> = {},
+): AppNotification {
+  return {
+    id,
+    eventId: `event-${id}`,
+    title,
+    day,
+    projectId: null,
+    projectName: null,
+    sharedBy: null,
+    daysBefore: 1,
+    createdAt: '2026-02-01T00:00:00Z',
+    readAt: null,
+    ...opts,
+  }
+}
+
 /** Builds a task. Positions follow the creation order unless given. */
 export function task(
   id: string,
@@ -112,6 +160,10 @@ interface Options {
   me?: User
   projects?: FakeProject[]
   tasks?: Task[]
+  /** Important days the signed-in person can see. */
+  events?: CalendarEvent[]
+  /** The signed-in person's reminders. */
+  notifications?: AppNotification[]
   /** Accounts that exist and can be invited by email. */
   knownUsers?: Array<typeof BOB>
   /** Extra or replacement routes (for example to force an error). */
@@ -128,6 +180,8 @@ export function fakeBackend(options: Options = {}) {
   const projects = options.projects ?? []
   const tasks = options.tasks ?? []
   const knownUsers = options.knownUsers ?? [BOB, CAROL]
+  const events = options.events ?? []
+  const notifications = options.notifications ?? []
   let nextId = 100
 
   const roleOf = (p: FakeProject): Role | undefined =>
@@ -168,6 +222,101 @@ export function fakeBackend(options: Options = {}) {
     'POST /auth/login': () => LOGIN_OK,
     'POST /auth/refresh': () => err(401, 'unauthorized'),
     'POST /auth/logout': () => ({ status: 204 }),
+    'GET /notifications': () => ({
+      body: { items: notifications, unread: notifications.filter((n) => !n.readAt).length },
+    }),
+    'POST /notifications/read': (req) => {
+      const ids = (req.body as { ids?: string[] }).ids
+      for (const n of notifications)
+        if (!n.readAt && (!ids || ids.includes(n.id))) n.readAt = '2026-03-01T00:00:00Z'
+      return { status: 204 }
+    },
+    'GET /people': () => {
+      // Everyone in an active project with me, once each, not me.
+      const seen = new Map<string, { userId: string; displayName: string; email: string }>()
+      for (const p of projects)
+        if (roleOf(p) && !p.deletedAt)
+          for (const m of p.members)
+            if (m.userId !== me.id)
+              seen.set(m.userId, { userId: m.userId, displayName: m.displayName, email: m.email })
+      return { body: { items: [...seen.values()] } }
+    },
+    'GET /calendar': (req) => {
+      const from = req.query.get('from') ?? ''
+      const to = req.query.get('to') ?? ''
+      const inRange = (day: string | null) => day !== null && day >= from && day <= to
+      return {
+        body: {
+          events: events.filter((e) => inRange(e.day)),
+          tasks: tasks
+            .filter((t) => !t.deletedAt && active(t.projectId))
+            .filter((t) => inRange(t.startDate) || inRange(t.dueDate))
+            .map((t) => ({
+              id: t.id,
+              projectId: t.projectId,
+              projectName: active(t.projectId)!.name,
+              title: t.title,
+              status: t.status,
+              startDate: t.startDate,
+              dueDate: t.dueDate,
+              assigneeIds: t.assigneeIds,
+            })),
+        },
+      }
+    },
+    'POST /events': (req) => {
+      const body = req.body as {
+        title?: string
+        note?: string
+        day?: string
+        projectId?: string
+        sharedWith?: string[]
+        remindDays?: number[]
+      }
+      const fields: Record<string, string> = {}
+      const people = new Map(
+        projects
+          .filter((p) => roleOf(p) && !p.deletedAt)
+          .flatMap((p) => p.members)
+          .filter((m) => m.userId !== me.id)
+          .map((m) => [m.userId, { userId: m.userId, displayName: m.displayName, email: m.email }]),
+      )
+      const shared = body.sharedWith ?? []
+      if (shared.length && body.projectId) fields.sharedWith = 'personal_only'
+      else if (shared.some((id) => !people.has(id))) fields.sharedWith = 'not_a_member'
+      const title = String(body.title ?? '').trim()
+      if (!title) fields.title = 'required'
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.day))) fields.day = 'invalid_date'
+      if ((body.remindDays ?? []).some((d) => ![0, 1, 3, 7].includes(d)))
+        fields.remindDays = 'invalid_remind_day'
+      const p = body.projectId ? active(body.projectId) : undefined
+      if (body.projectId && !p) fields.projectId = 'not_a_member'
+      if (Object.keys(fields).length) return err(422, 'validation_failed', fields)
+      const created = calendarEvent(`e${nextId++}`, title, String(body.day), {
+        note: String(body.note ?? '').trim(),
+        projectId: p?.id ?? null,
+        projectName: p?.name ?? null,
+        ownerId: p ? null : ME.id,
+        remindDays: (body.remindDays ?? []) as CalendarEvent['remindDays'],
+        sharedWith: p ? [] : shared.map((id) => people.get(id)!),
+      })
+      events.push(created)
+      return { status: 201, body: created }
+    },
+    'PATCH /events/:id': (req) => {
+      const e = events.find((x) => x.id === req.params.id)
+      if (!e) return err(404, 'not_found')
+      if (!e.canEdit) return err(403, 'forbidden')
+      Object.assign(e, req.body as object)
+      return { body: e }
+    },
+    'DELETE /events/:id': (req) => {
+      const i = events.findIndex((x) => x.id === req.params.id)
+      if (i < 0) return err(404, 'not_found')
+      if (!events[i]!.canEdit) return err(403, 'forbidden')
+      events.splice(i, 1)
+      return { status: 204 }
+    },
     'GET /me': (req: RecordedRequest) =>
       req.headers.get('Authorization') === `Bearer ${TOKEN}`
         ? { body: me }
@@ -508,5 +657,5 @@ export function fakeBackend(options: Options = {}) {
   }
 
   const api = mockApi(routes)
-  return { ...api, projects, tasks, me }
+  return { ...api, projects, tasks, me, events, notifications }
 }

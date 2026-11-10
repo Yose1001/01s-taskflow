@@ -22,6 +22,8 @@ type env struct {
 	h   http.Handler
 	tx  pgx.Tx    // the transaction everything runs in (for direct database checks)
 	now time.Time // fake clock used by the services
+	// events is the important-day store, used directly to run the reminder job at a chosen time.
+	events *repository.EventRepo
 }
 
 func newEnv(t *testing.T) *env {
@@ -38,11 +40,14 @@ func newEnv(t *testing.T) *env {
 	clock := func() time.Time { return e.now }
 	projects := service.NewProjects(projectRepo, users, 30, service.WithProjectsClock(clock))
 	tasks := service.NewTasks(repository.NewTaskRepo(tx), projectRepo, 30, service.WithTasksClock(clock))
+	e.events = repository.NewEventRepo(tx)
+	calendar := service.NewCalendar(e.events, projectRepo, service.WithCalendarClock(clock))
 
 	e.h = New(Deps{
 		Auth:         handler.NewAuth(auth),
 		Projects:     handler.NewProjects(projects),
 		Tasks:        handler.NewTasks(tasks),
+		Calendar:     handler.NewCalendar(calendar),
 		Authenticate: middleware.Authenticate(auth),
 	})
 	return e
