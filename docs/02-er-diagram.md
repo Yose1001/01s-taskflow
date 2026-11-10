@@ -10,6 +10,10 @@ erDiagram
     tasks ||--o{ task_subtasks : "มีรายการย่อย"
     users ||--o{ tasks : "สร้าง (created_by)"
     users ||--o{ projects : "เป็นเจ้าของ (owner)"
+    users ||--o{ events : "มีวันสำคัญส่วนตัว"
+    projects ||--o{ events : "มีวันสำคัญของโปรเจกต์"
+    events ||--o{ notifications : "มีการแจ้งเตือน"
+    users ||--o{ notifications : "ได้รับการแจ้งเตือน"
 
     users {
         uuid id PK
@@ -67,6 +71,26 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+    events {
+        uuid id PK
+        text title "1-120 ตัวอักษร"
+        text note "ไม่เกิน 1000 ตัวอักษร"
+        date day
+        uuid project_id FK "วันของโปรเจกต์; null = วันส่วนตัว"
+        uuid owner_id FK "เจ้าของวันส่วนตัว; null = วันของโปรเจกต์"
+        uuid created_by FK
+        int_array remind_days "เลือกจาก 0, 1, 3, 7"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    notifications {
+        uuid id PK
+        uuid user_id FK
+        uuid event_id FK
+        int days_before
+        timestamptz created_at
+        timestamptz read_at "null = ยังไม่อ่าน"
+    }
 ```
 
 ## กติกาของข้อมูล
@@ -76,6 +100,8 @@ erDiagram
 - รายการย่อยใน `task_subtasks` เป็นของงานเดียว งานละไม่เกิน 100 รายการ และลบตามงานเมื่องานถูกลบถาวร (`ON DELETE CASCADE`) ไม่มีถังขยะของตัวเอง ติ๊กครบแล้วงานไม่ย้ายคอลัมน์เอง
 - `tasks.position` เป็นเลขทศนิยม: ย้ายงานไปแทรกระหว่างสองใบใช้ค่าเฉลี่ยของ position เพื่อไม่ต้องเขียนทับทั้งคอลัมน์
 - ดัชนีที่ควรมี: `users(email)`, `tasks(project_id, status, position) WHERE deleted_at IS NULL` (partial index), `task_assignees(project_id, user_id)`, `project_members(user_id)`, `tasks(deleted_at) WHERE deleted_at IS NOT NULL` และ `projects(deleted_at) WHERE deleted_at IS NOT NULL` (ให้งานลบถาวรหาแถวหมดอายุได้เร็ว)
+- วันสำคัญใน `events` เป็นของคนเดียว (`owner_id`) หรือของโปรเจกต์ (`project_id`) อย่างใดอย่างหนึ่งเท่านั้น (CHECK) วันของโปรเจกต์สมาชิกทุกคนเห็น เพิ่มได้ทุกคน แต่แก้หรือลบได้เฉพาะคนที่เพิ่มกับเจ้าของโปรเจกต์ ลบแล้วหายถาวรพร้อมการแจ้งเตือน (ไม่มีถังขยะ)
+- `notifications` มี unique key (`user_id`, `event_id`, `days_before`) งานสร้างการแจ้งเตือนจึงรันซ้ำหรือรันพร้อมกันหลายเครื่องได้โดยไม่เตือนซ้ำ เตือนเวลา 08:00 น. เวลาไทย และไม่เตือนย้อนหลังเมื่อเลยวันแล้ว เลื่อนวันแล้วการแจ้งเตือนเดิมของวันนั้นถูกลบ
 - ใช้ CHECK constraint กับ `status`, `priority`, `role`, `locale`, `theme`
 
 ## ถังขยะ (soft delete 30 วัน)

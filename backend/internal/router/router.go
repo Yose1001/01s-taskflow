@@ -24,6 +24,7 @@ type Deps struct {
 	Auth     *handler.Auth
 	Projects *handler.Projects
 	Tasks    *handler.Tasks
+	Calendar *handler.Calendar
 
 	// Authenticate protects routes that need a logged-in user.
 	Authenticate Middleware
@@ -77,6 +78,16 @@ func New(d Deps) http.Handler {
 		mux.Handle("POST /api/v1/tasks/{taskId}/subtasks", authn(http.HandlerFunc(t.AddSubtask)))
 		mux.Handle("PATCH /api/v1/tasks/{taskId}/subtasks/{subtaskId}", authn(http.HandlerFunc(t.UpdateSubtask)))
 		mux.Handle("DELETE /api/v1/tasks/{taskId}/subtasks/{subtaskId}", authn(http.HandlerFunc(t.DeleteSubtask)))
+	}
+	// The calendar, important days and reminders: each person's own view, so login is required.
+	if d.Calendar != nil && d.Authenticate != nil {
+		c, authn := d.Calendar, d.Authenticate
+		mux.Handle("GET /api/v1/calendar", authn(http.HandlerFunc(c.Range)))
+		mux.Handle("POST /api/v1/events", authn(http.HandlerFunc(c.CreateEvent)))
+		mux.Handle("PATCH /api/v1/events/{eventId}", authn(http.HandlerFunc(c.UpdateEvent)))
+		mux.Handle("DELETE /api/v1/events/{eventId}", authn(http.HandlerFunc(c.DeleteEvent)))
+		mux.Handle("GET /api/v1/notifications", authn(http.HandlerFunc(c.Notifications)))
+		mux.Handle("POST /api/v1/notifications/read", authn(http.HandlerFunc(c.MarkRead)))
 	}
 	return mux
 }

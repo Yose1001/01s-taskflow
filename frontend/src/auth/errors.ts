@@ -41,6 +41,11 @@ export const KNOWN_FIELD_CODES = [
   'hold_reason_required',
   'hold_reason_too_long',
   'not_on_hold',
+  'too_long',
+  'invalid_remind_day',
+  'before_from',
+  'range_too_long',
+  'invalid_id',
 ] as const
 
 const known = new Set<string>(KNOWN_ERROR_CODES)

@@ -16,6 +16,7 @@ import (
 	handlerpkg "github.com/Yose1001/taskflow/backend/internal/handler"
 	"github.com/Yose1001/taskflow/backend/internal/middleware"
 	"github.com/Yose1001/taskflow/backend/internal/purge"
+	"github.com/Yose1001/taskflow/backend/internal/reminder"
 	"github.com/Yose1001/taskflow/backend/internal/repository"
 	"github.com/Yose1001/taskflow/backend/internal/router"
 	"github.com/Yose1001/taskflow/backend/internal/service"
@@ -26,6 +27,12 @@ const (
 	purgeBatchSize = 500
 	// purgeLockKey is an arbitrary application-wide number for the PostgreSQL advisory lock.
 	purgeLockKey int64 = 7_283_001
+
+	// Reminders for important days go out at 08:00 Thai time. The job looks every few minutes, so a
+	// reminder made while the server was down still goes out soon after it comes back.
+	reminderInterval = 5 * time.Minute
+	reminderTZ       = "Asia/Bangkok"
+	reminderAt       = "08:00"
 )
 
 func main() {
@@ -59,12 +66,15 @@ func main() {
 	projectRepo := repository.NewProjectRepo(pool)
 	projectSvc := service.NewProjects(projectRepo, userRepo, cfg.TrashRetentionDays)
 	taskSvc := service.NewTasks(repository.NewTaskRepo(pool), projectRepo, cfg.TrashRetentionDays)
+	eventRepo := repository.NewEventRepo(pool)
+	calendarSvc := service.NewCalendar(eventRepo, projectRepo)
 
 	handler := router.New(router.Deps{
 		DB:            pool,
 		Auth:          handlerpkg.NewAuth(authSvc, handlerpkg.WithSecureCookie(cfg.CookieSecure)),
 		Projects:      handlerpkg.NewProjects(projectSvc),
 		Tasks:         handlerpkg.NewTasks(taskSvc),
+		Calendar:      handlerpkg.NewCalendar(calendarSvc),
 		Authenticate:  middleware.Authenticate(authSvc),
 		LoginLimit:    middleware.NewRateLimiter(cfg.LoginRateLimit, time.Minute, cfg.TrustedProxies...).Middleware,
 		RegisterLimit: middleware.NewRateLimiter(cfg.RegisterRateLimit, time.Minute, cfg.TrustedProxies...).Middleware,
@@ -92,6 +102,15 @@ func main() {
 		purge.Schedule(ctx, purgeInterval, database.NewLocker(pool, purgeLockKey), purger, logger)
 	}()
 
+	// Make reminders for important days when they are due. Safe on several servers at once:
+	// each reminder can only be made once.
+	reminderDone := make(chan struct{})
+	go func() {
+		defer close(reminderDone)
+		reminder.Schedule(ctx, reminderInterval, eventRepo,
+			reminder.Settings{TZ: reminderTZ, RemindAt: reminderAt}, time.Now, logger)
+	}()
+
 	go func() {
 		logger.Info("server starting", "addr", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -115,5 +134,10 @@ func main() {
 	case <-purgeDone:
 	case <-shutdownCtx.Done():
 		logger.Warn("purge job did not stop in time")
+	}
+	select {
+	case <-reminderDone:
+	case <-shutdownCtx.Done():
+		logger.Warn("reminder job did not stop in time")
 	}
 }

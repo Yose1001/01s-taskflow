@@ -5,6 +5,8 @@ export interface MenuItem {
   key: string
   label: string
   icon?: IconName
+  /** Starts a new group: a thin line above the item. */
+  separated?: boolean
   /** Starts a new group of items, with this small heading above it. Give the items an ariaLabel too. */
   heading?: string
   /** Shown before the text instead of an icon, such as a person's avatar. Decorative. */
@@ -178,7 +180,7 @@ export function Menu({
                 key={item.key}
                 role="none"
                 className={
-                  (item.tone === 'danger' || item.heading) && index > 0
+                  (item.tone === 'danger' || item.heading || item.separated) && index > 0
                     ? 'mt-1 border-t border-border pt-1'
                     : undefined
                 }
