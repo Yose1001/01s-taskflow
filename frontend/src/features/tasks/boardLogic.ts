@@ -200,7 +200,11 @@ export function applyMove(tasks: Task[], move: Move): Task[] {
   )
 }
 
-/** A task is overdue when its day has passed and it is not done. Plain string compare works for ISO days. */
+/**
+ * A task is overdue when its day has passed and it is still to be worked on. Red means "do this now", so
+ * a task that is done, or on hold for a reason, is never overdue. Plain string compare works for ISO days.
+ */
 export function isOverdue(task: Pick<Task, 'dueDate' | 'status'>, now: Date = new Date()): boolean {
-  return task.dueDate !== null && task.status !== 'done' && task.dueDate < today(now)
+  if (task.status === 'done' || task.status === 'on_hold') return false
+  return task.dueDate !== null && task.dueDate < today(now)
 }

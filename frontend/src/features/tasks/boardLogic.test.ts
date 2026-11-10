@@ -244,6 +244,8 @@ describe('due dates', () => {
     expect(isOverdue({ dueDate: '2026-12-05', status: 'todo' }, noon)).toBe(false) // due today
     expect(isOverdue({ dueDate: '2026-12-06', status: 'todo' }, noon)).toBe(false)
     expect(isOverdue({ dueDate: '2026-12-04', status: 'done' }, noon)).toBe(false)
+    expect(isOverdue({ dueDate: '2026-12-04', status: 'on_hold' }, noon)).toBe(false) // waiting, not late
+    expect(isOverdue({ dueDate: '2026-12-04', status: 'review' }, noon)).toBe(true)
     expect(isOverdue({ dueDate: null, status: 'todo' }, noon)).toBe(false)
   })
 

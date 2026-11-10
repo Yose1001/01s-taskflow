@@ -178,6 +178,7 @@ export const ICON_PATHS = {
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   logout: <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12h-9" />,
+  flag: <path d="M5 21V4m0 0h11l-2.5 4.5L16 13H5" />,
   checklist: (
     <path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M12 6h8M12 12h8M12 18h8" />
   ),

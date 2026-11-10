@@ -231,6 +231,7 @@
     "filters": "Filters",
     "filtersCount": "Filters ({{count}})",
     "dueWord": "Ends",
+    "dueBy": "Due",
     "assignedWord": "Assigned to",
     "filteringBy": "Filtering by:",
     "removeFilter": "Remove filter: {{name}}",

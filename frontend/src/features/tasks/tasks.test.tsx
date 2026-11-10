@@ -1006,16 +1006,61 @@ describe('several people and two dates on a task', () => {
 
   it('shows both dates on the card, each marked for machines and in full on hover', async () => {
     await openBoard(userEvent.setup(), [SHARED()])
-    const start = screen.getByText('1 Mar 2099')
-    expect(start).toHaveAttribute('datetime', '2099-03-01')
+    // One month: "1–4 Mar 2099", the month written once.
+    const start = document.querySelector('time[datetime="2099-03-01"]')!
+    expect(start).toHaveTextContent(/^1$/)
     expect(start).toHaveAttribute('title', 'Starts 1 Mar 2099')
     expect(screen.getByText('4 Mar 2099')).toHaveAttribute('title', 'Ends 4 Mar 2099')
+    expect(screen.getByText('–')).toHaveAttribute('aria-hidden', 'true')
     expect(screen.getByText('Starts')).toHaveClass('sr-only')
+  })
+
+  it('writes a range across months, or years, in full', async () => {
+    await openBoard(userEvent.setup(), [
+      task('m', 'Months', { startDate: '2099-10-28', dueDate: '2099-11-03', position: 1 }),
+      task('y', 'Years', { startDate: '2099-12-30', dueDate: '2100-01-02', position: 2 }),
+    ])
+    expect(screen.getByText('28 Oct')).toHaveAttribute('datetime', '2099-10-28')
+    expect(screen.getByText('3 Nov 2099')).toHaveAttribute('datetime', '2099-11-03')
+    expect(screen.getByText('30 Dec 2099')).toHaveAttribute('datetime', '2099-12-30')
+    expect(screen.getByText('2 Jan 2100')).toHaveAttribute('datetime', '2100-01-02')
+  })
+
+  it('writes one date when a task starts and ends on the same day', async () => {
+    await openBoard(userEvent.setup(), [
+      task('o', 'One day', { startDate: '2099-03-04', dueDate: '2099-03-04' }),
+    ])
+    expect(screen.getByText('4 Mar 2099')).toHaveAttribute('datetime', '2099-03-04')
+    expect(screen.queryByText('–')).not.toBeInTheDocument()
   })
 
   it('says "Starts" out loud when a task has only a start date', async () => {
     await openBoard(userEvent.setup(), [task('s', 'Open-ended', { startDate: '2099-03-01' })])
     expect(screen.getByText('Starts')).not.toHaveClass('sr-only')
+  })
+
+  it('marks an end date alone with "Due" and a flag', async () => {
+    await openBoard(userEvent.setup(), [task('d', 'Deadline', { dueDate: '2099-03-04' })])
+    const date = screen.getByText('4 Mar 2099')
+    expect(date).toHaveAttribute('title', 'Ends 4 Mar 2099')
+    expect(date.parentElement).toHaveTextContent('Due 4 Mar 2099')
+  })
+
+  it('never shows a task on hold as overdue: it is waiting, not late', async () => {
+    await openBoard(userEvent.setup(), [
+      task('h', 'Held', {
+        status: 'on_hold',
+        holdReason: 'Waiting for the client',
+        dueDate: '2020-01-01',
+      }),
+      task('l', 'Late', { dueDate: '2020-01-01' }),
+    ])
+    expect(within(column(/^On hold/)).queryByText('Overdue')).not.toBeInTheDocument()
+    expect(within(column(/^To do/)).getByText('Overdue')).toBeInTheDocument()
+    // The reason is one quiet line, in full on hover.
+    const reason = within(column(/^On hold/)).getByTitle('Waiting for the client')
+    expect(reason).toHaveClass('text-muted')
+    expect(reason).not.toHaveClass('bg-lemon-bg')
   })
 
   it('finds a shared task under each of its people', async () => {

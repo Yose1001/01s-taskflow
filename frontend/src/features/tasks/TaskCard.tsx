@@ -1,12 +1,12 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../../api/types'
 import { Avatar, EmptyAvatar } from '../../components/Avatar'
 import { Icon } from '../../components/Icon'
 import { PriorityBadge } from '../../components/StatusBadge'
-import { formatDay, formatDayShort } from '../../lib/format'
+import { formatDay, formatDayRange, formatDayShort } from '../../lib/format'
 import { isOverdue, type Assignee } from './boardLogic'
 import { SubtaskProgress } from './SubtaskList'
 
@@ -37,6 +37,49 @@ function DatesChip({ task }: { task: Task }) {
   const { startDate, dueDate } = task
   if (!startDate && !dueDate) return null
   const overdue = isOverdue(task)
+  const language = i18n.language
+  const day = (iso: string, text: string, kind: 'starts' | 'due') => (
+    <time dateTime={iso} title={t(`tasks.${kind}`, { date: formatDay(iso, language) })}>
+      {text}
+    </time>
+  )
+  let dates: ReactNode
+  if (startDate && startDate === dueDate) {
+    // Starts and ends on the same day: one date, not "8–8 Nov".
+    dates = (
+      <span>
+        <span className="sr-only">
+          {t('tasks.startWord')}, {t('tasks.dueWord')}{' '}
+        </span>
+        {day(dueDate, formatDayShort(dueDate, language), 'due')}
+      </span>
+    )
+  } else if (startDate && dueDate) {
+    // "9–10 Nov". The words are there for screen readers, which read "Starts 9, Ends 10 Nov".
+    const range = formatDayRange(startDate, dueDate, language)
+    dates = (
+      <span>
+        <span className="sr-only">{t('tasks.startWord')} </span>
+        {day(startDate, range.start, 'starts')}
+        <span aria-hidden="true">{range.joiner}</span>
+        <span className="sr-only">, {t('tasks.dueWord')} </span>
+        {day(dueDate, range.end, 'due')}
+      </span>
+    )
+  } else if (startDate) {
+    // With only a start date the word must show: a lone date would read as the end.
+    dates = (
+      <span>
+        {t('tasks.startWord')} {day(startDate, formatDayShort(startDate, language), 'starts')}
+      </span>
+    )
+  } else if (dueDate) {
+    dates = (
+      <span>
+        {t('tasks.dueBy')} {day(dueDate, formatDayShort(dueDate, language), 'due')}
+      </span>
+    )
+  }
   return (
     <span
       // On a narrow card it wraps between whole pieces, never in the middle of a word or a date.
@@ -44,34 +87,9 @@ function DatesChip({ task }: { task: Task }) {
         overdue ? 'bg-danger-bg text-danger-fg' : 'bg-surface-2 text-muted'
       }`}
     >
-      <Icon name={overdue ? 'warning' : 'calendar'} size={14} />
+      <Icon name={overdue ? 'warning' : startDate ? 'calendar' : 'flag'} size={14} />
       {overdue && <span>{t('tasks.overdue')}</span>}
-      <span className="inline-flex flex-wrap items-center gap-x-1.5">
-        {startDate && (
-          <>
-            {/* With only a start date, the word is needed on screen: a lone date would read as the end. */}
-            <span className={dueDate ? 'sr-only' : undefined}>{t('tasks.startWord')}</span>
-            <time
-              dateTime={startDate}
-              title={t('tasks.starts', { date: formatDay(startDate, i18n.language) })}
-            >
-              {formatDayShort(startDate, i18n.language)}
-            </time>
-          </>
-        )}
-        {startDate && dueDate && <span aria-hidden="true">–</span>}
-        {dueDate && (
-          <>
-            {(!overdue || startDate) && <span className="sr-only">{t('tasks.dueWord')}</span>}
-            <time
-              dateTime={dueDate}
-              title={t('tasks.due', { date: formatDay(dueDate, i18n.language) })}
-            >
-              {formatDayShort(dueDate, i18n.language)}
-            </time>
-          </>
-        )}
-      </span>
+      {dates}
     </span>
   )
 }
@@ -216,12 +234,12 @@ export function TaskCardView({
         {task.holdReason && (
           <p
             title={task.holdReason}
-            className="flex items-start gap-1.5 rounded-lg bg-lemon-bg px-2 py-1 text-sm text-lemon-fg"
+            className="flex min-w-0 items-center gap-1.5 text-sm text-muted"
           >
-            <span className="mt-0.5 shrink-0">
+            <span className="shrink-0">
               <Icon name="pause" size={14} />
             </span>
-            <span className="line-clamp-2 min-w-0 break-words">
+            <span className="min-w-0 truncate">
               <span className="sr-only">{t('tasks.holdWord')}: </span>
               {task.holdReason}
             </span>

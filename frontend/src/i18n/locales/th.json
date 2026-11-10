@@ -231,6 +231,7 @@
     "filters": "ตัวกรอง",
     "filtersCount": "ตัวกรอง ({{count}})",
     "dueWord": "สิ้นสุด",
+    "dueBy": "ถึง",
     "assignedWord": "ผู้รับผิดชอบ",
     "filteringBy": "กรองอยู่:",
     "removeFilter": "เอาตัวกรองออก: {{name}}",
