@@ -93,7 +93,8 @@
     "close": "Close"
   },
   "dashboard": {
-    "hello": "Hello, {{name}}"
+    "welcome": "Welcome back",
+    "signedInAs": "Signed in as"
   },
   "projects": {
     "title": "Your projects",
@@ -186,6 +187,7 @@
     "assigneeFilter": "Assigned to",
     "all": "All",
     "unassigned": "Unassigned",
+    "assigneesChosen": "{{count}} people",
     "clearFilters": "Clear all",
     "showing": "Showing {{shown}} of {{total}} tasks",
     "dragHandle": "Move task: {{title}}",
@@ -235,6 +237,9 @@
     "filteringBy": "Filtering by:",
     "removeFilter": "Remove filter: {{name}}",
     "showCount": "Show {{count}} tasks",
+    "layoutLabel": "Column layout",
+    "layout_row": "One row",
+    "layout_two": "Two per row",
     "sortIn": "Sort {{column}}: {{sort}}",
     "sort_manual": "My order",
     "sort_priority": "Highest priority first",
@@ -246,7 +251,6 @@
     "starts": "Starts {{date}}",
     "startWord": "Starts",
     "subtasksLabel": "Subtasks (optional)",
-    "subtasksHint": "Ticking, renaming and removing are saved right away.",
     "subtaskAddLabel": "Add a subtask",
     "subtaskPlaceholder": "Type something to do",
     "subtaskAdd": "Add",

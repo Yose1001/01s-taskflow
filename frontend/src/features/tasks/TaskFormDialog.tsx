@@ -250,7 +250,6 @@ export function TaskFormDialog({
           inputId={FIELD_IDS.subtasks}
           items={lines}
           tickable={editing}
-          hint={editing ? t('tasks.subtasksHint') : undefined}
           draft={subtaskDraft}
           onDraftChange={setSubtaskDraft}
           onAdd={() => addLine()}

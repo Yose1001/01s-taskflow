@@ -108,7 +108,6 @@ export function SubtaskList({
   inputId,
   items,
   tickable,
-  hint,
   draft,
   onDraftChange,
   onAdd,
@@ -122,7 +121,6 @@ export function SubtaskList({
   items: Subtask[]
   /** Lines can be ticked off (not while the task is still being created). */
   tickable: boolean
-  hint?: string | undefined
   draft: string
   onDraftChange: (text: string) => void
   onAdd: () => void
@@ -150,8 +148,14 @@ export function SubtaskList({
           </span>
         )}
       </legend>
-      {hint && <p className="mb-1 text-sm text-muted">{hint}</p>}
-      {items.length > 0 && (
+      {items.length === 0 ? (
+        // Decoration only, the height of one line: shows where the lines will go.
+        <div
+          aria-hidden="true"
+          data-testid="subtasks-empty"
+          className="mb-2 h-11.5 rounded-xl border border-border bg-surface"
+        />
+      ) : (
         <ul className="mb-2 space-y-0.5 rounded-xl border border-border bg-surface p-1">
           {items.map((item) => (
             <SubtaskRow

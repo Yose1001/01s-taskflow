@@ -125,7 +125,7 @@ export async function submitLogin(page: Page, person: Person): Promise<void> {
 export async function loginViaUi(page: Page, person: Person): Promise<void> {
   await page.goto('/login')
   await submitLogin(page, person)
-  await expect(page.getByRole('heading', { level: 1, name: `Hello, ${person.email}` })).toBeVisible()
+  await expect(page.getByText(`Signed in as ${person.email}`, { exact: true })).toBeVisible()
 }
 
 /**
@@ -153,6 +153,13 @@ export async function titlesIn(page: Page, column: RegExp | string): Promise<str
 }
 
 /** Chooses a day in the calendar of the date field with this label. */
+/** Ticks or unticks people in the board's "Assigned to" menu ('All' takes every tick off), then closes it. */
+export async function toggleAssignees(page: Page, names: string[]): Promise<void> {
+  await page.getByRole('button', { name: /^Assigned to:/ }).click()
+  for (const name of names) await page.getByRole('menuitemcheckbox', { name, exact: true }).click()
+  await page.keyboard.press('Escape')
+}
+
 export async function pickDay(page: Page, label: string, day: string): Promise<void> {
   await page.getByLabel(label, { exact: true }).click()
   const calendar = page.getByRole('dialog', { name: label })

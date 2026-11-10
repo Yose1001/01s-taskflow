@@ -196,6 +196,13 @@ export const ICON_PATHS = {
       <rect x="13" y="13" width="7" height="7" rx="1.5" />
     </>
   ),
+  columns: (
+    <>
+      <rect x="3.5" y="4" width="4.5" height="16" rx="1.5" />
+      <rect x="9.75" y="4" width="4.5" height="16" rx="1.5" />
+      <rect x="16" y="4" width="4.5" height="16" rx="1.5" />
+    </>
+  ),
   list: (
     <>
       <path d="M9 6h11" />

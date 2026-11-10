@@ -4,8 +4,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { errorMessage } from '../auth/errors'
 import type { Project } from '../api/types'
+import { Avatar } from '../components/Avatar'
+import { ChoiceSwitch } from '../components/ChoiceSwitch'
 import { Button } from '../components/forms'
-import { Icon, type IconName } from '../components/Icon'
+import { Icon } from '../components/Icon'
 import { Menu } from '../components/Menu'
 import { Pagination } from '../components/Pagination'
 import { RoleBadge } from '../components/RoleBadge'
@@ -120,31 +122,16 @@ function ViewSwitch({
   onChange: (view: ProjectsView) => void
 }) {
   const { t } = useTranslation()
-  const options: { value: ProjectsView; icon: IconName; label: string }[] = [
-    { value: 'cards', icon: 'grid', label: t('projects.viewCards') },
-    { value: 'list', icon: 'list', label: t('projects.viewList') },
-  ]
   return (
-    <div
-      role="group"
-      aria-label={t('projects.viewLabel')}
-      className="inline-flex h-10 items-center gap-0.5 rounded-xl border border-border bg-surface p-0.5"
-    >
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          aria-pressed={view === option.value}
-          onClick={() => onChange(option.value)}
-          className={`inline-flex h-full items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium ${
-            view === option.value ? 'bg-primary-bg text-primary-fg' : 'text-muted hover:text-text'
-          }`}
-        >
-          <Icon name={option.icon} />
-          <span className="max-sm:sr-only">{option.label}</span>
-        </button>
-      ))}
-    </div>
+    <ChoiceSwitch
+      label={t('projects.viewLabel')}
+      value={view}
+      onChange={onChange}
+      options={[
+        { value: 'cards', icon: 'grid', label: t('projects.viewCards') },
+        { value: 'list', icon: 'list', label: t('projects.viewList') },
+      ]}
+    />
   )
 }
 
@@ -240,9 +227,15 @@ export function ProjectsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="break-words text-2xl font-bold sm:text-3xl">
-          {t('dashboard.hello', { name: user.email })}
-        </h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">{t('dashboard.welcome')}</h1>
+        {/* The avatar stands for "signed in as"; screen readers still hear the words. */}
+        <p className="mt-2 flex items-center gap-2 text-muted">
+          <Avatar id={user.id} name={user.email} size={24} />
+          <span className="min-w-0 break-words">
+            <span className="sr-only">{t('dashboard.signedInAs')} </span>
+            {user.email}
+          </span>
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">

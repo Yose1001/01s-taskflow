@@ -10,7 +10,7 @@ test.describe('signing up and in', () => {
     await page.getByLabel('Password', { exact: true }).fill(person.password)
     await page.getByRole('button', { name: 'Sign up' }).click()
 
-    await expect(page.getByRole('heading', { level: 1, name: `Hello, ${person.email}` })).toBeVisible()
+    await expect(page.getByText(`Signed in as ${person.email}`, { exact: true })).toBeVisible()
     await expect(page.getByText('You have no projects yet.')).toBeVisible()
 
     await page.getByRole('button', { name: 'Account menu' }).click()
@@ -18,7 +18,7 @@ test.describe('signing up and in', () => {
     await expect(page).toHaveURL(/\/login/)
 
     await submitLogin(page, person)
-    await expect(page.getByRole('heading', { level: 1, name: `Hello, ${person.email}` })).toBeVisible()
+    await expect(page.getByText(`Signed in as ${person.email}`, { exact: true })).toBeVisible()
   })
 
   test('a wrong password is refused with a clear message, and nothing is opened', async ({ page, request }) => {
@@ -73,7 +73,7 @@ test.describe('signing up and in', () => {
     // A crafted link tries to send the person elsewhere after login. It must be ignored.
     await page.goto('/login?redirect=https://evil.example/&from=https://evil.example/')
     await submitLogin(page, person)
-    await expect(page.getByRole('heading', { level: 1, name: `Hello, ${person.email}` })).toBeVisible()
+    await expect(page.getByText(`Signed in as ${person.email}`, { exact: true })).toBeVisible()
     expect(new URL(page.url()).origin).toBe('http://localhost:5174')
   })
 
@@ -115,7 +115,7 @@ test.describe('signing up and in', () => {
 
     const tab = await context.newPage()
     await tab.goto('/')
-    await expect(tab.getByRole('heading', { level: 1, name: `Hello, ${person.email}` })).toBeVisible()
+    await expect(tab.getByText(`Signed in as ${person.email}`, { exact: true })).toBeVisible()
 
     // Logging out in one tab ends the session in the other tab too.
     await tab.getByRole('button', { name: 'Account menu' }).click()

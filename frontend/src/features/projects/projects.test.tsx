@@ -17,9 +17,7 @@ async function openSignedIn(user: U, route = '/') {
   await user.type(screen.getByLabelText('Email'), 'alice@example.com')
   await user.type(screen.getByLabelText('Password'), 'correct horse')
   await user.click(screen.getByRole('button', { name: 'Log in' }))
-  await screen
-    .findByRole('heading', { level: 1, name: 'Hello, alice@example.com' })
-    .catch(() => undefined)
+  await screen.findByText('alice@example.com').catch(() => undefined)
   return view
 }
 
@@ -41,6 +39,16 @@ async function openMembers(user: U) {
 }
 
 describe('project list', () => {
+  it('welcomes the person back and says who is signed in, with no "Hello"', async () => {
+    fakeBackend({ projects: [] })
+    await openSignedIn(userEvent.setup())
+    expect(screen.getByRole('heading', { level: 1, name: 'Welcome back' })).toBeInTheDocument()
+    // An avatar instead of words on screen; the words are still there for screen readers.
+    expect(screen.getByText('alice@example.com')).toBeInTheDocument()
+    expect(screen.getByText('Signed in as')).toHaveClass('sr-only')
+    expect(screen.queryByText(/Hello/)).not.toBeInTheDocument()
+  })
+
   it('shows cards at first and can switch to a list with the same details', async () => {
     fakeBackend({ projects: [project('p1', 'Website', { description: 'Redesign the site' })] })
     const user = userEvent.setup()
@@ -914,7 +922,7 @@ describe('privacy between people on the same browser', () => {
     await user.type(screen.getByLabelText('Email'), 'bob@example.com')
     await user.type(screen.getByLabelText('Password'), 'correct horse')
     await user.click(screen.getByRole('button', { name: 'Log in' }))
-    await screen.findByRole('heading', { level: 1, name: 'Hello, bob@example.com' })
+    await screen.findByText('bob@example.com')
     expect(screen.queryByText('Alice private plan')).not.toBeInTheDocument()
     release()
   })

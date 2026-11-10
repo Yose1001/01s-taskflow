@@ -93,7 +93,8 @@
     "close": "ปิด"
   },
   "dashboard": {
-    "hello": "สวัสดี {{name}}"
+    "welcome": "ยินดีต้อนรับกลับมา",
+    "signedInAs": "ใช้งานในชื่อ"
   },
   "projects": {
     "title": "โปรเจกต์ของคุณ",
@@ -186,6 +187,7 @@
     "assigneeFilter": "ผู้รับผิดชอบ",
     "all": "ทั้งหมด",
     "unassigned": "ยังไม่มีผู้รับผิดชอบ",
+    "assigneesChosen": "{{count}} คน",
     "clearFilters": "ล้างทั้งหมด",
     "showing": "แสดง {{shown}} จาก {{total}} งาน",
     "dragHandle": "ย้ายงาน: {{title}}",
@@ -235,6 +237,9 @@
     "filteringBy": "กรองอยู่:",
     "removeFilter": "เอาตัวกรองออก: {{name}}",
     "showCount": "แสดง {{count}} งาน",
+    "layoutLabel": "การจัดคอลัมน์",
+    "layout_row": "แถวเดียว",
+    "layout_two": "แถวละ 2",
     "sortIn": "เรียง {{column}}: {{sort}}",
     "sort_manual": "ตามที่จัดเอง",
     "sort_priority": "ความสำคัญสูงก่อน",
@@ -246,7 +251,6 @@
     "starts": "เริ่ม {{date}}",
     "startWord": "เริ่ม",
     "subtasksLabel": "รายการย่อย (ไม่บังคับ)",
-    "subtasksHint": "การติ๊ก แก้ชื่อ และลบ จะบันทึกทันที",
     "subtaskAddLabel": "เพิ่มรายการย่อย",
     "subtaskPlaceholder": "พิมพ์สิ่งที่ต้องทำ",
     "subtaskAdd": "เพิ่ม",

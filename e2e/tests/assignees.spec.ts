@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { createProjectViaApi, inviteViaApi, loginViaUi, newUser, openProject, pickDay } from './helpers'
+import { createProjectViaApi, inviteViaApi, loginViaUi, newUser, openProject, pickDay, toggleAssignees } from './helpers'
 
 test.use({ viewport: { width: 1400, height: 900 } })
 
@@ -41,13 +41,13 @@ test.describe('several people and two dates on a task', () => {
 
     // Everything is really saved, and the filter finds the task under each person.
     await page.reload()
-    await page.getByLabel('Assigned to', { exact: true }).selectOption(bob.person.email)
+    await toggleAssignees(page, [bob.person.email])
     await expect(page.getByRole('button', { name: 'Shared job', exact: true })).toBeVisible()
-    await page.getByLabel('Assigned to', { exact: true }).selectOption(alice.person.email)
+    await toggleAssignees(page, [bob.person.email, alice.person.email])
     await expect(page.getByRole('button', { name: 'Shared job', exact: true })).toBeVisible()
-    await page.getByLabel('Assigned to', { exact: true }).selectOption('Unassigned')
+    await toggleAssignees(page, [alice.person.email, 'Unassigned'])
     await expect(page.getByRole('button', { name: 'Shared job', exact: true })).toHaveCount(0)
-    await page.getByLabel('Assigned to', { exact: true }).selectOption('')
+    await toggleAssignees(page, ['All'])
 
     // Bob leaves: Alice is still on the task.
     await page.getByRole('button', { name: /^Members \d+$/ }).click()

@@ -7,6 +7,7 @@ import {
   newUser,
   openProject,
   titlesIn,
+  toggleAssignees,
 } from './helpers'
 
 test.describe('working together', () => {
@@ -113,7 +114,7 @@ test.describe('working together', () => {
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Members' })).toHaveCount(0)
     await expect(page.getByTitle(`Assigned to ${bob.person.email}`)).toHaveCount(0)
-    await page.getByLabel('Assigned to', { exact: true }).selectOption('Unassigned')
+    await toggleAssignees(page, ['Unassigned'])
     await expect(page.getByRole('button', { name: "Bob's job", exact: true })).toBeVisible()
 
     // Bob no longer finds the project.

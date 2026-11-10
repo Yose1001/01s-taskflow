@@ -26,6 +26,7 @@ import { restoreTask } from '../../api/tasks'
 import type { Member, Task, TaskStatus } from '../../api/types'
 import { useAuth } from '../../auth/context'
 import { errorMessage } from '../../auth/errors'
+import { ChoiceSwitch } from '../../components/ChoiceSwitch'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Button, CompactSelectField, CompactTextField, SelectField } from '../../components/forms'
 import { Icon, type IconName } from '../../components/Icon'
@@ -37,6 +38,7 @@ import { useToast } from '../../components/toast'
 import { TrashLink } from '../../components/TrashLink'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMembers } from '../projects/hooks'
+import { AssigneePicker } from './AssigneePicker'
 import {
   assigneesOf,
   NO_FILTERS,
@@ -53,6 +55,7 @@ import {
   type Filters,
   type Move,
 } from './boardLogic'
+import { loadBoardLayout, saveBoardLayout, type BoardLayout } from './boardLayout'
 import {
   SORTS,
   dropWithSorts,
@@ -112,6 +115,11 @@ export function TaskBoard({
   const [holding, setHolding] = useState<{ move: Move; task: Task } | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [movedByKeyboard, setMovedByKeyboard] = useState(false)
+  const [layout, setLayout] = useState(loadBoardLayout)
+  function chooseLayout(next: BoardLayout) {
+    setLayout(next)
+    saveBoardLayout(next)
+  }
 
   // Which column is in view when the board is swiped sideways on a phone.
   const scroller = useRef<HTMLDivElement>(null)
@@ -293,6 +301,8 @@ export function TaskBoard({
         onChange={setFilters}
         shown={visible.length}
         total={all.length}
+        layout={layout}
+        onLayoutChange={chooseLayout}
       />
 
       {all.length === 0 && <p className="text-muted">{t('tasks.emptyBoard')}</p>}
@@ -315,15 +325,15 @@ export function TaskBoard({
       >
         {/*
           Phones: one column at a time, swipe sideways. Tablets: two across, with Done filling the last row.
-          Wide screens: all five.
+          Wide screens: all five, or the same as tablets if the person chose that.
           Snapping is off during a drag: it would fight with scrolling by itself near the edge.
         */}
         <div
           ref={scroller}
           onScroll={onBoardScroll}
-          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-5 ${
-            dragging ? '' : 'snap-x snap-mandatory'
-          }`}
+          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 ${
+            layout === 'row' ? 'xl:grid-cols-5' : ''
+          } ${dragging ? '' : 'snap-x snap-mandatory'}`}
         >
           {STATUSES.map((status) => (
             <Column
@@ -332,6 +342,7 @@ export function TaskBoard({
               tasks={shown[status]}
               nameOf={nameOf}
               sort={sorts[status]}
+              layout={layout}
               onSort={(sort) => chooseSort(status, sort)}
               onOpen={(task) => setColumnDialog({ kind: 'edit', task })}
             />
@@ -454,6 +465,7 @@ interface ColumnProps {
   tasks: Task[]
   nameOf: Map<string, string>
   sort: ColumnSort
+  layout: BoardLayout
   onSort: (sort: ColumnSort) => void
   onOpen: (task: Task) => void
 }
@@ -467,7 +479,7 @@ const COLUMN_LINE: Record<TaskStatus, string> = {
   done: 'bg-mint-fg',
 }
 
-function Column({ status, tasks, nameOf, sort, onSort, onOpen }: ColumnProps) {
+function Column({ status, tasks, nameOf, sort, layout, onSort, onOpen }: ColumnProps) {
   const { t } = useTranslation()
   // The whole column accepts drops, so a card can go into an empty column or below the last card.
   const { setNodeRef, isOver } = useDroppable({ id: columnId(status) })
@@ -475,7 +487,9 @@ function Column({ status, tasks, nameOf, sort, onSort, onOpen }: ColumnProps) {
   return (
     <section
       aria-label={t('tasks.columnLabel', { column: name, count: tasks.length })}
-      className="relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto sm:last:col-span-2 xl:last:col-span-1"
+      className={`relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto sm:last:col-span-2 ${
+        layout === 'row' ? 'xl:last:col-span-1' : ''
+      }`}
     >
       <span
         aria-hidden="true"
@@ -537,6 +551,8 @@ interface FilterBarProps {
   onChange: (changed: Partial<Filters>) => void
   shown: number
   total: number
+  layout: BoardLayout
+  onLayoutChange: (layout: BoardLayout) => void
 }
 
 const SELECT_WIDTH = 'flex-[0_1_150px] max-sm:hidden'
@@ -555,18 +571,68 @@ function PriorityOptions() {
   )
 }
 
-function AssigneeOptions({ members }: { members: Member[] }) {
+/**
+ * Whose tasks to show, for wider screens: a menu where any number of people can be ticked, plus "Unassigned".
+ * "All" takes every tick off. The button says what is chosen, so the board never hides tasks without saying so.
+ */
+function AssigneeFilter({
+  members,
+  chosen,
+  onChange,
+}: {
+  members: Member[]
+  chosen: string[]
+  onChange: (next: string[]) => void
+}) {
   const { t } = useTranslation()
+  const toggle = (id: string) =>
+    onChange(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id])
+  const summary =
+    chosen.length === 0
+      ? t('tasks.all')
+      : chosen.length === 1
+        ? chosen[0] === UNASSIGNED
+          ? t('tasks.unassigned')
+          : (members.find((m) => m.userId === chosen[0])?.email ?? t('tasks.all'))
+        : t('tasks.assigneesChosen', { count: chosen.length })
   return (
-    <>
-      <option value="">{t('tasks.all')}</option>
-      <option value={UNASSIGNED}>{t('tasks.unassigned')}</option>
-      {members.map((m) => (
-        <option key={m.userId} value={m.userId}>
-          {m.email}
-        </option>
-      ))}
-    </>
+    <Menu
+      className={SELECT_WIDTH}
+      multiple
+      label={`${t('tasks.assigneeFilter')}: ${summary}`}
+      triggerClassName="relative flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-surface pl-3 pr-2 text-left text-text focus:border-primary"
+      trigger={
+        <>
+          <span className="shrink-0 text-muted">
+            <Icon name="users" />
+          </span>
+          <span className="min-w-0 flex-1 truncate">{summary}</span>
+          <span className="shrink-0 text-muted">
+            <Icon name="chevron-down" size={16} />
+          </span>
+        </>
+      }
+      items={[
+        {
+          key: 'all',
+          label: t('tasks.all'),
+          checked: chosen.length === 0,
+          onSelect: () => onChange([]),
+        },
+        {
+          key: UNASSIGNED,
+          label: t('tasks.unassigned'),
+          checked: chosen.includes(UNASSIGNED),
+          onSelect: () => toggle(UNASSIGNED),
+        },
+        ...members.map((m) => ({
+          key: m.userId,
+          label: m.email,
+          checked: chosen.includes(m.userId),
+          onSelect: () => toggle(m.userId),
+        })),
+      ]}
+    />
   )
 }
 
@@ -586,8 +652,8 @@ function FilterSheet({
 }) {
   const { t } = useTranslation()
   const [priority, setPriority] = useState(filters.priority)
-  const [assignee, setAssignee] = useState(filters.assignee)
-  const count = filterTasks(tasks, { ...filters, priority, assignee }).length
+  const [assignees, setAssignees] = useState(filters.assignees)
+  const count = filterTasks(tasks, { ...filters, priority, assignees }).length
   return (
     <Modal
       title={t('tasks.filters')}
@@ -604,20 +670,20 @@ function FilterSheet({
         >
           <PriorityOptions />
         </SelectField>
-        <SelectField
+        <AssigneePicker
           id="sheet-assignee"
-          label={t('tasks.assigneeFilter')}
-          value={assignee}
-          onChange={(e) => setAssignee(e.target.value)}
-        >
-          <AssigneeOptions members={members} />
-        </SelectField>
+          legend={t('tasks.assigneeFilter')}
+          unassignedLabel={t('tasks.unassigned')}
+          members={members}
+          selected={assignees}
+          onChange={setAssignees}
+        />
         <div className="flex flex-col gap-2 pt-1">
           <Button
             type="button"
             className="w-full"
             onClick={() => {
-              onChange({ priority, assignee })
+              onChange({ priority, assignees })
               onClose()
             }}
           >
@@ -629,7 +695,7 @@ function FilterSheet({
             className="w-full"
             onClick={() => {
               setPriority('')
-              setAssignee('')
+              setAssignees([])
             }}
           >
             {t('tasks.clearFilters')}
@@ -640,14 +706,22 @@ function FilterSheet({
   )
 }
 
-function FilterBar({ projectId, filters, members, tasks, onChange, shown, total }: FilterBarProps) {
+function FilterBar({
+  projectId,
+  filters,
+  members,
+  tasks,
+  onChange,
+  shown,
+  total,
+  layout,
+  onLayoutChange,
+}: FilterBarProps) {
   const { t } = useTranslation()
   const [sheetOpen, setSheetOpen] = useState(false)
-  const inSheet = [filters.priority, filters.assignee].filter(Boolean).length
-  const assigneeName =
-    filters.assignee === UNASSIGNED
-      ? t('tasks.unassigned')
-      : members.find((m) => m.userId === filters.assignee)?.email
+  const inSheet = (filters.priority ? 1 : 0) + filters.assignees.length
+  const nameFor = (id: string) =>
+    id === UNASSIGNED ? t('tasks.unassigned') : members.find((m) => m.userId === id)?.email
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -691,16 +765,22 @@ function FilterBar({ projectId, filters, members, tasks, onChange, shown, total 
         >
           <PriorityOptions />
         </CompactSelectField>
-        <CompactSelectField
-          id="filter-assignee"
-          icon="users"
-          className={SELECT_WIDTH}
-          label={t('tasks.assigneeFilter')}
-          value={filters.assignee}
-          onChange={(e) => onChange({ assignee: e.target.value })}
-        >
-          <AssigneeOptions members={members} />
-        </CompactSelectField>
+        <AssigneeFilter
+          members={members}
+          chosen={filters.assignees}
+          onChange={(assignees) => onChange({ assignees })}
+        />
+        {/* Only wide screens have a choice: smaller ones already use the one layout that fits them. */}
+        <ChoiceSwitch
+          className="shrink-0 max-xl:hidden"
+          label={t('tasks.layoutLabel')}
+          value={layout}
+          onChange={onLayoutChange}
+          options={[
+            { value: 'row', icon: 'columns', label: t('tasks.layout_row') },
+            { value: 'two', icon: 'grid', label: t('tasks.layout_two') },
+          ]}
+        />
         <TrashLink
           to={`/projects/${encodeURIComponent(projectId)}/trash`}
           label={t('tasks.trash')}
@@ -729,13 +809,14 @@ function FilterBar({ projectId, filters, members, tasks, onChange, shown, total 
               onRemove={() => onChange({ priority: '' })}
             />
           )}
-          {assigneeName && (
+          {filters.assignees.map((id) => (
             <FilterChip
+              key={id}
               icon="users"
-              text={assigneeName}
-              onRemove={() => onChange({ assignee: '' })}
+              text={nameFor(id) ?? id}
+              onRemove={() => onChange({ assignees: filters.assignees.filter((x) => x !== id) })}
             />
-          )}
+          ))}
           <button
             type="button"
             onClick={() => onChange(NO_FILTERS)}
@@ -790,22 +871,34 @@ function useFilters(members: Member[] | null): [Filters, (changed: Partial<Filte
     return {
       q: (params.get('q') ?? '').slice(0, MAX_QUERY),
       priority: isPriority(priority) ? priority : '',
-      assignee: params.get('assignee') ?? '',
+      assignees: [...new Set((params.get('assignee') ?? '').split(',').filter(Boolean))].slice(
+        0,
+        100,
+      ),
     }
   })
 
-  // A person in the address who is not a member (any more) is ignored.
-  const known =
-    chosen.assignee === UNASSIGNED ||
-    members === null ||
-    members.some((m) => m.userId === chosen.assignee)
-  const filters: Filters = known ? chosen : { ...chosen, assignee: '' }
+  // A person in the address who is not a member (any more) is left out.
+  const filters: Filters =
+    members === null
+      ? chosen
+      : {
+          ...chosen,
+          assignees: chosen.assignees.filter(
+            (id) => id === UNASSIGNED || members.some((m) => m.userId === id),
+          ),
+        }
 
   useEffect(() => {
     setParams(
       (current) => {
         const out = new URLSearchParams(current) // keep anything else in the address
-        for (const [key, value] of Object.entries(chosen)) {
+        const values = {
+          q: chosen.q,
+          priority: chosen.priority,
+          assignee: chosen.assignees.join(','), // ?assignee=id1,id2
+        }
+        for (const [key, value] of Object.entries(values)) {
           if (value) out.set(key, value)
           else out.delete(key)
         }

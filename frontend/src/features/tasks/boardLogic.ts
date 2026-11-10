@@ -17,11 +17,11 @@ export interface Filters {
   /** Part of a title (any case). */
   q: string
   priority: TaskPriority | ''
-  /** '' = everyone, 'none' = unassigned, otherwise a user id. */
-  assignee: string
+  /** The people whose tasks are shown: user ids, and 'none' for unassigned. Empty = everyone. */
+  assignees: string[]
 }
 
-export const NO_FILTERS: Filters = { q: '', priority: '', assignee: '' }
+export const NO_FILTERS: Filters = { q: '', priority: '', assignees: [] }
 export const UNASSIGNED = 'none'
 
 export function isStatus(value: unknown): value is TaskStatus {
@@ -33,7 +33,7 @@ export function isPriority(value: unknown): value is TaskPriority {
 }
 
 export function hasFilters(f: Filters): boolean {
-  return f.q.trim() !== '' || f.priority !== '' || f.assignee !== ''
+  return f.q.trim() !== '' || f.priority !== '' || f.assignees.length > 0
 }
 
 /** Tasks that pass every active filter. */
@@ -42,10 +42,14 @@ export function filterTasks(tasks: Task[], f: Filters): Task[] {
   return tasks.filter((task) => {
     if (q && !task.title.toLowerCase().includes(q)) return false
     if (f.priority && task.priority !== f.priority) return false
-    if (f.assignee === UNASSIGNED) return task.assigneeIds.length === 0
-    if (f.assignee && !task.assigneeIds.includes(f.assignee)) return false
-    return true
+    return f.assignees.length === 0 || worksOnIt(task, f.assignees)
   })
+}
+
+/** Any one of the chosen people is enough. A task with nobody on it counts for 'none'. */
+function worksOnIt(task: Task, chosen: string[]): boolean {
+  if (task.assigneeIds.length === 0) return chosen.includes(UNASSIGNED)
+  return task.assigneeIds.some((id) => chosen.includes(id))
 }
 
 /** Someone working on a task, as a card shows them. */
