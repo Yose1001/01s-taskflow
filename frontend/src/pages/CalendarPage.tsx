@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { CalendarEvent, CalendarRange } from '../api/types'
 import { errorMessage } from '../auth/errors'
 import { useAuth } from '../auth/context'
+import { Avatar, EmptyAvatar } from '../components/Avatar'
 import { BackLink } from '../components/BackLink'
 import { Button, CompactSelectField } from '../components/forms'
 import { Icon } from '../components/Icon'
@@ -78,6 +79,9 @@ export function CalendarPage() {
   const { user } = useAuth()
   const people = usePeople()
   const person = params.get('person') ?? ''
+  // Names for the people on a task: anyone in a project with the person, and the person.
+  const nameOf = new Map((people.data?.items ?? []).map((p) => [p.userId, personName(p)]))
+  if (user) nameOf.set(user.id, personName(user))
   const visible = useMemo<CalendarRange | undefined>(() => {
     if (!calendar.data) return undefined
     if (!showTasks) return { events: calendar.data.events, tasks: [] }
@@ -270,6 +274,7 @@ export function CalendarPage() {
           <DayPanel
             title={text.fullDay(selected)}
             items={chosen}
+            nameOf={nameOf}
             onEdit={(event) => setDialog({ event, day: event.day })}
           />
         </div>
@@ -390,14 +395,52 @@ function WeekBars({ bars }: { bars: Bar[] }) {
   )
 }
 
+/** Who works on a task, as on the board's cards: their names, and a face for each (up to three). */
+function TaskPeople({ ids, nameOf }: { ids: string[]; nameOf: Map<string, string> }) {
+  const { t } = useTranslation()
+  const people = ids.flatMap((id) => {
+    const name = nameOf.get(id)
+    return name ? [{ id, name }] : []
+  })
+  // Somebody is on it but their name has not arrived yet: say nothing rather than "nobody".
+  if (people.length === 0 && ids.length > 0) return null
+  const names = people.map((p) => p.name).join(', ')
+  return (
+    <div className="mt-2 flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted">
+      {people.length === 0 ? (
+        <>
+          <span className="min-w-0 truncate">{t('tasks.unassigned')}</span>
+          <EmptyAvatar label={t('tasks.unassigned')} size={22} />
+        </>
+      ) : (
+        <>
+          <span className="min-w-0 truncate" title={t('tasks.assignedTo', { name: names })}>
+            <span className="sr-only">{t('tasks.assignedWord')} </span>
+            {names}
+          </span>
+          <span className="flex shrink-0 -space-x-1.5" aria-hidden="true">
+            {people.slice(0, 3).map((p) => (
+              <span key={p.id} className="rounded-full ring-2 ring-surface">
+                <Avatar id={p.id} name={p.name} size={22} />
+              </span>
+            ))}
+          </span>
+        </>
+      )}
+    </div>
+  )
+}
+
 /** Everything on the chosen day, in full. */
 function DayPanel({
   title,
   items,
+  nameOf,
   onEdit,
 }: {
   title: string
   items: DayItems
+  nameOf: Map<string, string>
   onEdit: (event: CalendarEvent) => void
 }) {
   const { t } = useTranslation()
@@ -471,6 +514,7 @@ function DayPanel({
                 <div className="mt-2">
                   <StatusBadge status={task.status} />
                 </div>
+                <TaskPeople ids={task.assigneeIds} nameOf={nameOf} />
               </Link>
             </li>
           ))}

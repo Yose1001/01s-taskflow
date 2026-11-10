@@ -59,6 +59,15 @@ async function openCalendar(user: U, extra: Parameters<typeof fakeBackend>[0] = 
 const panel = () => screen.getByRole('region', { name: 'Sunday, 15 March 2099' })
 
 describe('the calendar page', () => {
+  it('shows who works on each task in the day panel', async () => {
+    await openCalendar(userEvent.setup())
+    const ship = within(panel()).getByRole('link', { name: /Ship the site/ })
+    expect(within(ship).getByText('Bob')).toBeInTheDocument()
+    expect(within(ship).getByTitle('Assigned to Bob')).toBeInTheDocument()
+    const design = within(panel()).getByRole('link', { name: /Design/ })
+    expect(within(design).getByText('Unassigned')).toBeInTheDocument()
+  })
+
   it('has a way back to the projects', async () => {
     const user = userEvent.setup()
     await openCalendar(user)
