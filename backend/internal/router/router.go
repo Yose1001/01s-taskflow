@@ -88,6 +88,7 @@ func New(d Deps) http.Handler {
 		mux.Handle("DELETE /api/v1/events/{eventId}", authn(http.HandlerFunc(c.DeleteEvent)))
 		mux.Handle("GET /api/v1/notifications", authn(http.HandlerFunc(c.Notifications)))
 		mux.Handle("POST /api/v1/notifications/read", authn(http.HandlerFunc(c.MarkRead)))
+		mux.Handle("GET /api/v1/people", authn(http.HandlerFunc(c.People)))
 	}
 	return mux
 }

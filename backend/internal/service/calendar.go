@@ -16,6 +16,7 @@ const (
 	// A calendar page shows at most this many days: six weeks of a month view, with room to spare.
 	maxCalendarSpanDays = 100
 	maxNotifications    = 50
+	maxSharedWith       = 50
 )
 
 // EventStore is the persistence the calendar needs (implemented by repository.EventRepo).
@@ -28,6 +29,7 @@ type EventStore interface {
 	ListCalendarTasks(ctx context.Context, userID, from, to string) ([]model.CalendarTask, error)
 	ListNotifications(ctx context.Context, userID string, limit int) ([]model.Notification, int, error)
 	MarkRead(ctx context.Context, userID string, ids []string, at time.Time) error
+	ListPeople(ctx context.Context, userID string) ([]model.Person, error)
 }
 
 // CalendarOption customises Calendar (used by tests).
@@ -40,6 +42,8 @@ func WithCalendarClock(now func() time.Time) CalendarOption { return func(c *Cal
 //   - A personal day is seen and changed only by its owner.
 //   - A project's day is seen by every member and added by any member; it is changed or removed by
 //     the person who added it or by the project's owner.
+//   - A personal day can be shared with people who are in a project with its owner: they see it and are
+//     reminded, but only the owner changes it or who it is shared with.
 //   - Days someone cannot see are model.ErrNotFound (404), so they cannot tell they exist.
 type Calendar struct {
 	store    EventStore
@@ -62,6 +66,7 @@ type EventCreate struct {
 	Note       string
 	Day        string  // "YYYY-MM-DD"
 	ProjectID  *string // nil = personal
+	SharedWith []string
 	RemindDays []int
 }
 
@@ -71,6 +76,7 @@ type EventUpdate struct {
 	Note       *string
 	Day        *string
 	RemindDays *[]int
+	SharedWith *[]string
 }
 
 // CalendarPage is what one calendar view shows.
@@ -137,6 +143,20 @@ func (c *Calendar) Create(ctx context.Context, userID string, in EventCreate) (m
 			fields["projectId"] = "not_a_member"
 		}
 	}
+	shared, shareCode := []string{}, ""
+	if len(in.SharedWith) > 0 {
+		if in.ProjectID != nil {
+			shareCode = "personal_only" // a project's day is already seen by every member
+		} else {
+			shared, shareCode, err = c.checkSharedWith(ctx, userID, in.SharedWith)
+			if err != nil {
+				return model.Event{}, err
+			}
+		}
+	}
+	if shareCode != "" {
+		fields["sharedWith"] = shareCode
+	}
 	if len(fields) > 0 {
 		return model.Event{}, &ValidationError{Fields: fields}
 	}
@@ -146,7 +166,7 @@ func (c *Calendar) Create(ctx context.Context, userID string, in EventCreate) (m
 		project = &id
 	}
 	return c.store.CreateEvent(ctx, userID, model.EventInput{
-		Title: title, Note: note, Day: day, ProjectID: project, RemindDays: days,
+		Title: title, Note: note, Day: day, ProjectID: project, SharedWith: shared, RemindDays: days,
 	}, c.now())
 }
 
@@ -186,6 +206,21 @@ func (c *Calendar) Update(ctx context.Context, userID, eventID string, in EventU
 		}
 		patch.RemindDays = &days
 	}
+	if in.SharedWith != nil {
+		// Only the owner of a personal day says who it is shared with.
+		if ev.OwnerID == nil || *ev.OwnerID != userID {
+			fields["sharedWith"] = "personal_only"
+		} else {
+			shared, code, err := c.checkSharedWith(ctx, userID, *in.SharedWith)
+			if err != nil {
+				return model.Event{}, err
+			}
+			if code != "" {
+				fields["sharedWith"] = code
+			}
+			patch.SharedWith = &shared
+		}
+	}
 	if len(fields) > 0 {
 		return model.Event{}, &ValidationError{Fields: fields}
 	}
@@ -217,6 +252,42 @@ func (c *Calendar) MarkRead(ctx context.Context, userID string, ids []string) er
 		}
 	}
 	return c.store.MarkRead(ctx, userID, ids, c.now())
+}
+
+// People returns who userID may share a day with: everyone in an active project with them.
+func (c *Calendar) People(ctx context.Context, userID string) ([]model.Person, error) {
+	return c.store.ListPeople(ctx, userID)
+}
+
+// checkSharedWith returns the people sorted and without repeats, or an error code when one of them is
+// not someone userID may share with (themselves included: the owner sees their own day anyway).
+func (c *Calendar) checkSharedWith(ctx context.Context, userID string, ids []string) ([]string, string, error) {
+	unique := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if !uuidRe.MatchString(id) {
+			return nil, "invalid_id", nil
+		}
+		unique = append(unique, strings.ToLower(id))
+	}
+	slices.Sort(unique)
+	unique = slices.Compact(unique)
+	if len(unique) > maxSharedWith {
+		return nil, "too_many_people", nil
+	}
+	people, err := c.store.ListPeople(ctx, userID)
+	if err != nil {
+		return nil, "", err
+	}
+	known := make(map[string]bool, len(people))
+	for _, p := range people {
+		known[strings.ToLower(p.UserID)] = true
+	}
+	for _, id := range unique {
+		if !known[id] {
+			return nil, "not_a_member", nil
+		}
+	}
+	return unique, "", nil
 }
 
 // editable loads an important day userID can see, and refuses when they may not change it.

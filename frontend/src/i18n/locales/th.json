@@ -85,7 +85,10 @@
     "invalid_remind_day": "เลือกวันแจ้งเตือนจากตัวเลือกที่มี",
     "before_from": "วันสิ้นสุดต้องไม่ก่อนวันเริ่ม",
     "range_too_long": "ช่วงวันที่ยาวเกินไป",
-    "invalid_id": "ข้อมูลไม่ถูกต้อง"
+    "invalid_id": "ข้อมูลไม่ถูกต้อง",
+    "personal_only": "แชร์ได้เฉพาะวันสำคัญส่วนตัว",
+    "too_many_people": "เลือกได้ไม่เกิน 50 คน",
+    "choose_people": "เลือกอย่างน้อย 1 คน"
   },
   "common": {
     "cancel": "ยกเลิก",
@@ -371,7 +374,13 @@
     "deleteConfirm": "ลบถาวร",
     "deleting": "กำลังลบ…",
     "deleted": "ลบ \"{{title}}\" แล้ว",
-    "taskDuring": "วันที่ {{day}} จาก {{total}}"
+    "taskDuring": "วันที่ {{day}} จาก {{total}}",
+    "belongsPeople": "เลือกคน",
+    "peopleLabel": "แชร์กับ",
+    "peopleHint": "คนที่เลือกจะเห็นวันนี้ในปฏิทินและได้รับการแจ้งเตือน แต่แก้ไม่ได้",
+    "peopleEmpty": "ยังไม่มีใครอยู่ในโปรเจกต์เดียวกับคุณ",
+    "sharedBy": "แชร์โดย {{name}}",
+    "sharedWith": "แชร์กับ {{names}}"
   },
   "notifications": {
     "label": "การแจ้งเตือน",

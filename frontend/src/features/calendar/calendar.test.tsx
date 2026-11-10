@@ -163,6 +163,44 @@ describe('the calendar page', () => {
     expect(api.hits('POST /events')[0]!.body).toMatchObject({ title: 'Launch', projectId: 'p1' })
   })
 
+  it('shares a personal day with chosen people from the same projects', async () => {
+    const user = userEvent.setup()
+    const api = await openCalendar(user)
+    await user.click(screen.getByRole('button', { name: 'Add an important day' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add an important day' })
+    await user.type(within(dialog).getByLabelText('Name'), 'Team lunch')
+    await user.selectOptions(within(dialog).getByLabelText('Belongs to'), 'Chosen people')
+
+    // Nobody ticked yet: it asks for someone.
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }))
+    expect(within(dialog).getByText('Choose at least one person.')).toBeInTheDocument()
+
+    const people = within(dialog).getByRole('group', { name: 'Share with' })
+    const bob = await within(people).findByRole('checkbox', { name: /Bob/ })
+    expect(bob).toHaveFocus() // the first mistake gets the focus
+    expect(within(people).getByText('bob@example.com')).toBeInTheDocument()
+    await user.click(bob)
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(api.hits('POST /events')).toHaveLength(1))
+    expect(api.hits('POST /events')[0]!.body).toMatchObject({
+      title: 'Team lunch',
+      sharedWith: ['22222222-2222-2222-2222-222222222222'],
+    })
+    expect(api.hits('POST /events')[0]!.body).not.toHaveProperty('projectId')
+    expect(await within(panel()).findByText('Shared with Bob')).toBeInTheDocument()
+  })
+
+  it('says who shared a day, and does not offer to change it', async () => {
+    await openCalendar(userEvent.setup(), {
+      events: [calendarEvent('s1', 'Bob party', '2099-03-15', { sharedBy: 'Bob', canEdit: false })],
+    })
+    expect(within(panel()).getByText('Shared by Bob')).toBeInTheDocument()
+    expect(
+      within(panel()).queryByRole('button', { name: 'Edit Bob party' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('changes only what was changed, and deletes after asking', async () => {
     const user = userEvent.setup()
     const api = await openCalendar(user)

@@ -85,7 +85,10 @@
     "invalid_remind_day": "Choose from the reminder options.",
     "before_from": "The end cannot be before the start.",
     "range_too_long": "This range is too long.",
-    "invalid_id": "Something in the request is not valid."
+    "invalid_id": "Something in the request is not valid.",
+    "personal_only": "Only a personal day can be shared.",
+    "too_many_people": "Choose 50 people at most.",
+    "choose_people": "Choose at least one person."
   },
   "common": {
     "cancel": "Cancel",
@@ -371,7 +374,13 @@
     "deleteConfirm": "Delete for good",
     "deleting": "Deleting…",
     "deleted": "\"{{title}}\" was deleted.",
-    "taskDuring": "Day {{day}} of {{total}}"
+    "taskDuring": "Day {{day}} of {{total}}",
+    "belongsPeople": "Chosen people",
+    "peopleLabel": "Share with",
+    "peopleHint": "They see this day on their calendar and are reminded, but cannot change it.",
+    "peopleEmpty": "Nobody is in a project with you yet.",
+    "sharedBy": "Shared by {{name}}",
+    "sharedWith": "Shared with {{names}}"
   },
   "notifications": {
     "label": "Notifications",

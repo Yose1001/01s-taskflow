@@ -4,6 +4,7 @@ import {
   deleteEvent,
   getCalendar,
   listNotifications,
+  listPeople,
   markNotificationsRead,
   updateEvent,
   type EventInput,
@@ -18,6 +19,7 @@ export const calendarKeys = {
   range: (from: string, to: string) => ['calendar', from, to] as const,
   notifications: ['notifications'] as const,
   projects: ['projects', 'for-calendar'] as const,
+  people: ['people'] as const,
 }
 
 /** How often the bell looks for new reminders while the app is open. */
@@ -39,6 +41,15 @@ export function useProjectChoices() {
     queryKey: calendarKeys.projects,
     queryFn: ({ signal }) =>
       listProjects(request, { page: 1, pageSize: 100, trashed: false, signal }),
+  })
+}
+
+/** Who the person may share an important day with. */
+export function usePeople() {
+  const { request } = useAuth()
+  return useQuery({
+    queryKey: calendarKeys.people,
+    queryFn: ({ signal }) => listPeople(request, signal),
   })
 }
 

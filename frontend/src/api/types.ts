@@ -97,6 +97,13 @@ export interface SettingsPatch {
 export type RemindDay = 0 | 1 | 3 | 7
 export const REMIND_DAYS: readonly RemindDay[] = [0, 1, 3, 7]
 
+/** Someone in a project with the signed-in person: who an important day can be shared with. */
+export interface Person {
+  userId: string
+  displayName: string
+  email: string
+}
+
 /** An important day on the calendar: the person's own (projectId null) or a project's. */
 export interface CalendarEvent {
   id: string
@@ -108,6 +115,10 @@ export interface CalendarEvent {
   projectName: string | null
   createdBy: string
   remindDays: RemindDay[]
+  /** Who a personal day is shared with. Only its owner is told; for anyone else it is empty. */
+  sharedWith: Person[]
+  /** The owner's name, when the day was shared with the person looking. */
+  sharedBy: string | null
   /** The person may change or remove it. */
   canEdit: boolean
   createdAt: string
@@ -138,6 +149,7 @@ export interface AppNotification {
   day: string
   projectId: string | null
   projectName: string | null
+  sharedBy: string | null
   daysBefore: RemindDay
   createdAt: string
   readAt: string | null

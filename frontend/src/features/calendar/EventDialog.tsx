@@ -2,21 +2,32 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
 import type { EventInput, EventPatch } from '../../api/calendar'
-import { REMIND_DAYS, type CalendarEvent, type RemindDay } from '../../api/types'
+import { REMIND_DAYS, type CalendarEvent, type Person, type RemindDay } from '../../api/types'
 import { errorMessage, fieldErrorMessage } from '../../auth/errors'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { DatePicker } from '../../components/DatePicker'
+import { Avatar } from '../../components/Avatar'
 import { Alert, Button, SelectField, TextAreaField, TextField } from '../../components/forms'
 import { Modal } from '../../components/Modal'
 import { useToast } from '../../components/toast'
-import { useCreateEvent, useDeleteEvent, useProjectChoices, useUpdateEvent } from './hooks'
+import { personName } from '../../lib/format'
+import { belongsText } from './calendarLogic'
+import {
+  useCreateEvent,
+  useDeleteEvent,
+  usePeople,
+  useProjectChoices,
+  useUpdateEvent,
+} from './hooks'
 
 const MAX_TITLE = 120
 const MAX_NOTE = 1000
+/** The "Belongs to" choice that shares a personal day with chosen people. */
+const PEOPLE = '__people'
 /** A new day reminds on the day and the day before, unless the person changes it. */
 const DEFAULT_REMIND: RemindDay[] = [0, 1]
 
-type FieldName = 'title' | 'day' | 'projectId' | 'note' | 'remindDays'
+type FieldName = 'title' | 'day' | 'projectId' | 'sharedWith' | 'note' | 'remindDays'
 type Errors = Partial<Record<FieldName, string>>
 
 // Field ids in the order they appear, so the first mistake gets the focus.
@@ -24,13 +35,76 @@ const FIELD_IDS: Record<FieldName, string> = {
   title: 'event-title',
   day: 'event-day',
   projectId: 'event-project',
+  sharedWith: 'event-people',
   note: 'event-note',
   remindDays: 'event-remind-0',
 }
-const FIELD_ORDER: FieldName[] = ['title', 'day', 'projectId', 'note', 'remindDays']
+const FIELD_ORDER: FieldName[] = ['title', 'day', 'projectId', 'sharedWith', 'note', 'remindDays']
 
 const sameDays = (a: RemindDay[], b: RemindDay[]) =>
   a.length === b.length && a.every((d) => b.includes(d))
+const sameIds = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((id) => b.includes(id))
+
+/** Ticks the people a personal day is shared with. */
+function PeoplePicker({
+  people,
+  selected,
+  onChange,
+  error,
+}: {
+  people: Person[]
+  selected: string[]
+  onChange: (next: string[]) => void
+  error?: string | undefined
+}) {
+  const { t } = useTranslation()
+  return (
+    <fieldset className="min-w-0" aria-describedby="event-people-hint">
+      <legend className="mb-1 text-sm font-medium">{t('calendar.peopleLabel')}</legend>
+      <p id="event-people-hint" className="mb-1 text-sm text-muted">
+        {people.length === 0 ? t('calendar.peopleEmpty') : t('calendar.peopleHint')}
+      </p>
+      {people.length > 0 && (
+        <ul className="max-h-44 space-y-0.5 overflow-auto rounded-xl border border-border bg-surface p-1">
+          {people.map((person, index) => {
+            const checked = selected.includes(person.userId)
+            return (
+              <li key={person.userId}>
+                <label
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 ${
+                    checked ? 'bg-primary-bg' : 'hover:bg-primary-bg'
+                  }`}
+                >
+                  <input
+                    id={index === 0 ? 'event-people' : undefined}
+                    type="checkbox"
+                    checked={checked}
+                    aria-invalid={error ? true : undefined}
+                    onChange={() =>
+                      onChange(
+                        checked
+                          ? selected.filter((id) => id !== person.userId)
+                          : [...selected, person.userId],
+                      )
+                    }
+                    className="h-4 w-4 shrink-0 accent-primary"
+                  />
+                  <Avatar id={person.userId} name={personName(person)} size={24} />
+                  <span className="min-w-0">
+                    <span className="block break-words">{personName(person)}</span>
+                    <span className="block break-words text-sm text-muted">{person.email}</span>
+                  </span>
+                </label>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {error && <p className="mt-1 text-sm font-medium text-danger-fg">{error}</p>}
+    </fieldset>
+  )
+}
 
 /** Adds an important day, or changes one the person may change. */
 export function EventDialog({
@@ -51,11 +125,18 @@ export function EventDialog({
   const [note, setNote] = useState(event?.note ?? '')
   const [day, setDay] = useState(event?.day ?? initialDay)
   const [projectId, setProjectId] = useState('')
+  const [sharedWith, setSharedWith] = useState<string[]>(
+    event?.sharedWith.map((p) => p.userId) ?? [],
+  )
+  // The owner of a personal day can change who it is shared with; nobody else sees that list.
+  const ownPersonal = event !== undefined && event.projectId === null && event.sharedBy === null
   const [remindDays, setRemindDays] = useState<RemindDay[]>(event?.remindDays ?? DEFAULT_REMIND)
   const [errors, setErrors] = useState<Errors>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const projects = useProjectChoices()
+  const people = usePeople()
+  const choosingPeople = editing ? ownPersonal : projectId === PEOPLE
   const create = useCreateEvent()
   const update = useUpdateEvent()
   const remove = useDeleteEvent()
@@ -83,6 +164,8 @@ export function EventDialog({
     else if (length > MAX_TITLE) next.title = 'too_long'
     if (Array.from(note.trim()).length > MAX_NOTE) next.note = 'too_long'
     if (day === '') next.day = 'required'
+    if (!editing && projectId === PEOPLE && sharedWith.length === 0)
+      next.sharedWith = 'choose_people'
     if (Object.keys(next).length > 0) return showErrors(next)
     setErrors({})
 
@@ -105,7 +188,8 @@ export function EventDialog({
 
     if (!event) {
       const input: EventInput = { title: trimmed, note: note.trim(), day, remindDays }
-      if (projectId) input.projectId = projectId
+      if (projectId === PEOPLE) input.sharedWith = sharedWith
+      else if (projectId) input.projectId = projectId
       create.mutate(input, handlers)
       return
     }
@@ -115,6 +199,14 @@ export function EventDialog({
     if (note.trim() !== event.note) patch.note = note.trim()
     if (day !== event.day) patch.day = day
     if (!sameDays(remindDays, event.remindDays)) patch.remindDays = remindDays
+    if (
+      ownPersonal &&
+      !sameIds(
+        sharedWith,
+        event.sharedWith.map((p) => p.userId),
+      )
+    )
+      patch.sharedWith = sharedWith
     if (Object.keys(patch).length === 0) return onClose()
     update.mutate({ id: event.id, patch }, handlers)
   }
@@ -155,18 +247,20 @@ export function EventDialog({
               // Where a day belongs is chosen once, when it is added.
               <div>
                 <p className="mb-1 text-sm font-medium">{t('calendar.belongsLabel')}</p>
-                <p className="py-2 text-muted">{event.projectName ?? t('calendar.personal')}</p>
+                <p className="py-2 text-muted">{belongsText(t, event)}</p>
               </div>
             ) : (
               <SelectField
                 id={FIELD_IDS.projectId}
                 label={t('calendar.belongsLabel')}
-                hint={t('calendar.belongsHint')}
+                // Said only for a project's day; chosen people have their own words below.
+                hint={projectId && projectId !== PEOPLE ? t('calendar.belongsHint') : undefined}
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
                 error={fieldMessage('projectId')}
               >
                 <option value="">{t('calendar.personal')}</option>
+                <option value={PEOPLE}>{t('calendar.belongsPeople')}</option>
                 {(projects.data?.items ?? []).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -175,6 +269,14 @@ export function EventDialog({
               </SelectField>
             )}
           </div>
+          {choosingPeople && (
+            <PeoplePicker
+              people={people.data?.items ?? []}
+              selected={sharedWith}
+              onChange={setSharedWith}
+              error={fieldMessage('sharedWith')}
+            />
+          )}
           <TextAreaField
             id={FIELD_IDS.note}
             label={t('calendar.noteLabel')}

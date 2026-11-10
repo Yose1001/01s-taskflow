@@ -1,5 +1,6 @@
 import type { CalendarEvent, CalendarRange, CalendarTask } from '../../api/types'
 import { addDays } from '../../lib/calendar'
+import { personName } from '../../lib/format'
 
 // The rules of the calendar, as plain functions (no React), so they can be tested without a browser.
 
@@ -151,6 +152,18 @@ export function weekBars(
     })
   }
   return { bars, hidden }
+}
+
+/** Where a day belongs, in words: a project, shared by someone, shared with people, or personal. */
+export function belongsText(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  event: Pick<CalendarEvent, 'projectName' | 'sharedBy' | 'sharedWith'>,
+): string {
+  if (event.projectName) return event.projectName
+  if (event.sharedBy) return t('calendar.sharedBy', { name: event.sharedBy })
+  if (event.sharedWith.length > 0)
+    return t('calendar.sharedWith', { names: event.sharedWith.map(personName).join(', ') })
+  return t('calendar.personal')
 }
 
 /** A "YYYY-MM-DD" from the address, or undefined when it is not a real day. */

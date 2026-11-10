@@ -1,5 +1,5 @@
 import type { RequestFn } from './client'
-import type { CalendarEvent, CalendarRange, NotificationList, RemindDay } from './types'
+import type { CalendarEvent, CalendarRange, NotificationList, Person, RemindDay } from './types'
 
 // One function per calendar endpoint in docs/openapi.yaml.
 const id = encodeURIComponent
@@ -11,6 +11,8 @@ export interface EventInput {
   day: string
   /** Leave out for a personal day. */
   projectId?: string
+  /** People a personal day is shared with: they see it and are reminded. Personal days only. */
+  sharedWith?: string[]
   remindDays: RemindDay[]
 }
 
@@ -39,6 +41,11 @@ export function updateEvent(
 
 export function deleteEvent(request: RequestFn, eventId: string): Promise<void> {
   return request<void>(`/events/${id(eventId)}`, { method: 'DELETE' })
+}
+
+/** Who the person may share an important day with: everyone in a project with them. */
+export function listPeople(request: RequestFn, signal?: AbortSignal): Promise<{ items: Person[] }> {
+  return request<{ items: Person[] }>('/people', signal ? { signal } : {})
 }
 
 export function listNotifications(

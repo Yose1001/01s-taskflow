@@ -46,6 +46,9 @@ export const KNOWN_FIELD_CODES = [
   'before_from',
   'range_too_long',
   'invalid_id',
+  'personal_only',
+  'too_many_people',
+  'choose_people',
 ] as const
 
 const known = new Set<string>(KNOWN_ERROR_CODES)

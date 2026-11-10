@@ -529,7 +529,9 @@ paths:
       tags: [Calendar]
       summary: เพิ่มวันสำคัญ (ส่วนตัว หรือของโปรเจกต์ที่เป็นสมาชิก)
       description: |
-        ไม่ส่ง `projectId` = วันสำคัญส่วนตัว เห็นคนเดียว ส่ง `projectId` = สมาชิกทุกคนเห็นและได้รับการแจ้งเตือน
+        ไม่ส่ง `projectId` = วันสำคัญส่วนตัว ส่ง `projectId` = สมาชิกทุกคนเห็นและได้รับการแจ้งเตือน
+        วันส่วนตัวแชร์ให้คนที่อยู่โปรเจกต์เดียวกับเจ้าของได้ (`sharedWith` ดู `GET /people`) คนที่ถูกแชร์เห็นและได้รับการแจ้งเตือน
+        แต่แก้ไม่ได้ ผิดคืน 422: `fields.sharedWith` = `not_a_member`, `personal_only` (ส่งพร้อม `projectId`), `too_many_people` (เกิน 50), `invalid_id`
         โปรเจกต์ที่ไม่ได้เป็นสมาชิกหรืออยู่ในถังขยะคืน 422 (`fields.projectId` = `not_a_member`)
         `remindDays` เลือกได้จาก 0 (วันนั้น), 1, 3, 7 วันก่อน แจ้งเตือนเวลา 08:00 น. เวลาประเทศไทย
       requestBody:
@@ -552,6 +554,7 @@ paths:
       description: |
         วันส่วนตัวแก้ได้เฉพาะเจ้าของ วันของโปรเจกต์แก้ได้โดยคนที่เพิ่มหรือเจ้าของโปรเจกต์ สมาชิกคนอื่นคืน 403
         เลื่อนวันแล้วการแจ้งเตือนเดิมของวันเก่าจะถูกลบ เพื่อให้เตือนตามวันใหม่ได้
+        `sharedWith` แทนที่รายชื่อเดิมทั้งหมด (ส่ง [] = เลิกแชร์) เฉพาะเจ้าของวันส่วนตัว มิฉะนั้นคืน 422 `personal_only`
       parameters:
         - $ref: "#/components/parameters/EventId"
       requestBody:
@@ -577,6 +580,20 @@ paths:
         "204": { description: Deleted }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /people:
+    get:
+      tags: [Calendar]
+      summary: คนที่แชร์วันสำคัญให้ได้ (ทุกคนที่อยู่โปรเจกต์ที่ยังไม่อยู่ในถังขยะเดียวกับผู้ใช้ ไม่รวมตัวเอง สูงสุด 500)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Person" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /notifications:
     get:
       tags: [Calendar]
@@ -676,6 +693,12 @@ components:
       type: array
       description: เตือนกี่วันก่อนวันสำคัญ (0 = วันนั้น) ไม่ซ้ำ เรียงจากน้อยไปมาก
       items: { type: integer, enum: [0, 1, 3, 7] }
+    Person:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: string, format: email }
     Event:
       type: object
       properties:
@@ -687,6 +710,11 @@ components:
         projectName: { type: string, nullable: true }
         createdBy: { type: string, format: uuid }
         remindDays: { $ref: "#/components/schemas/RemindDays" }
+        sharedWith:
+          type: array
+          items: { $ref: "#/components/schemas/Person" }
+          description: คนที่วันส่วนตัวแชร์ให้ บอกเฉพาะเจ้าของ คนอื่นได้ []
+        sharedBy: { type: string, nullable: true, description: ชื่อเจ้าของ เมื่อวันนี้ถูกแชร์มาให้ผู้ใช้ }
         canEdit: { type: boolean, description: ผู้ใช้คนนี้แก้หรือลบได้ไหม }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -698,6 +726,7 @@ components:
         note: { type: string, maxLength: 1000 }
         day: { type: string, format: date }
         projectId: { type: string, format: uuid }
+        sharedWith: { type: array, maxItems: 50, items: { type: string, format: uuid } }
         remindDays: { $ref: "#/components/schemas/RemindDays" }
     EventPatch:
       type: object
@@ -706,6 +735,7 @@ components:
         note: { type: string, maxLength: 1000 }
         day: { type: string, format: date }
         remindDays: { $ref: "#/components/schemas/RemindDays" }
+        sharedWith: { type: array, maxItems: 50, items: { type: string, format: uuid } }
     CalendarTask:
       type: object
       properties:
@@ -725,6 +755,7 @@ components:
         day: { type: string, format: date }
         projectId: { type: string, format: uuid, nullable: true }
         projectName: { type: string, nullable: true }
+        sharedBy: { type: string, nullable: true }
         daysBefore: { type: integer, enum: [0, 1, 3, 7] }
         createdAt: { type: string, format: date-time }
         readAt: { type: string, format: date-time, nullable: true }

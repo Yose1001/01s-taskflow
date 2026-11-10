@@ -14,6 +14,8 @@ erDiagram
     projects ||--o{ events : "มีวันสำคัญของโปรเจกต์"
     events ||--o{ notifications : "มีการแจ้งเตือน"
     users ||--o{ notifications : "ได้รับการแจ้งเตือน"
+    events ||--o{ event_shares : "แชร์ให้"
+    users ||--o{ event_shares : "ได้รับการแชร์"
 
     users {
         uuid id PK
@@ -83,6 +85,10 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+    event_shares {
+        uuid event_id PK, FK
+        uuid user_id PK, FK
+    }
     notifications {
         uuid id PK
         uuid user_id FK
@@ -101,6 +107,7 @@ erDiagram
 - `tasks.position` เป็นเลขทศนิยม: ย้ายงานไปแทรกระหว่างสองใบใช้ค่าเฉลี่ยของ position เพื่อไม่ต้องเขียนทับทั้งคอลัมน์
 - ดัชนีที่ควรมี: `users(email)`, `tasks(project_id, status, position) WHERE deleted_at IS NULL` (partial index), `task_assignees(project_id, user_id)`, `project_members(user_id)`, `tasks(deleted_at) WHERE deleted_at IS NOT NULL` และ `projects(deleted_at) WHERE deleted_at IS NOT NULL` (ให้งานลบถาวรหาแถวหมดอายุได้เร็ว)
 - วันสำคัญใน `events` เป็นของคนเดียว (`owner_id`) หรือของโปรเจกต์ (`project_id`) อย่างใดอย่างหนึ่งเท่านั้น (CHECK) วันของโปรเจกต์สมาชิกทุกคนเห็น เพิ่มได้ทุกคน แต่แก้หรือลบได้เฉพาะคนที่เพิ่มกับเจ้าของโปรเจกต์ ลบแล้วหายถาวรพร้อมการแจ้งเตือน (ไม่มีถังขยะ)
+- วันส่วนตัวแชร์ให้คนอื่นได้ผ่าน `event_shares` (เฉพาะคนที่อยู่โปรเจกต์เดียวกับเจ้าของ ตรวจใน service) คนที่ถูกแชร์เห็นและได้รับการแจ้งเตือน แต่แก้ไม่ได้ และรายชื่อคนที่ถูกแชร์บอกเฉพาะเจ้าของ เพื่อไม่ให้อีเมลรั่วไปหาคนที่ไม่รู้จักกัน
 - `notifications` มี unique key (`user_id`, `event_id`, `days_before`) งานสร้างการแจ้งเตือนจึงรันซ้ำหรือรันพร้อมกันหลายเครื่องได้โดยไม่เตือนซ้ำ เตือนเวลา 08:00 น. เวลาไทย และไม่เตือนย้อนหลังเมื่อเลยวันแล้ว เลื่อนวันแล้วการแจ้งเตือนเดิมของวันนั้นถูกลบ
 - ใช้ CHECK constraint กับ `status`, `priority`, `role`, `locale`, `theme`
 

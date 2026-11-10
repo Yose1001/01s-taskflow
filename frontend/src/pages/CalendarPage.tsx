@@ -9,6 +9,7 @@ import { ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
 import { EventDialog } from '../features/calendar/EventDialog'
 import {
+  belongsText,
   itemsByDay,
   itemsOn,
   parseDay,
@@ -381,9 +382,7 @@ function DayPanel({
                 </span>
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="break-words font-semibold">{event.title}</p>
-                  <p className="text-sm text-muted">
-                    {event.projectName ?? t('calendar.personal')}
-                  </p>
+                  <p className="text-sm text-muted">{belongsText(t, event)}</p>
                   {event.remindDays.length > 0 && (
                     <p className="flex items-center gap-1 text-sm text-muted">
                       <Icon name="bell" size={14} />

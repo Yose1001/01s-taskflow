@@ -11,6 +11,8 @@ const event = (id: string, day: string): CalendarEvent => ({
   projectName: null,
   createdBy: 'me',
   remindDays: [],
+  sharedWith: [],
+  sharedBy: null,
   canEdit: true,
   createdAt: '',
   updatedAt: '',

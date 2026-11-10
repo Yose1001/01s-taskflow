@@ -94,6 +94,8 @@ export function calendarEvent(
     projectName: null,
     createdBy: ME.id,
     remindDays: [],
+    sharedWith: [],
+    sharedBy: null,
     canEdit: true,
     createdAt: '2026-02-01T00:00:00Z',
     updatedAt: '2026-02-01T00:00:00Z',
@@ -115,6 +117,7 @@ export function notification(
     day,
     projectId: null,
     projectName: null,
+    sharedBy: null,
     daysBefore: 1,
     createdAt: '2026-02-01T00:00:00Z',
     readAt: null,
@@ -227,6 +230,16 @@ export function fakeBackend(options: Options = {}) {
         if (!n.readAt && (!ids || ids.includes(n.id))) n.readAt = '2026-03-01T00:00:00Z'
       return { status: 204 }
     },
+    'GET /people': () => {
+      // Everyone in an active project with me, once each, not me.
+      const seen = new Map<string, { userId: string; displayName: string; email: string }>()
+      for (const p of projects)
+        if (roleOf(p) && !p.deletedAt)
+          for (const m of p.members)
+            if (m.userId !== me.id)
+              seen.set(m.userId, { userId: m.userId, displayName: m.displayName, email: m.email })
+      return { body: { items: [...seen.values()] } }
+    },
     'GET /calendar': (req) => {
       const from = req.query.get('from') ?? ''
       const to = req.query.get('to') ?? ''
@@ -255,9 +268,20 @@ export function fakeBackend(options: Options = {}) {
         note?: string
         day?: string
         projectId?: string
+        sharedWith?: string[]
         remindDays?: number[]
       }
       const fields: Record<string, string> = {}
+      const people = new Map(
+        projects
+          .filter((p) => roleOf(p) && !p.deletedAt)
+          .flatMap((p) => p.members)
+          .filter((m) => m.userId !== me.id)
+          .map((m) => [m.userId, { userId: m.userId, displayName: m.displayName, email: m.email }]),
+      )
+      const shared = body.sharedWith ?? []
+      if (shared.length && body.projectId) fields.sharedWith = 'personal_only'
+      else if (shared.some((id) => !people.has(id))) fields.sharedWith = 'not_a_member'
       const title = String(body.title ?? '').trim()
       if (!title) fields.title = 'required'
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.day))) fields.day = 'invalid_date'
@@ -271,6 +295,7 @@ export function fakeBackend(options: Options = {}) {
         projectId: p?.id ?? null,
         projectName: p?.name ?? null,
         remindDays: (body.remindDays ?? []) as CalendarEvent['remindDays'],
+        sharedWith: p ? [] : shared.map((id) => people.get(id)!),
       })
       events.push(created)
       return { status: 201, body: created }

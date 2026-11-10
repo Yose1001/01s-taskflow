@@ -35,7 +35,9 @@ export function NotificationBell() {
   }
 
   const items: MenuItem[] = list.slice(0, SHOWN).map((n) => {
-    const where = n.projectName ?? t('calendar.personal')
+    const where =
+      n.projectName ??
+      (n.sharedBy ? t('calendar.sharedBy', { name: n.sharedBy }) : t('calendar.personal'))
     return {
       key: n.id,
       label: `${n.title} · ${when(n)}`,
