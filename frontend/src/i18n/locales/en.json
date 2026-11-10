@@ -382,7 +382,8 @@
     "sharedWith": "Shared with {{names}}",
     "personFilter": "Tasks of",
     "personAll": "Everyone",
-    "personMe": "Me"
+    "personMe": "Me",
+    "taskGone": "This task has been deleted or moved to the trash."
   },
   "notifications": {
     "label": "Notifications",

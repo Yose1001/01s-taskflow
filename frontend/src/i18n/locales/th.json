@@ -382,7 +382,8 @@
     "sharedWith": "แชร์กับ {{names}}",
     "personFilter": "งานของ",
     "personAll": "ทุกคน",
-    "personMe": "ฉัน"
+    "personMe": "ฉัน",
+    "taskGone": "งานนี้ถูกลบหรือย้ายไปถังขยะแล้ว"
   },
   "notifications": {
     "label": "การแจ้งเตือน",

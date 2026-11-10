@@ -20,7 +20,7 @@ test.describe('the calendar', () => {
     await page.goto('/calendar?day=2099-03-15')
     await expect(page.getByRole('grid', { name: 'March 2099' })).toBeVisible()
     const day = page.getByRole('region', { name: 'Sunday, 15 March 2099' })
-    await expect(day.getByRole('link', { name: /Ship it/ })).toBeVisible() // the task's end day
+    await expect(day.getByRole('button', { name: /Ship it/ })).toBeVisible() // the task's end day
 
     await page.getByRole('button', { name: 'Add an important day' }).click()
     const form = page.getByRole('dialog', { name: 'Add an important day' })
@@ -67,10 +67,10 @@ test.describe('the calendar', () => {
     await loginViaUi(page, alice.person)
     await page.goto('/calendar?day=2099-03-15')
     const day = page.getByRole('region', { name: 'Sunday, 15 March 2099' })
-    await expect(day.getByRole('link', { name: /Nobody yet/ })).toBeVisible()
+    await expect(day.getByRole('button', { name: /Nobody yet/ })).toBeVisible()
     await page.getByLabel('Tasks of').selectOption({ label: `Bob · ${bob.person.email}` })
-    await expect(day.getByRole('link', { name: /Bob's task/ })).toBeVisible()
-    await expect(day.getByRole('link', { name: /Nobody yet/ })).toHaveCount(0)
+    await expect(day.getByRole('button', { name: /Bob's task/ })).toBeVisible()
+    await expect(day.getByRole('button', { name: /Nobody yet/ })).toHaveCount(0)
     await expect(page).toHaveURL(new RegExp(`person=${bobId}`))
   })
 

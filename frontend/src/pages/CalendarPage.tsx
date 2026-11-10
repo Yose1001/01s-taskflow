@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router-dom'
-import type { CalendarEvent, CalendarRange } from '../api/types'
+import { useSearchParams } from 'react-router-dom'
+import type { CalendarEvent, CalendarRange, CalendarTask } from '../api/types'
 import { errorMessage } from '../auth/errors'
 import { useAuth } from '../auth/context'
 import { Avatar, EmptyAvatar } from '../components/Avatar'
@@ -10,6 +10,7 @@ import { Button, CompactSelectField } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
+import { CalendarTaskDialog } from '../features/calendar/CalendarTaskDialog'
 import { EventDialog } from '../features/calendar/EventDialog'
 import {
   belongsText,
@@ -71,6 +72,7 @@ export function CalendarPage() {
   const calendar = useCalendar(cells[0]!, cells[41]!)
   const [showTasks, setShowTasks] = useState(loadShowTasks)
   const [dialog, setDialog] = useState<{ event?: CalendarEvent; day: string } | null>(null)
+  const [openTask, setOpenTask] = useState<CalendarTask | null>(null)
   const text = calendarText(i18n.language)
   const month = monthOf(selected)
   const monthTitle = `${text.months[month]} ${text.year(Number(selected.slice(0, 4)))}`
@@ -276,12 +278,21 @@ export function CalendarPage() {
             items={chosen}
             nameOf={nameOf}
             onEdit={(event) => setDialog({ event, day: event.day })}
+            onOpenTask={setOpenTask}
           />
         </div>
       )}
 
       {dialog && (
         <EventDialog event={dialog.event} day={dialog.day} onClose={() => setDialog(null)} />
+      )}
+      {openTask && (
+        <CalendarTaskDialog
+          taskId={openTask.id}
+          projectId={openTask.projectId}
+          title={openTask.title}
+          onClose={() => setOpenTask(null)}
+        />
       )}
     </div>
   )
@@ -406,7 +417,7 @@ function TaskPeople({ ids, nameOf }: { ids: string[]; nameOf: Map<string, string
   if (people.length === 0 && ids.length > 0) return null
   const names = people.map((p) => p.name).join(', ')
   return (
-    <div className="mt-2 flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted">
+    <span className="mt-2 flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted">
       {people.length === 0 ? (
         <>
           <span className="min-w-0 truncate">{t('tasks.unassigned')}</span>
@@ -427,7 +438,7 @@ function TaskPeople({ ids, nameOf }: { ids: string[]; nameOf: Map<string, string
           </span>
         </>
       )}
-    </div>
+    </span>
   )
 }
 
@@ -437,11 +448,13 @@ function DayPanel({
   items,
   nameOf,
   onEdit,
+  onOpenTask,
 }: {
   title: string
   items: DayItems
   nameOf: Map<string, string>
   onEdit: (event: CalendarEvent) => void
+  onOpenTask: (task: CalendarTask) => void
 }) {
   const { t } = useTranslation()
   const markText = (mark: TaskMark) =>
@@ -502,20 +515,22 @@ function DayPanel({
         <ul className="space-y-2" aria-label={t('calendar.tasksHeading')}>
           {items.tasks.map(({ task, mark }) => (
             <li key={task.id}>
-              <Link
-                to={`/projects/${encodeURIComponent(task.projectId)}`}
-                className="block rounded-xl border border-border bg-surface p-3 hover:border-primary"
+              {/* Opens the task right here, in the same form as on the board. */}
+              <button
+                type="button"
+                onClick={() => onOpenTask(task)}
+                className="block w-full rounded-xl border border-border bg-surface p-3 text-left hover:border-primary"
               >
-                <p className="flex items-center gap-1.5 text-sm text-muted">
+                <span className="flex items-center gap-1.5 text-sm text-muted">
                   <Icon name={markIcon(mark)} size={14} />
                   {markText(mark)} · {task.projectName}
-                </p>
-                <p className="mt-1 break-words font-medium">{task.title}</p>
-                <div className="mt-2">
+                </span>
+                <span className="mt-1 block break-words font-medium">{task.title}</span>
+                <span className="mt-2 block">
                   <StatusBadge status={task.status} />
-                </div>
+                </span>
                 <TaskPeople ids={task.assigneeIds} nameOf={nameOf} />
-              </Link>
+              </button>
             </li>
           ))}
         </ul>

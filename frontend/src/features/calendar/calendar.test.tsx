@@ -61,11 +61,32 @@ const panel = () => screen.getByRole('region', { name: 'Sunday, 15 March 2099' }
 describe('the calendar page', () => {
   it('shows who works on each task in the day panel', async () => {
     await openCalendar(userEvent.setup())
-    const ship = within(panel()).getByRole('link', { name: /Ship the site/ })
+    const ship = within(panel()).getByRole('button', { name: /Ship the site/ })
     expect(within(ship).getByText('Bob')).toBeInTheDocument()
     expect(within(ship).getByTitle('Assigned to Bob')).toBeInTheDocument()
-    const design = within(panel()).getByRole('link', { name: /Design/ })
+    const design = within(panel()).getByRole('button', { name: /Design/ })
     expect(within(design).getByText('Unassigned')).toBeInTheDocument()
+  })
+
+  it('opens a task right on the calendar, in the same form as on the board', async () => {
+    const user = userEvent.setup()
+    const api = await openCalendar(user)
+    await user.click(within(panel()).getByRole('button', { name: /Ship the site/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Edit task' })
+    expect(within(dialog).getByLabelText('Title')).toHaveValue('Ship the site')
+    expect(within(dialog).getByRole('checkbox', { name: 'Bob' })).toBeChecked()
+    expect(screen.getByRole('grid', { name: 'March 2099' })).toBeInTheDocument() // still on the calendar
+
+    await user.clear(within(dialog).getByLabelText('Title'))
+    await user.type(within(dialog).getByLabelText('Title'), 'Ship the new site')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(api.hits('PATCH /tasks/t1')).toHaveLength(1))
+    expect(api.hits('PATCH /tasks/t1')[0]!.body).toEqual({ title: 'Ship the new site' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // The calendar shows the new title.
+    expect(
+      await within(panel()).findByRole('button', { name: /Ship the new site/ }),
+    ).toBeInTheDocument()
   })
 
   it('has a way back to the projects', async () => {
@@ -93,10 +114,7 @@ describe('the calendar page', () => {
     expect(chosen.getByText('Client demo')).toBeInTheDocument()
     expect(chosen.getByText('Bring the slides')).toBeInTheDocument()
     expect(chosen.getByText('On the day, 1 day before')).toBeInTheDocument()
-    expect(chosen.getByRole('link', { name: /Ship the site/ })).toHaveAttribute(
-      'href',
-      '/projects/p1',
-    )
+    expect(chosen.getByRole('button', { name: /Ship the site/ })).toBeInTheDocument()
     // Only what the person may change has an edit button.
     expect(chosen.getByRole('button', { name: 'Edit Client demo' })).toBeInTheDocument()
     expect(
@@ -116,11 +134,13 @@ describe('the calendar page', () => {
     // The days in between say how far along the task is.
     await user.click(screen.getByRole('button', { name: 'Thursday, 12 March 2099, 1 tasks' }))
     const twelfth = within(screen.getByRole('region', { name: 'Thursday, 12 March 2099' }))
-    expect(twelfth.getByRole('link', { name: /Design/ })).toHaveTextContent('Day 3 of 11 · Website')
+    expect(twelfth.getByRole('button', { name: /Design/ })).toHaveTextContent(
+      'Day 3 of 11 · Website',
+    )
 
     await user.click(screen.getByRole('checkbox', { name: 'Show tasks' }))
     expect(screen.getByRole('button', { name: 'Tuesday, 10 March 2099' })).toBeInTheDocument()
-    expect(twelfth.queryByRole('link', { name: /Design/ })).not.toBeInTheDocument()
+    expect(twelfth.queryByRole('button', { name: /Design/ })).not.toBeInTheDocument()
     expect(localStorage.getItem('tf-calendar-show-tasks')).toBe('false')
   })
 
@@ -194,8 +214,8 @@ describe('the calendar page', () => {
     ).toEqual(['Everyone', 'Me', 'Bob · bob@example.com'])
     await user.selectOptions(filter, 'Bob · bob@example.com')
     // Ship the site is Bob's; Design is nobody's, so it leaves the calendar.
-    expect(within(panel()).getByRole('link', { name: /Ship the site/ })).toBeInTheDocument()
-    expect(within(panel()).queryByRole('link', { name: /Design/ })).not.toBeInTheDocument()
+    expect(within(panel()).getByRole('button', { name: /Ship the site/ })).toBeInTheDocument()
+    expect(within(panel()).queryByRole('button', { name: /Design/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Tuesday, 10 March 2099' })).toBeInTheDocument()
     // Important days stay.
     expect(within(panel()).getByText('Client demo')).toBeInTheDocument()
