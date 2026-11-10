@@ -83,7 +83,8 @@ test.describe('putting a task on hold', () => {
 
     await page.getByRole('button', { name: 'Check the API', exact: true }).click()
     const form = page.getByRole('dialog', { name: 'Edit task' })
-    await expect(form.getByLabel('Why is it on hold?')).toHaveCount(0)
+    // Not "On hold" yet: the reason box is folded away and out of reach (inert), not removed.
+    await expect(form.getByTestId('hold-reason')).toHaveAttribute('inert')
     await form.getByLabel('Column').selectOption('on_hold')
     await form.getByRole('button', { name: 'Save changes' }).click()
     await expect(form.getByText('Enter why this task is on hold.')).toBeVisible()

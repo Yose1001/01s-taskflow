@@ -35,7 +35,9 @@ test.describe('several people and two dates on a task', () => {
 
     const both = [alice.person.name, bob.person.name].sort().join(', ')
     await expect(page.getByTitle(`Assigned to ${both}`)).toBeVisible()
-    await expect(page.getByText('+1', { exact: true })).toBeVisible()
+    // Two short names fit on the card, so both show in full (a long list would show "Alice +1").
+    await expect(page.getByText(both, { exact: true })).toBeVisible()
+    await expect(page.getByText('+1', { exact: true })).toHaveCount(0)
     await expect(page.locator(`time[datetime="${year}-02-02"]`)).toBeVisible()
     await expect(page.locator(`time[datetime="${year}-03-01"]`)).toBeVisible()
 
