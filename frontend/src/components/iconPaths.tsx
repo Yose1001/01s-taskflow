@@ -189,6 +189,14 @@ export const ICON_PATHS = {
       <path d="M10 18h4" />
     </>
   ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  // Bars of growing height: "how far along", for sorting by progress.
+  progress: <path d="M4 20h16M7 16v-3M12 16V9M17 16V5" />,
   grid: (
     <>
       <rect x="4" y="4" width="7" height="7" rx="1.5" />

@@ -296,6 +296,17 @@ describe('sorting the project list', () => {
     await user.click(screen.getByRole('menuitemradio', { name }))
   }
 
+  it('shows a picture beside each way of sorting, as well as its words', async () => {
+    fakeBackend(sample())
+    const user = userEvent.setup()
+    await openSignedIn(user)
+    await user.click(await screen.findByRole('button', { name: /^Sort projects/ }))
+    const items = screen.getAllByRole('menuitemradio')
+    expect(items).toHaveLength(4)
+    for (const item of items)
+      expect(item.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('starts with the newest first, without asking the server for a sort', async () => {
     const api = fakeBackend(sample())
     await openSignedIn(userEvent.setup())

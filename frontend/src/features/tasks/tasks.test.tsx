@@ -442,6 +442,9 @@ describe('creating a task', () => {
     expect(titlesIn(column(/^To do/))).toEqual(['Draw logo', 'Pick colors', 'Write copy'])
     await user.click(screen.getByRole('button', { name: 'Sort To do: Highest priority first' }))
     expect(screen.getByRole('menuitemradio', { name: 'Highest priority first' })).toHaveFocus()
+    // Every choice has a picture as well as its words; the picture is not read out.
+    for (const item of screen.getAllByRole('menuitemradio'))
+      expect(item.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
     await user.click(screen.getByRole('menuitemradio', { name: 'Ending soonest' }))
     expect(JSON.parse(localStorage.getItem('tf-column-sorts:p1')!).todo).toBe('due')
   })

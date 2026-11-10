@@ -554,6 +554,14 @@ interface ColumnProps {
 }
 
 // The soft "-bg" tints would vanish against the column, so the line uses each status's strong color.
+// A picture for each way of sorting, the same as where that value shows on a card. The words still say it.
+const SORT_ICON: Record<ColumnSort, IconName> = {
+  manual: 'grip',
+  priority: 'arrow-up',
+  due: 'flag',
+  newest: 'clock',
+}
+
 const COLUMN_LINE: Record<TaskStatus, string> = {
   todo: 'bg-primary',
   in_progress: 'bg-sky-fg',
@@ -596,6 +604,7 @@ function Column({ status, tasks, nameOf, sort, layout, onSort, onOpen }: ColumnP
           }`}
           items={SORTS.map((value) => ({
             key: value,
+            icon: SORT_ICON[value],
             label: t(`tasks.sort_${value}`),
             checked: value === sort,
             onSelect: () => onSort(value),

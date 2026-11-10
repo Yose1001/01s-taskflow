@@ -6,7 +6,7 @@ import { errorMessage } from '../auth/errors'
 import type { Project } from '../api/types'
 import { ChoiceSwitch } from '../components/ChoiceSwitch'
 import { Button } from '../components/forms'
-import { Icon } from '../components/Icon'
+import { Icon, type IconName } from '../components/Icon'
 import { Menu } from '../components/Menu'
 import { Pagination } from '../components/Pagination'
 import { RoleBadge } from '../components/RoleBadge'
@@ -134,6 +134,14 @@ function ViewSwitch({
   )
 }
 
+// A picture for each way of sorting the projects. The words still say it.
+const PROJECT_SORT_ICON: Record<ProjectSort, IconName> = {
+  newest: 'clock',
+  oldest: 'clock',
+  progress_high: 'progress',
+  progress_low: 'progress',
+}
+
 /** Chooses the order of the list. On phones the button shows only its icon. */
 function SortMenu({
   sort,
@@ -157,6 +165,7 @@ function SortMenu({
       triggerClassName="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 text-sm font-medium text-text hover:bg-primary-bg"
       items={PROJECT_SORTS.map((value) => ({
         key: value,
+        icon: PROJECT_SORT_ICON[value],
         label: t(`projects.sort_${value}`),
         checked: value === sort,
         onSelect: () => onChange(value),
@@ -191,6 +200,7 @@ function PhoneListOptions({
           ...PROJECT_SORTS.map((value, index) => ({
             key: `sort-${value}`,
             ...(index === 0 && { heading: sortHeading }),
+            icon: PROJECT_SORT_ICON[value],
             label: t(`projects.sort_${value}`),
             ariaLabel: `${sortHeading}: ${t(`projects.sort_${value}`)}`,
             checked: value === sort,
@@ -199,6 +209,7 @@ function PhoneListOptions({
           ...(['cards', 'list'] as const).map((value, index) => ({
             key: `view-${value}`,
             ...(index === 0 && { heading: viewHeading }),
+            icon: value === 'cards' ? ('grid' as const) : ('list' as const),
             label: t(value === 'cards' ? 'projects.viewCards' : 'projects.viewList'),
             ariaLabel: `${viewHeading}: ${t(value === 'cards' ? 'projects.viewCards' : 'projects.viewList')}`,
             checked: value === view,
