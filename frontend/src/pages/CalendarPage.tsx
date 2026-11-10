@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { CalendarEvent, CalendarRange } from '../api/types'
 import { errorMessage } from '../auth/errors'
 import { useAuth } from '../auth/context'
+import { BackLink } from '../components/BackLink'
 import { Button, CompactSelectField } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { ErrorState, LoadingState } from '../components/states'
@@ -131,6 +132,8 @@ export function CalendarPage() {
 
   return (
     <div className="space-y-6">
+      {/* Back to the projects, the same way as on every other page. */}
+      <BackLink to="/">{t('projects.myProjects')}</BackLink>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold sm:text-3xl">{t('calendar.pageTitle')}</h1>
         <Button type="button" onClick={() => setDialog({ day: selected })}>

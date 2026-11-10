@@ -59,6 +59,17 @@ async function openCalendar(user: U, extra: Parameters<typeof fakeBackend>[0] = 
 const panel = () => screen.getByRole('region', { name: 'Sunday, 15 March 2099' })
 
 describe('the calendar page', () => {
+  it('has a way back to the projects', async () => {
+    const user = userEvent.setup()
+    await openCalendar(user)
+    const back = screen.getByRole('link', { name: 'My projects' })
+    expect(back).toHaveAttribute('href', '/')
+    await user.click(back)
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Hello, Alice' }),
+    ).toBeInTheDocument()
+  })
+
   it('shows the month of the chosen day, with important days and tasks in full beside it', async () => {
     await openCalendar(userEvent.setup())
     expect(screen.getByRole('heading', { level: 1, name: 'Calendar' })).toBeInTheDocument()
