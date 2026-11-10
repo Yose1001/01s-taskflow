@@ -379,11 +379,13 @@
     "peopleHint": "They see this day on their calendar and are reminded, but cannot change it.",
     "peopleEmpty": "Nobody is in a project with you yet.",
     "sharedBy": "Shared by {{name}}",
-    "sharedWith": "Shared with {{names}}",
+    "sharedWith": "Shared with people: {{count}}",
     "personFilter": "Tasks of",
     "personAll": "Everyone",
     "personMe": "Me",
-    "taskGone": "This task has been deleted or moved to the trash."
+    "taskGone": "This task has been deleted or moved to the trash.",
+    "peopleWord": "People",
+    "peopleTitle": "People: {{names}}"
   },
   "notifications": {
     "label": "Notifications",

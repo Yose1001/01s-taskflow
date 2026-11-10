@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CalendarEvent, CalendarTask } from '../../api/types'
-import { daysUntil, itemsByDay, itemsOn, parseDay, weekBars } from './calendarLogic'
+import { daysUntil, eventPeople, itemsByDay, itemsOn, parseDay, weekBars } from './calendarLogic'
 
 const event = (id: string, day: string): CalendarEvent => ({
   id,
@@ -9,6 +9,7 @@ const event = (id: string, day: string): CalendarEvent => ({
   day,
   projectId: null,
   projectName: null,
+  ownerId: 'me',
   createdBy: 'me',
   remindDays: [],
   sharedWith: [],
@@ -159,5 +160,29 @@ describe('parseDay', () => {
     expect(parseDay('2030-02-30')).toBeUndefined()
     expect(parseDay('tomorrow')).toBeUndefined()
     expect(parseDay(null)).toBeUndefined()
+  })
+})
+
+describe('eventPeople', () => {
+  const me = { id: 'me', name: 'Me' }
+  const names = new Map([['c', 'Creator']])
+  const bob = { userId: 'b', displayName: 'Bob', email: 'bob@example.com' }
+
+  it('gives the owner themselves and everyone the day is shared with', () => {
+    expect(eventPeople({ ...event('e', '2030-01-01'), sharedWith: [bob] }, me, names)).toEqual([
+      me,
+      { id: 'b', name: 'Bob' },
+    ])
+  })
+
+  it('gives someone it was shared with the owner and themselves only', () => {
+    const shared = { ...event('e', '2030-01-01'), ownerId: 'o', sharedBy: 'Olive' }
+    expect(eventPeople(shared, me, names)).toEqual([{ id: 'o', name: 'Olive' }, me])
+  })
+
+  it("gives a project's day the person who added it, when their name is known", () => {
+    const day = { ...event('e', '2030-01-01'), projectId: 'p', ownerId: null, createdBy: 'c' }
+    expect(eventPeople(day, me, names)).toEqual([{ id: 'c', name: 'Creator' }])
+    expect(eventPeople({ ...day, createdBy: 'x' }, me, names)).toEqual([])
   })
 })

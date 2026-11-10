@@ -708,6 +708,7 @@ components:
         day: { type: string, format: date }
         projectId: { type: string, format: uuid, nullable: true, description: "null = วันส่วนตัว" }
         projectName: { type: string, nullable: true }
+        ownerId: { type: string, format: uuid, nullable: true, description: "เจ้าของวันส่วนตัว (null = วันของโปรเจกต์)" }
         createdBy: { type: string, format: uuid }
         remindDays: { $ref: "#/components/schemas/RemindDays" }
         sharedWith:

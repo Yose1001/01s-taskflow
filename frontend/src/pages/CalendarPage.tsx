@@ -14,12 +14,14 @@ import { CalendarTaskDialog } from '../features/calendar/CalendarTaskDialog'
 import { EventDialog } from '../features/calendar/EventDialog'
 import {
   belongsText,
+  eventPeople,
   itemsByDay,
   itemsOn,
   parseDay,
   weekBars,
   type Bar,
   type DayItems,
+  type Named,
   type TaskMark,
 } from '../features/calendar/calendarLogic'
 import { useCalendar, usePeople } from '../features/calendar/hooks'
@@ -415,30 +417,59 @@ function TaskPeople({ ids, nameOf }: { ids: string[]; nameOf: Map<string, string
   })
   // Somebody is on it but their name has not arrived yet: say nothing rather than "nobody".
   if (people.length === 0 && ids.length > 0) return null
+  if (people.length === 0)
+    return (
+      <span className="mt-2 flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted">
+        <span className="min-w-0 truncate">{t('tasks.unassigned')}</span>
+        <EmptyAvatar label={t('tasks.unassigned')} size={22} />
+      </span>
+    )
+  return (
+    <PeopleRow
+      people={people}
+      word={t('tasks.assignedWord')}
+      describe={(names) => t('tasks.assignedTo', { name: names })}
+    />
+  )
+}
+
+/** Names, then small pictures of the first three, on one line of a card. */
+function PeopleRow({
+  people,
+  word,
+  describe,
+}: {
+  people: Named[]
+  word: string
+  describe: (names: string) => string
+}) {
   const names = people.map((p) => p.name).join(', ')
   return (
     <span className="mt-2 flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted">
-      {people.length === 0 ? (
-        <>
-          <span className="min-w-0 truncate">{t('tasks.unassigned')}</span>
-          <EmptyAvatar label={t('tasks.unassigned')} size={22} />
-        </>
-      ) : (
-        <>
-          <span className="min-w-0 truncate" title={t('tasks.assignedTo', { name: names })}>
-            <span className="sr-only">{t('tasks.assignedWord')} </span>
-            {names}
+      <span className="min-w-0 truncate" title={describe(names)}>
+        <span className="sr-only">{word} </span>
+        {names}
+      </span>
+      <span className="flex shrink-0 -space-x-1.5" aria-hidden="true">
+        {people.slice(0, 3).map((p) => (
+          <span key={p.id} className="rounded-full ring-2 ring-surface">
+            <Avatar id={p.id} name={p.name} size={22} />
           </span>
-          <span className="flex shrink-0 -space-x-1.5" aria-hidden="true">
-            {people.slice(0, 3).map((p) => (
-              <span key={p.id} className="rounded-full ring-2 ring-surface">
-                <Avatar id={p.id} name={p.name} size={22} />
-              </span>
-            ))}
-          </span>
-        </>
-      )}
+        ))}
+      </span>
     </span>
+  )
+}
+
+function EventPeople({ people }: { people: Named[] }) {
+  const { t } = useTranslation()
+  if (people.length === 0) return null
+  return (
+    <PeopleRow
+      people={people}
+      word={t('calendar.peopleWord')}
+      describe={(names) => t('calendar.peopleTitle', { names })}
+    />
   )
 }
 
@@ -457,6 +488,8 @@ function DayPanel({
   onOpenTask: (task: CalendarTask) => void
 }) {
   const { t } = useTranslation()
+  const { user } = useAuth()
+  const me = user ? { id: user.id, name: personName(user) } : null
   const markText = (mark: TaskMark) =>
     mark.kind === 'during'
       ? t('calendar.taskDuring', { day: mark.day, total: mark.total })
@@ -495,6 +528,7 @@ function DayPanel({
                   {event.note && (
                     <p className="whitespace-pre-wrap break-words text-sm">{event.note}</p>
                   )}
+                  <EventPeople people={eventPeople(event, me, nameOf)} />
                 </div>
                 {event.canEdit && (
                   <button

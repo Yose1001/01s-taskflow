@@ -113,6 +113,8 @@ export interface CalendarEvent {
   day: string
   projectId: string | null
   projectName: string | null
+  /** Whose personal day it is; null for a project's day. */
+  ownerId: string | null
   createdBy: string
   remindDays: RemindDay[]
   /** Who a personal day is shared with. Only its owner is told; for anyone else it is empty. */

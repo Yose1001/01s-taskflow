@@ -162,8 +162,32 @@ export function belongsText(
   if (event.projectName) return event.projectName
   if (event.sharedBy) return t('calendar.sharedBy', { name: event.sharedBy })
   if (event.sharedWith.length > 0)
-    return t('calendar.sharedWith', { names: event.sharedWith.map(personName).join(', ') })
+    return t('calendar.sharedWith', { count: event.sharedWith.length })
   return t('calendar.personal')
+}
+
+export type Named = { id: string; name: string }
+
+/**
+ * The people on an important day. The owner sees themselves and everyone it is shared with;
+ * someone it was shared with sees the owner and themselves (never who else); a project's
+ * day shows who added it.
+ */
+export function eventPeople(
+  event: Pick<CalendarEvent, 'projectId' | 'ownerId' | 'createdBy' | 'sharedBy' | 'sharedWith'>,
+  me: Named | null,
+  nameOf: Map<string, string>,
+): Named[] {
+  if (event.projectId) {
+    const name = nameOf.get(event.createdBy)
+    return name ? [{ id: event.createdBy, name }] : []
+  }
+  if (event.sharedBy) {
+    const owner = { id: event.ownerId ?? event.sharedBy, name: event.sharedBy }
+    return me ? [owner, me] : [owner]
+  }
+  const shared = event.sharedWith.map((p) => ({ id: p.userId, name: personName(p) }))
+  return me ? [me, ...shared] : shared
 }
 
 /** A "YYYY-MM-DD" from the address, or undefined when it is not a real day. */

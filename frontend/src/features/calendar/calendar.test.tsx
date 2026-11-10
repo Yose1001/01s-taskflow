@@ -254,7 +254,8 @@ describe('the calendar page', () => {
       sharedWith: ['22222222-2222-2222-2222-222222222222'],
     })
     expect(api.hits('POST /events')[0]!.body).not.toHaveProperty('projectId')
-    expect(await within(panel()).findByText('Shared with Bob')).toBeInTheDocument()
+    expect(await within(panel()).findByText('Shared with people: 1')).toBeInTheDocument()
+    expect(within(panel()).getByTitle('People: Alice, Bob')).toBeInTheDocument()
   })
 
   it('says who shared a day, and does not offer to change it', async () => {
@@ -262,6 +263,7 @@ describe('the calendar page', () => {
       events: [calendarEvent('s1', 'Bob party', '2099-03-15', { sharedBy: 'Bob', canEdit: false })],
     })
     expect(within(panel()).getByText('Shared by Bob')).toBeInTheDocument()
+    expect(within(panel()).getByTitle('People: Bob, Alice')).toBeInTheDocument()
     expect(
       within(panel()).queryByRole('button', { name: 'Edit Bob party' }),
     ).not.toBeInTheDocument()

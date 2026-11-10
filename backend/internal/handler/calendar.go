@@ -35,6 +35,7 @@ type eventResponse struct {
 	Day         string           `json:"day"`
 	ProjectID   *string          `json:"projectId"`
 	ProjectName *string          `json:"projectName"`
+	OwnerID     *string          `json:"ownerId"`
 	CreatedBy   string           `json:"createdBy"`
 	RemindDays  []int            `json:"remindDays"`
 	SharedWith  []personResponse `json:"sharedWith"`
@@ -64,7 +65,7 @@ func toEventResponse(e model.Event) eventResponse {
 		days = []int{}
 	}
 	return eventResponse{ID: e.ID, Title: e.Title, Note: e.Note, Day: e.Day.Format("2006-01-02"), ProjectID: e.ProjectID,
-		ProjectName: e.ProjectName, CreatedBy: e.CreatedBy, RemindDays: days, SharedWith: toPeople(e.SharedWith),
+		ProjectName: e.ProjectName, OwnerID: e.OwnerID, CreatedBy: e.CreatedBy, RemindDays: days, SharedWith: toPeople(e.SharedWith),
 		SharedBy: e.SharedBy, CanEdit: e.CanEdit,
 		CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt}
 }

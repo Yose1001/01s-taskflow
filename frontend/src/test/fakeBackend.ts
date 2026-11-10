@@ -92,6 +92,7 @@ export function calendarEvent(
     day,
     projectId: null,
     projectName: null,
+    ownerId: ME.id,
     createdBy: ME.id,
     remindDays: [],
     sharedWith: [],
@@ -295,6 +296,7 @@ export function fakeBackend(options: Options = {}) {
         note: String(body.note ?? '').trim(),
         projectId: p?.id ?? null,
         projectName: p?.name ?? null,
+        ownerId: p ? null : ME.id,
         remindDays: (body.remindDays ?? []) as CalendarEvent['remindDays'],
         sharedWith: p ? [] : shared.map((id) => people.get(id)!),
       })

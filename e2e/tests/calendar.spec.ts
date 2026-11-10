@@ -32,6 +32,8 @@ test.describe('the calendar', () => {
     await expect(form).toHaveCount(0)
     await expect(day.getByText('Client demo')).toBeVisible()
     await expect(day.getByText('On the day, 1 day before, 3 days before')).toBeVisible()
+    await expect(day.getByText('Shared with people: 1')).toBeVisible()
+    await expect(day.getByTitle('People: Alice, Bob')).toBeVisible()
 
     // Bob sees it, but it is Alice's to change.
     const other = await context.browser()!.newContext()
@@ -41,6 +43,7 @@ test.describe('the calendar', () => {
     const bobDay = bobPage.getByRole('region', { name: 'Sunday, 15 March 2099' })
     await expect(bobDay.getByText('Client demo')).toBeVisible()
     await expect(bobDay.getByText('Shared by Alice')).toBeVisible()
+    await expect(bobDay.getByTitle('People: Alice, Bob')).toBeVisible()
     await expect(bobDay.getByRole('button', { name: 'Edit Client demo' })).toHaveCount(0)
     await other.close()
 

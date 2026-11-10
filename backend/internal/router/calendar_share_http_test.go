@@ -58,7 +58,7 @@ func TestASharedDayIsSeenAndRemindedButNotChanged(t *testing.T) {
 
 	r := do(t, e.h, "POST", "/api/v1/events", alice.token,
 		`{"title":"Team lunch","day":"2030-05-10","remindDays":[1],"sharedWith":["`+carol.id+`","`+bob.id+`","`+bob.id+`"]}`)
-	if r.code != 201 || r.body["projectId"] != nil || r.body["sharedBy"] != nil ||
+	if r.code != 201 || r.body["projectId"] != nil || r.body["sharedBy"] != nil || r.body["ownerId"] != alice.id ||
 		!eq(names(r.body["sharedWith"]), []string{"bob", "carol"}) {
 		t.Fatalf("create shared day = %d %s", r.code, r.raw)
 	}
@@ -67,7 +67,8 @@ func TestASharedDayIsSeenAndRemindedButNotChanged(t *testing.T) {
 	// Bob sees it as shared by Alice, without the list of who else, and may not change it.
 	b := do(t, e.h, "GET", "/api/v1/calendar?from=2030-05-01&to=2030-05-31", bob.token, "")
 	ev := b.body["events"].([]any)[0].(map[string]any)
-	if ev["title"] != "Team lunch" || ev["sharedBy"] != "alice" || ev["canEdit"] != false || len(ev["sharedWith"].([]any)) != 0 {
+	if ev["title"] != "Team lunch" || ev["sharedBy"] != "alice" || ev["canEdit"] != false || len(ev["sharedWith"].([]any)) != 0 ||
+		ev["ownerId"] != alice.id {
 		t.Errorf("bob's view = %v", ev)
 	}
 	if got := e.status(bob, "PATCH", "/api/v1/events/"+id, `{"title":"mine now"}`); got != 403 {
