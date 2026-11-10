@@ -370,7 +370,8 @@
     "deleteMessage": "This important day and its reminders are deleted for good. This cannot be undone.",
     "deleteConfirm": "Delete for good",
     "deleting": "Deleting…",
-    "deleted": "\"{{title}}\" was deleted."
+    "deleted": "\"{{title}}\" was deleted.",
+    "taskDuring": "Day {{day}} of {{total}}"
   },
   "notifications": {
     "label": "Notifications",

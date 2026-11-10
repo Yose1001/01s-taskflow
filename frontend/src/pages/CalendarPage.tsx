@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
-import type { CalendarEvent } from '../api/types'
+import type { CalendarEvent, CalendarRange } from '../api/types'
 import { errorMessage } from '../auth/errors'
 import { Button } from '../components/forms'
 import { Icon } from '../components/Icon'
@@ -12,6 +12,8 @@ import {
   itemsByDay,
   itemsOn,
   parseDay,
+  weekBars,
+  type Bar,
   type DayItems,
   type TaskMark,
 } from '../features/calendar/calendarLogic'
@@ -28,8 +30,8 @@ import {
 } from '../lib/calendar'
 
 const SHOW_TASKS_KEY = 'tf-calendar-show-tasks'
-/** How many items a day shows inside the month on wider screens; the rest are counted. */
-const ITEMS_IN_CELL = 2
+/** How many lines of bars a week shows on wider screens; what does not fit is counted per day. */
+const LANES = 2
 
 function loadShowTasks(): boolean {
   try {
@@ -47,7 +49,8 @@ function saveShowTasks(show: boolean) {
   }
 }
 
-const MARK_ICON = { start: 'calendar', due: 'flag', both: 'flag' } as const
+const markIcon = (mark: TaskMark) =>
+  mark.kind === 'due' || mark.kind === 'both' ? ('flag' as const) : ('calendar' as const)
 
 /**
  * A month of important days and dated tasks from every project the person is in. The chosen day is in
@@ -67,13 +70,13 @@ export function CalendarPage() {
   const month = monthOf(selected)
   const monthTitle = `${text.months[month]} ${text.year(Number(selected.slice(0, 4)))}`
 
-  const byDay = useMemo(
+  const visible = useMemo<CalendarRange | undefined>(
     () =>
-      itemsByDay(
-        calendar.data && (showTasks ? calendar.data : { events: calendar.data.events, tasks: [] }),
-      ),
+      calendar.data && (showTasks ? calendar.data : { events: calendar.data.events, tasks: [] }),
     [calendar.data, showTasks],
   )
+  // Cheap (six weeks of days), and the React Compiler keeps it between renders.
+  const byDay = itemsByDay(visible, cells[0]!, cells[41]!)
 
   // The keyboard moves the focus with the chosen day; a click does not need it.
   const grid = useRef<HTMLDivElement>(null)
@@ -192,22 +195,28 @@ export function CalendarPage() {
                 </div>
               ))}
             </div>
-            {Array.from({ length: 6 }, (_, week) => (
-              <div key={week} role="row" className="grid grid-cols-7">
-                {cells.slice(week * 7, week * 7 + 7).map((day) => (
-                  <DayCell
-                    key={day}
-                    day={day}
-                    items={itemsOn(byDay, day)}
-                    inMonth={monthOf(day) === month}
-                    isToday={day === now}
-                    isChosen={day === selected}
-                    label={text.fullDay(day)}
-                    onChoose={() => choose(day)}
-                  />
-                ))}
-              </div>
-            ))}
+            {Array.from({ length: 6 }, (_, week) => {
+              const days = cells.slice(week * 7, week * 7 + 7)
+              const { bars, hidden } = weekBars(days, visible, LANES)
+              return (
+                <div key={week} role="row" className="relative grid grid-cols-7">
+                  {days.map((day, index) => (
+                    <DayCell
+                      key={day}
+                      day={day}
+                      items={itemsOn(byDay, day)}
+                      hidden={hidden[index] ?? 0}
+                      inMonth={monthOf(day) === month}
+                      isToday={day === now}
+                      isChosen={day === selected}
+                      label={text.fullDay(day)}
+                      onChoose={() => choose(day)}
+                    />
+                  ))}
+                  <WeekBars bars={bars} />
+                </div>
+              )
+            })}
           </div>
 
           <DayPanel
@@ -233,9 +242,12 @@ function DayCell({
   isChosen,
   label,
   onChoose,
+  hidden,
 }: {
   day: string
   items: DayItems
+  /** Bars on this day that did not fit in the week's lines. */
+  hidden: number
   inMonth: boolean
   isToday: boolean
   isChosen: boolean
@@ -243,20 +255,6 @@ function DayCell({
   onChoose: () => void
 }) {
   const { t } = useTranslation()
-  const entries = [
-    ...items.events.map((event) => ({
-      key: event.id,
-      icon: 'bookmark' as const,
-      text: event.title,
-      important: true,
-    })),
-    ...items.tasks.map(({ task, mark }) => ({
-      key: `${task.id}-${mark}`,
-      icon: MARK_ICON[mark],
-      text: task.title,
-      important: false,
-    })),
-  ]
   const counts = [
     items.events.length > 0 && t('calendar.countEvents', { count: items.events.length }),
     items.tasks.length > 0 && t('calendar.countTasks', { count: items.tasks.length }),
@@ -291,34 +289,55 @@ function DayCell({
         >
           {Number(day.slice(8))}
         </span>
-        {/* Phones: a dot for each kind of item. Wider: the first items, then how many more. */}
-        {entries.length > 0 && (
+        {/* Phones: a dot for each kind of item. Wider: the week's bars, drawn over the cells. */}
+        {items.events.length + items.tasks.length > 0 && (
           <span aria-hidden="true" className="flex justify-center gap-1 sm:hidden">
             {items.events.length > 0 && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
             {items.tasks.length > 0 && <span className="h-1.5 w-1.5 rounded-full bg-muted" />}
           </span>
         )}
-        <span aria-hidden="true" className="hidden min-w-0 flex-col gap-0.5 sm:flex">
-          {entries.slice(0, ITEMS_IN_CELL).map((entry) => (
-            <span
-              key={entry.key}
-              className={`flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-xs ${
-                entry.important ? 'bg-primary-bg font-medium text-primary-fg' : 'text-muted'
-              }`}
-            >
-              <span className="shrink-0">
-                <Icon name={entry.icon} size={12} />
-              </span>
-              <span className="min-w-0 truncate">{entry.text}</span>
-            </span>
-          ))}
-          {entries.length > ITEMS_IN_CELL && (
-            <span className="px-1 text-xs font-medium text-muted">
-              {t('calendar.more', { count: entries.length - ITEMS_IN_CELL })}
+        {hidden > 0 && (
+          <span
+            aria-hidden="true"
+            className="mt-auto hidden px-1 text-xs font-medium text-muted sm:block"
+          >
+            {t('calendar.more', { count: hidden })}
+          </span>
+        )}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * The week's important days and tasks as bars across the days they cover, drawn over the day cells
+ * (wider screens only). Only a picture: each day's button already says what is on it, so the bars are
+ * hidden from screen readers and let clicks through to the days.
+ */
+function WeekBars({ bars }: { bars: Bar[] }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-0 top-9 hidden auto-rows-[20px] grid-cols-7 gap-y-0.5 sm:grid"
+    >
+      {bars.map((bar) => (
+        <span
+          key={bar.key}
+          style={{ gridColumn: `${bar.column + 1} / span ${bar.length}`, gridRow: bar.lane + 1 }}
+          className={`flex min-w-0 items-center gap-1 overflow-hidden px-1.5 text-xs leading-5 ${
+            bar.kind === 'event'
+              ? 'bg-primary-bg font-medium text-primary-fg'
+              : 'border border-border bg-surface-2 text-text'
+          } ${bar.startsHere ? 'ml-1 rounded-l-md' : ''} ${bar.endsHere ? 'mr-1 rounded-r-md' : ''}`}
+        >
+          {bar.kind === 'event' && (
+            <span className="shrink-0">
+              <Icon name="bookmark" size={12} />
             </span>
           )}
+          <span className="min-w-0 truncate">{bar.title}</span>
         </span>
-      </button>
+      ))}
     </div>
   )
 }
@@ -334,11 +353,14 @@ function DayPanel({
   onEdit: (event: CalendarEvent) => void
 }) {
   const { t } = useTranslation()
-  const markText: Record<TaskMark, string> = {
-    start: t('calendar.taskStarts'),
-    due: t('calendar.taskDue'),
-    both: t('calendar.taskStartsAndDue'),
-  }
+  const markText = (mark: TaskMark) =>
+    mark.kind === 'during'
+      ? t('calendar.taskDuring', { day: mark.day, total: mark.total })
+      : {
+          start: t('calendar.taskStarts'),
+          due: t('calendar.taskDue'),
+          both: t('calendar.taskStartsAndDue'),
+        }[mark.kind]
   const empty = items.events.length === 0 && items.tasks.length === 0
   return (
     <section aria-labelledby="day-title" className="space-y-3">
@@ -390,14 +412,14 @@ function DayPanel({
       {items.tasks.length > 0 && (
         <ul className="space-y-2" aria-label={t('calendar.tasksHeading')}>
           {items.tasks.map(({ task, mark }) => (
-            <li key={`${task.id}-${mark}`}>
+            <li key={task.id}>
               <Link
                 to={`/projects/${encodeURIComponent(task.projectId)}`}
                 className="block rounded-xl border border-border bg-surface p-3 hover:border-primary"
               >
                 <p className="flex items-center gap-1.5 text-sm text-muted">
-                  <Icon name={MARK_ICON[mark]} size={14} />
-                  {markText[mark]} · {task.projectName}
+                  <Icon name={markIcon(mark)} size={14} />
+                  {markText(mark)} · {task.projectName}
                 </p>
                 <p className="mt-1 break-words font-medium">{task.title}</p>
                 <div className="mt-2">

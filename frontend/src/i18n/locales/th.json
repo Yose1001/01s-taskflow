@@ -370,7 +370,8 @@
     "deleteMessage": "วันสำคัญนี้และการแจ้งเตือนของวันนี้จะถูกลบถาวร กู้คืนไม่ได้",
     "deleteConfirm": "ลบถาวร",
     "deleting": "กำลังลบ…",
-    "deleted": "ลบ \"{{title}}\" แล้ว"
+    "deleted": "ลบ \"{{title}}\" แล้ว",
+    "taskDuring": "วันที่ {{day}} จาก {{total}}"
   },
   "notifications": {
     "label": "การแจ้งเตือน",

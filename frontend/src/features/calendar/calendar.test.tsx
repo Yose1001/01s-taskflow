@@ -64,7 +64,8 @@ describe('the calendar page', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Calendar' })).toBeInTheDocument()
     expect(document.title).toMatch(/^Calendar/)
     const day = screen.getByRole('button', { name: /^Sunday, 15 March 2099/ })
-    expect(day).toHaveAccessibleName('Sunday, 15 March 2099, 2 important days, 1 tasks')
+    // Two tasks: "Ship the site" ends that day, and "Design" (10th to 20th) runs through it.
+    expect(day).toHaveAccessibleName('Sunday, 15 March 2099, 2 important days, 2 tasks')
     expect(day.closest('[role=gridcell]')).toHaveAttribute('aria-selected', 'true')
     expect(day).toHaveAttribute('tabindex', '0')
 
@@ -83,20 +84,23 @@ describe('the calendar page', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows a task on its start and end days only, and can hide tasks', async () => {
+  it('shows a task on every day from its start to its end, and can hide tasks', async () => {
     const user = userEvent.setup()
     await openCalendar(user)
-    expect(
-      screen.getByRole('button', { name: /^Tuesday, 10 March 2099, 1 tasks$/ }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /^Friday, 20 March 2099, 1 tasks$/ }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Thursday, 12 March 2099' })).toBeInTheDocument()
+    // "Design" runs from the 10th to the 20th: the days before and after are empty.
+    expect(screen.getByRole('button', { name: 'Monday, 9 March 2099' })).toBeInTheDocument()
+    for (const day of ['Tuesday, 10', 'Thursday, 12', 'Friday, 20'])
+      expect(screen.getByRole('button', { name: `${day} March 2099, 1 tasks` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Saturday, 21 March 2099' })).toBeInTheDocument()
+
+    // The days in between say how far along the task is.
+    await user.click(screen.getByRole('button', { name: 'Thursday, 12 March 2099, 1 tasks' }))
+    const twelfth = within(screen.getByRole('region', { name: 'Thursday, 12 March 2099' }))
+    expect(twelfth.getByRole('link', { name: /Design/ })).toHaveTextContent('Day 3 of 11 · Website')
 
     await user.click(screen.getByRole('checkbox', { name: 'Show tasks' }))
     expect(screen.getByRole('button', { name: 'Tuesday, 10 March 2099' })).toBeInTheDocument()
-    expect(within(panel()).queryByRole('link', { name: /Ship the site/ })).not.toBeInTheDocument()
+    expect(twelfth.queryByRole('link', { name: /Design/ })).not.toBeInTheDocument()
     expect(localStorage.getItem('tf-calendar-show-tasks')).toBe('false')
   })
 
