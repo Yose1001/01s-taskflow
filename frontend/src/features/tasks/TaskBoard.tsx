@@ -19,13 +19,16 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { restoreTask } from '../../api/tasks'
 import type { Member, Task, TaskStatus } from '../../api/types'
 import { useAuth } from '../../auth/context'
 import { errorMessage } from '../../auth/errors'
+import { Avatar } from '../../components/Avatar'
+import { ChoiceSwitch } from '../../components/ChoiceSwitch'
+import { personName } from '../../lib/format'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Button, CompactSelectField, CompactTextField, SelectField } from '../../components/forms'
 import { Icon, type IconName } from '../../components/Icon'
@@ -33,10 +36,12 @@ import { Menu } from '../../components/Menu'
 import { Modal } from '../../components/Modal'
 import { ErrorState, LoadingState } from '../../components/states'
 import { StatusBadge } from '../../components/StatusBadge'
+import { statusIcon } from '../../components/statusIcon'
 import { useToast } from '../../components/toast'
 import { TrashLink } from '../../components/TrashLink'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMembers } from '../projects/hooks'
+import { AssigneePicker } from './AssigneePicker'
 import {
   assigneesOf,
   NO_FILTERS,
@@ -53,6 +58,7 @@ import {
   type Filters,
   type Move,
 } from './boardLogic'
+import { loadBoardLayout, saveBoardLayout, type BoardLayout } from './boardLayout'
 import {
   SORTS,
   dropWithSorts,
@@ -102,7 +108,6 @@ export function TaskBoard({
   const del = useDeleteTask(projectId)
 
   const [columnDialog, setColumnDialog] = useState<Dialog>(null)
-  const dialog: Dialog = newTaskOpen ? { kind: 'create', status: 'todo' } : columnDialog
   function closeDialog() {
     setColumnDialog(null)
     onNewTaskClose()
@@ -112,6 +117,11 @@ export function TaskBoard({
   const [holding, setHolding] = useState<{ move: Move; task: Task } | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [movedByKeyboard, setMovedByKeyboard] = useState(false)
+  const [layout, setLayout] = useState(loadBoardLayout)
+  function chooseLayout(next: BoardLayout) {
+    setLayout(next)
+    saveBoardLayout(next)
+  }
 
   // Which column is in view when the board is swiped sideways on a phone.
   const scroller = useRef<HTMLDivElement>(null)
@@ -124,6 +134,23 @@ export function TaskBoard({
     const step = second.offsetLeft - first.offsetLeft
     if (step > 0) setColumnInView(Math.round(el.scrollLeft / step))
   }
+  // A column tab was chosen: bring that column into view (snapping keeps it lined up).
+  function showColumn(index: number) {
+    setColumnInView(index)
+    const target = scroller.current?.children[index]
+    if (!(target instanceof HTMLElement) || typeof target.scrollIntoView !== 'function') return
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    target.scrollIntoView({
+      behavior: still ? 'auto' : 'smooth',
+      block: 'nearest',
+      inline: 'start',
+    })
+  }
+  // On a phone the board shows one column at a time, so a new task starts in the one in view.
+  const wide =
+    typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 640px)').matches
+  const newTaskStatus = wide ? 'todo' : (STATUSES[columnInView] ?? 'todo')
+  const dialog: Dialog = newTaskOpen ? { kind: 'create', status: newTaskStatus } : columnDialog
 
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data])
   const [filters, setFilters] = useFilters(membersQuery.isSuccess ? members : null)
@@ -145,7 +172,7 @@ export function TaskBoard({
     setSorts(next)
     saveColumnSorts(projectId, next)
   }
-  const nameOf = useMemo(() => new Map(members.map((m) => [m.userId, m.email])), [members])
+  const nameOf = useMemo(() => new Map(members.map((m) => [m.userId, personName(m)])), [members])
   const activeTask = activeId ? all.find((task) => task.id === activeId) : undefined
 
   const sensors = useSensors(
@@ -293,6 +320,8 @@ export function TaskBoard({
         onChange={setFilters}
         shown={visible.length}
         total={all.length}
+        layout={layout}
+        onLayoutChange={chooseLayout}
       />
 
       {all.length === 0 && <p className="text-muted">{t('tasks.emptyBoard')}</p>}
@@ -313,17 +342,23 @@ export function TaskBoard({
         onDragEnd={onDragEnd}
         onDragCancel={() => endDrag()}
       >
+        <ColumnTabs
+          counts={STATUSES.map((status) => shown[status].length)}
+          current={columnInView}
+          onPick={showColumn}
+        />
         {/*
-          Phones: one column at a time, swipe sideways. Tablets: two across, with Done filling the last row.
-          Wide screens: all five.
+          Phones: one column at a time, swipe sideways. 640–1023px: two across. 1024–1279px: three across.
+          In both, every column has the same width, so the last row is not stretched.
+          From 1280px: all five in a row, or two per row with Done filling the last row, as the person chose.
           Snapping is off during a drag: it would fight with scrolling by itself near the edge.
         */}
         <div
           ref={scroller}
           onScroll={onBoardScroll}
-          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-5 ${
-            dragging ? '' : 'snap-x snap-mandatory'
-          }`}
+          className={`no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3 ${
+            layout === 'row' ? 'xl:grid-cols-5' : 'xl:grid-cols-2'
+          } ${dragging ? '' : 'snap-x snap-mandatory'}`}
         >
           {STATUSES.map((status) => (
             <Column
@@ -332,19 +367,9 @@ export function TaskBoard({
               tasks={shown[status]}
               nameOf={nameOf}
               sort={sorts[status]}
+              layout={layout}
               onSort={(sort) => chooseSort(status, sort)}
               onOpen={(task) => setColumnDialog({ kind: 'edit', task })}
-            />
-          ))}
-        </div>
-        {/* Decoration only: each column already announces its own name and task count. */}
-        <div aria-hidden="true" className="flex items-center justify-center gap-1.5 sm:hidden">
-          {STATUSES.map((status, index) => (
-            <span
-              key={status}
-              className={`h-1.5 rounded-full ${
-                index === columnInView ? 'w-4 bg-primary' : 'w-1.5 bg-border'
-              }`}
             />
           ))}
         </div>
@@ -449,16 +474,94 @@ function statusOf(columns: Columns, overId: string): TaskStatus | undefined {
   return undefined
 }
 
+/**
+ * Phones only: the columns as tabs above the board, so it is clear where the board is and any column is one
+ * tap away. Follows the WAI-ARIA tabs pattern: arrow keys, Home and End move between the tabs.
+ */
+function ColumnTabs({
+  counts,
+  current,
+  onPick,
+}: {
+  counts: number[]
+  current: number
+  onPick: (index: number) => void
+}) {
+  const { t } = useTranslation()
+  const tabs = useRef<(HTMLButtonElement | null)[]>([])
+  // The tab of the column in view stays in view too, however the board got there.
+  useEffect(() => {
+    const tab = tabs.current[current]
+    if (tab && typeof tab.scrollIntoView === 'function')
+      tab.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [current])
+
+  function onKeyDown(event: KeyboardEvent) {
+    const last = STATUSES.length - 1
+    const moves: Record<string, number> = {
+      ArrowRight: current === last ? 0 : current + 1,
+      ArrowLeft: current === 0 ? last : current - 1,
+      Home: 0,
+      End: last,
+    }
+    const next = moves[event.key]
+    if (next === undefined) return
+    event.preventDefault()
+    onPick(next)
+    tabs.current[next]?.focus()
+  }
+
+  return (
+    <div
+      role="tablist"
+      aria-label={t('tasks.columnTabs')}
+      onKeyDown={onKeyDown}
+      className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 sm:hidden"
+    >
+      {STATUSES.map((status, index) => (
+        <button
+          key={status}
+          ref={(node) => {
+            tabs.current[index] = node
+          }}
+          type="button"
+          role="tab"
+          id={`column-tab-${status}`}
+          aria-selected={index === current}
+          aria-controls={`column-${status}`}
+          tabIndex={index === current ? 0 : -1}
+          onClick={() => onPick(index)}
+          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-medium ${
+            index === current ? 'bg-primary-bg text-primary-fg' : 'text-muted hover:text-text'
+          }`}
+        >
+          <Icon name={statusIcon(status)} size={16} />
+          {t(`status.${status}`)} <span className="tabular-nums">{counts[index]}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 interface ColumnProps {
   status: TaskStatus
   tasks: Task[]
   nameOf: Map<string, string>
   sort: ColumnSort
+  layout: BoardLayout
   onSort: (sort: ColumnSort) => void
   onOpen: (task: Task) => void
 }
 
 // The soft "-bg" tints would vanish against the column, so the line uses each status's strong color.
+// A picture for each way of sorting, the same as where that value shows on a card. The words still say it.
+const SORT_ICON: Record<ColumnSort, IconName> = {
+  manual: 'grip',
+  priority: 'arrow-up',
+  due: 'flag',
+  newest: 'clock',
+}
+
 const COLUMN_LINE: Record<TaskStatus, string> = {
   todo: 'bg-primary',
   in_progress: 'bg-sky-fg',
@@ -467,15 +570,18 @@ const COLUMN_LINE: Record<TaskStatus, string> = {
   done: 'bg-mint-fg',
 }
 
-function Column({ status, tasks, nameOf, sort, onSort, onOpen }: ColumnProps) {
+function Column({ status, tasks, nameOf, sort, layout, onSort, onOpen }: ColumnProps) {
   const { t } = useTranslation()
   // The whole column accepts drops, so a card can go into an empty column or below the last card.
   const { setNodeRef, isOver } = useDroppable({ id: columnId(status) })
   const name = t(`status.${status}`)
   return (
     <section
+      id={`column-${status}`}
       aria-label={t('tasks.columnLabel', { column: name, count: tasks.length })}
-      className="relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto sm:last:col-span-2 xl:last:col-span-1"
+      className={`relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto ${
+        layout === 'two' ? 'xl:last:col-span-2' : ''
+      }`}
     >
       <span
         aria-hidden="true"
@@ -498,6 +604,7 @@ function Column({ status, tasks, nameOf, sort, onSort, onOpen }: ColumnProps) {
           }`}
           items={SORTS.map((value) => ({
             key: value,
+            icon: SORT_ICON[value],
             label: t(`tasks.sort_${value}`),
             checked: value === sort,
             onSelect: () => onSort(value),
@@ -517,6 +624,7 @@ function Column({ status, tasks, nameOf, sort, onSort, onOpen }: ColumnProps) {
               task={task}
               assignees={assigneesOf(task, nameOf)}
               onOpen={() => onOpen(task)}
+              inSortedColumn={sort !== 'manual'}
             />
           ))}
           {tasks.length === 0 && (
@@ -537,6 +645,8 @@ interface FilterBarProps {
   onChange: (changed: Partial<Filters>) => void
   shown: number
   total: number
+  layout: BoardLayout
+  onLayoutChange: (layout: BoardLayout) => void
 }
 
 const SELECT_WIDTH = 'flex-[0_1_150px] max-sm:hidden'
@@ -555,18 +665,73 @@ function PriorityOptions() {
   )
 }
 
-function AssigneeOptions({ members }: { members: Member[] }) {
+/**
+ * Whose tasks to show, for wider screens: a menu where any number of people can be ticked, plus "Unassigned".
+ * "All" takes every tick off. The button says what is chosen, so the board never hides tasks without saying so.
+ */
+function AssigneeFilter({
+  members,
+  chosen,
+  onChange,
+}: {
+  members: Member[]
+  chosen: string[]
+  onChange: (next: string[]) => void
+}) {
   const { t } = useTranslation()
+  const toggle = (id: string) =>
+    onChange(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id])
+  // "Nok", or "Nok +1" for more. The menu lists "Unassigned" before the people, and so does this.
+  const names = [UNASSIGNED, ...members.map((m) => m.userId)]
+    .filter((id) => chosen.includes(id))
+    .map((id) =>
+      id === UNASSIGNED ? t('tasks.unassigned') : personName(members.find((m) => m.userId === id)!),
+    )
+  const summary =
+    names.length === 0
+      ? t('tasks.all')
+      : names.length === 1
+        ? names[0]!
+        : `${names[0]} +${names.length - 1}`
   return (
-    <>
-      <option value="">{t('tasks.all')}</option>
-      <option value={UNASSIGNED}>{t('tasks.unassigned')}</option>
-      {members.map((m) => (
-        <option key={m.userId} value={m.userId}>
-          {m.email}
-        </option>
-      ))}
-    </>
+    <Menu
+      className={SELECT_WIDTH}
+      multiple
+      label={`${t('tasks.assigneeFilter')}: ${summary}`}
+      triggerClassName="relative flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-surface pl-3 pr-2 text-left text-text focus:border-primary"
+      trigger={
+        <>
+          <span className="shrink-0 text-muted">
+            <Icon name="users" />
+          </span>
+          <span className="min-w-0 flex-1 truncate">{summary}</span>
+          <span className="shrink-0 text-muted">
+            <Icon name="chevron-down" size={16} />
+          </span>
+        </>
+      }
+      items={[
+        {
+          key: 'all',
+          label: t('tasks.all'),
+          checked: chosen.length === 0,
+          onSelect: () => onChange([]),
+        },
+        {
+          key: UNASSIGNED,
+          label: t('tasks.unassigned'),
+          checked: chosen.includes(UNASSIGNED),
+          onSelect: () => toggle(UNASSIGNED),
+        },
+        ...members.map((m) => ({
+          key: m.userId,
+          label: personName(m),
+          leading: <Avatar id={m.userId} name={personName(m)} size={22} />,
+          checked: chosen.includes(m.userId),
+          onSelect: () => toggle(m.userId),
+        })),
+      ]}
+    />
   )
 }
 
@@ -586,8 +751,8 @@ function FilterSheet({
 }) {
   const { t } = useTranslation()
   const [priority, setPriority] = useState(filters.priority)
-  const [assignee, setAssignee] = useState(filters.assignee)
-  const count = filterTasks(tasks, { ...filters, priority, assignee }).length
+  const [assignees, setAssignees] = useState(filters.assignees)
+  const count = filterTasks(tasks, { ...filters, priority, assignees }).length
   return (
     <Modal
       title={t('tasks.filters')}
@@ -604,20 +769,20 @@ function FilterSheet({
         >
           <PriorityOptions />
         </SelectField>
-        <SelectField
+        <AssigneePicker
           id="sheet-assignee"
-          label={t('tasks.assigneeFilter')}
-          value={assignee}
-          onChange={(e) => setAssignee(e.target.value)}
-        >
-          <AssigneeOptions members={members} />
-        </SelectField>
+          legend={t('tasks.assigneeFilter')}
+          unassignedLabel={t('tasks.unassigned')}
+          members={members}
+          selected={assignees}
+          onChange={setAssignees}
+        />
         <div className="flex flex-col gap-2 pt-1">
           <Button
             type="button"
             className="w-full"
             onClick={() => {
-              onChange({ priority, assignee })
+              onChange({ priority, assignees })
               onClose()
             }}
           >
@@ -629,7 +794,7 @@ function FilterSheet({
             className="w-full"
             onClick={() => {
               setPriority('')
-              setAssignee('')
+              setAssignees([])
             }}
           >
             {t('tasks.clearFilters')}
@@ -640,14 +805,24 @@ function FilterSheet({
   )
 }
 
-function FilterBar({ projectId, filters, members, tasks, onChange, shown, total }: FilterBarProps) {
+function FilterBar({
+  projectId,
+  filters,
+  members,
+  tasks,
+  onChange,
+  shown,
+  total,
+  layout,
+  onLayoutChange,
+}: FilterBarProps) {
   const { t } = useTranslation()
   const [sheetOpen, setSheetOpen] = useState(false)
-  const inSheet = [filters.priority, filters.assignee].filter(Boolean).length
-  const assigneeName =
-    filters.assignee === UNASSIGNED
+  const inSheet = (filters.priority ? 1 : 0) + filters.assignees.length
+  const nameFor = (id: string) =>
+    id === UNASSIGNED
       ? t('tasks.unassigned')
-      : members.find((m) => m.userId === filters.assignee)?.email
+      : members.filter((m) => m.userId === id).map(personName)[0]
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -691,19 +866,26 @@ function FilterBar({ projectId, filters, members, tasks, onChange, shown, total 
         >
           <PriorityOptions />
         </CompactSelectField>
-        <CompactSelectField
-          id="filter-assignee"
-          icon="users"
-          className={SELECT_WIDTH}
-          label={t('tasks.assigneeFilter')}
-          value={filters.assignee}
-          onChange={(e) => onChange({ assignee: e.target.value })}
-        >
-          <AssigneeOptions members={members} />
-        </CompactSelectField>
+        <AssigneeFilter
+          members={members}
+          chosen={filters.assignees}
+          onChange={(assignees) => onChange({ assignees })}
+        />
+        {/* Only wide screens have a choice: smaller ones already use the one layout that fits them. */}
+        <ChoiceSwitch
+          className="shrink-0 max-xl:hidden"
+          label={t('tasks.layoutLabel')}
+          value={layout}
+          onChange={onLayoutChange}
+          options={[
+            { value: 'row', icon: 'columns', label: t('tasks.layout_row') },
+            { value: 'two', icon: 'grid', label: t('tasks.layout_two') },
+          ]}
+        />
         <TrashLink
           to={`/projects/${encodeURIComponent(projectId)}/trash`}
           label={t('tasks.trash')}
+          fullLabel={t('tasks.trashFull')}
           iconOnlyOnPhone
         />
       </div>
@@ -729,13 +911,14 @@ function FilterBar({ projectId, filters, members, tasks, onChange, shown, total 
               onRemove={() => onChange({ priority: '' })}
             />
           )}
-          {assigneeName && (
+          {filters.assignees.map((id) => (
             <FilterChip
+              key={id}
               icon="users"
-              text={assigneeName}
-              onRemove={() => onChange({ assignee: '' })}
+              text={nameFor(id) ?? id}
+              onRemove={() => onChange({ assignees: filters.assignees.filter((x) => x !== id) })}
             />
-          )}
+          ))}
           <button
             type="button"
             onClick={() => onChange(NO_FILTERS)}
@@ -790,22 +973,34 @@ function useFilters(members: Member[] | null): [Filters, (changed: Partial<Filte
     return {
       q: (params.get('q') ?? '').slice(0, MAX_QUERY),
       priority: isPriority(priority) ? priority : '',
-      assignee: params.get('assignee') ?? '',
+      assignees: [...new Set((params.get('assignee') ?? '').split(',').filter(Boolean))].slice(
+        0,
+        100,
+      ),
     }
   })
 
-  // A person in the address who is not a member (any more) is ignored.
-  const known =
-    chosen.assignee === UNASSIGNED ||
-    members === null ||
-    members.some((m) => m.userId === chosen.assignee)
-  const filters: Filters = known ? chosen : { ...chosen, assignee: '' }
+  // A person in the address who is not a member (any more) is left out.
+  const filters: Filters =
+    members === null
+      ? chosen
+      : {
+          ...chosen,
+          assignees: chosen.assignees.filter(
+            (id) => id === UNASSIGNED || members.some((m) => m.userId === id),
+          ),
+        }
 
   useEffect(() => {
     setParams(
       (current) => {
         const out = new URLSearchParams(current) // keep anything else in the address
-        for (const [key, value] of Object.entries(chosen)) {
+        const values = {
+          q: chosen.q,
+          priority: chosen.priority,
+          assignee: chosen.assignees.join(','), // ?assignee=id1,id2
+        }
+        for (const [key, value] of Object.entries(values)) {
           if (value) out.set(key, value)
           else out.delete(key)
         }

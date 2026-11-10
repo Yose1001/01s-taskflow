@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { errorMessage } from '../auth/errors'
 import type { Project } from '../api/types'
+import { ChoiceSwitch } from '../components/ChoiceSwitch'
 import { Button } from '../components/forms'
 import { Icon, type IconName } from '../components/Icon'
 import { Menu } from '../components/Menu'
@@ -23,7 +24,7 @@ import {
   type ProjectsView,
 } from '../features/projects/projectsView'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { formatDate } from '../lib/format'
+import { formatDate, personName } from '../lib/format'
 import { lastPage, parsePage } from '../lib/paging'
 
 /** How far along a project is: "3 of 5 done" and a bar. */
@@ -120,32 +121,25 @@ function ViewSwitch({
   onChange: (view: ProjectsView) => void
 }) {
   const { t } = useTranslation()
-  const options: { value: ProjectsView; icon: IconName; label: string }[] = [
-    { value: 'cards', icon: 'grid', label: t('projects.viewCards') },
-    { value: 'list', icon: 'list', label: t('projects.viewList') },
-  ]
   return (
-    <div
-      role="group"
-      aria-label={t('projects.viewLabel')}
-      className="inline-flex h-10 items-center gap-0.5 rounded-xl border border-border bg-surface p-0.5"
-    >
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          aria-pressed={view === option.value}
-          onClick={() => onChange(option.value)}
-          className={`inline-flex h-full items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium ${
-            view === option.value ? 'bg-primary-bg text-primary-fg' : 'text-muted hover:text-text'
-          }`}
-        >
-          <Icon name={option.icon} />
-          <span className="max-sm:sr-only">{option.label}</span>
-        </button>
-      ))}
-    </div>
+    <ChoiceSwitch
+      label={t('projects.viewLabel')}
+      value={view}
+      onChange={onChange}
+      options={[
+        { value: 'cards', icon: 'grid', label: t('projects.viewCards') },
+        { value: 'list', icon: 'list', label: t('projects.viewList') },
+      ]}
+    />
   )
+}
+
+// A picture for each way of sorting the projects. The words still say it.
+const PROJECT_SORT_ICON: Record<ProjectSort, IconName> = {
+  newest: 'clock',
+  oldest: 'clock',
+  progress_high: 'progress',
+  progress_low: 'progress',
 }
 
 /** Chooses the order of the list. On phones the button shows only its icon. */
@@ -171,11 +165,59 @@ function SortMenu({
       triggerClassName="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 text-sm font-medium text-text hover:bg-primary-bg"
       items={PROJECT_SORTS.map((value) => ({
         key: value,
+        icon: PROJECT_SORT_ICON[value],
         label: t(`projects.sort_${value}`),
         checked: value === sort,
         onSelect: () => onChange(value),
       }))}
     />
+  )
+}
+
+/** Phones only: the order and the view of the list, in one ⋯ menu, so the row keeps to one line. */
+function PhoneListOptions({
+  sort,
+  view,
+  onSort,
+  onView,
+}: {
+  sort: ProjectSort
+  view: ProjectsView
+  onSort: (sort: ProjectSort) => void
+  onView: (view: ProjectsView) => void
+}) {
+  const { t } = useTranslation()
+  const sortHeading = t('projects.sortHeading')
+  const viewHeading = t('projects.viewLabel')
+  return (
+    <div className="sm:hidden">
+      <Menu
+        floating
+        label={t('projects.listOptions')}
+        trigger={<Icon name="more" size={20} />}
+        triggerClassName="grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface text-text hover:bg-primary-bg"
+        items={[
+          ...PROJECT_SORTS.map((value, index) => ({
+            key: `sort-${value}`,
+            ...(index === 0 && { heading: sortHeading }),
+            icon: PROJECT_SORT_ICON[value],
+            label: t(`projects.sort_${value}`),
+            ariaLabel: `${sortHeading}: ${t(`projects.sort_${value}`)}`,
+            checked: value === sort,
+            onSelect: () => onSort(value),
+          })),
+          ...(['cards', 'list'] as const).map((value, index) => ({
+            key: `view-${value}`,
+            ...(index === 0 && { heading: viewHeading }),
+            icon: value === 'cards' ? ('grid' as const) : ('list' as const),
+            label: t(value === 'cards' ? 'projects.viewCards' : 'projects.viewList'),
+            ariaLabel: `${viewHeading}: ${t(value === 'cards' ? 'projects.viewCards' : 'projects.viewList')}`,
+            checked: value === view,
+            onSelect: () => onView(value),
+          })),
+        ]}
+      />
+    </div>
   )
 }
 
@@ -241,15 +283,15 @@ export function ProjectsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="break-words text-2xl font-bold sm:text-3xl">
-          {t('dashboard.hello', { name: user.email })}
+          {t('dashboard.hello', { name: personName(user) })}
         </h1>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">{t('projects.title')}</h2>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
           {projects.data && projects.data.total > 0 && (
-            <>
+            <div className="flex items-center gap-2 max-sm:hidden">
               <SortMenu
                 sort={sort}
                 onChange={(next) => {
@@ -265,17 +307,34 @@ export function ProjectsPage() {
                   saveProjectsView(next)
                 }}
               />
-            </>
+            </div>
           )}
-          <TrashLink to="/projects/trash" label={t('projects.trash')} />
-          {/* A new person has one big button in the welcome panel instead: one primary button per page.
-              Waiting for the list means the button never flashes up and disappears again. */}
-          {projects.data && projects.data.total > 0 && (
-            <Button type="button" onClick={() => setCreating(true)}>
-              <Icon name="plus" />
-              {t('projects.new')}
-            </Button>
-          )}
+          <TrashLink to="/projects/trash" label={t('projects.trash')} ghostOnPhone />
+          <div className="flex items-center gap-2 max-sm:ml-auto">
+            {projects.data && projects.data.total > 0 && (
+              <PhoneListOptions
+                sort={sort}
+                view={view}
+                onSort={(next) => {
+                  setSort(next)
+                  saveProjectSort(next)
+                  setParams({})
+                }}
+                onView={(next) => {
+                  setView(next)
+                  saveProjectsView(next)
+                }}
+              />
+            )}
+            {/* A new person has one big button in the welcome panel instead: one primary button per page.
+                Waiting for the list means the button never flashes up and disappears again. */}
+            {projects.data && projects.data.total > 0 && (
+              <Button type="button" onClick={() => setCreating(true)}>
+                <Icon name="plus" />
+                {t('projects.new')}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

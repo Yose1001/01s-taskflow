@@ -43,6 +43,40 @@ export function formatDayShort(day: string, language: string, now: Date = new Da
  * One or two letters for a small avatar: "Alice Smith" -> "AS", "สมชาย" -> "ส".
  * Thai vowels written before the consonant (เ แ โ ใ ไ) are skipped, so "เอก" gives "อ".
  */
+/**
+ * A start and an end day, written as short as is still clear: "9–10 Nov" in one month, "28 Oct – 3 Nov"
+ * across months, and with both years when the range crosses a year. The two parts come back separately,
+ * so each can sit in its own <time> element.
+ */
+export function formatDayRange(
+  start: string,
+  end: string,
+  language: string,
+  now: Date = new Date(),
+): { start: string; end: string; joiner: string } {
+  const [startYear, startMonth] = start.split('-')
+  const [endYear, endMonth] = end.split('-')
+  if (startYear !== endYear)
+    return { start: formatDay(start, language), end: formatDay(end, language), joiner: ' – ' }
+  if (startMonth === endMonth) {
+    const locale = language.startsWith('th') ? 'th-TH' : 'en-GB'
+    const day = new Intl.DateTimeFormat(locale, { day: 'numeric', timeZone: 'UTC' }).format(
+      new Date(`${start}T00:00:00Z`),
+    )
+    return { start: day, end: formatDayShort(end, language, now), joiner: '–' }
+  }
+  return {
+    start: formatDayShort(start, language, new Date(`${start}T00:00:00Z`)), // the year goes on the end only
+    end: formatDayShort(end, language, now),
+    joiner: ' – ',
+  }
+}
+
+/** What to call a person on screen: the name they chose, or their email if the name is empty. */
+export function personName(person: { displayName?: string | undefined; email: string }): string {
+  return person.displayName?.trim() || person.email
+}
+
 export function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean)
   const picked = words.length > 1 ? [words[0]!, words[words.length - 1]!] : words

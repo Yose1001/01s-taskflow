@@ -42,7 +42,7 @@ test.describe('language and theme', () => {
 
     await page.getByRole('button', { name: 'Switch language to ไทย' }).click()
     await page.getByRole('button', { name: 'เปลี่ยนเป็นธีมมืด' }).click()
-    await expect(page.getByRole('heading', { level: 1, name: `สวัสดี ${person.email}` })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: `สวัสดี ${person.name}` })).toBeVisible()
     await expect(html(page)).toHaveAttribute('data-theme', 'dark')
 
     // "Another device": a brand-new browser profile with nothing saved.
@@ -51,7 +51,7 @@ test.describe('language and theme', () => {
     await fresh.goto('http://localhost:5174/login')
     await expect(fresh.getByRole('heading', { name: 'Log in' })).toBeVisible() // default English, light
     await submitLogin(fresh, person)
-    await expect(fresh.getByRole('heading', { level: 1, name: `สวัสดี ${person.email}` })).toBeVisible()
+    await expect(fresh.getByRole('heading', { level: 1, name: `สวัสดี ${person.name}` })).toBeVisible()
     await expect(fresh.locator('html')).toHaveAttribute('data-theme', 'dark')
     await other.close()
   })

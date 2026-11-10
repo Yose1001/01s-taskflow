@@ -17,9 +17,7 @@ async function openSignedIn(user: U, route = '/') {
   await user.type(screen.getByLabelText('Email'), 'alice@example.com')
   await user.type(screen.getByLabelText('Password'), 'correct horse')
   await user.click(screen.getByRole('button', { name: 'Log in' }))
-  await screen
-    .findByRole('heading', { level: 1, name: 'Hello, alice@example.com' })
-    .catch(() => undefined)
+  await screen.findByRole('heading', { name: 'Hello, Alice' }).catch(() => undefined)
   return view
 }
 
@@ -41,6 +39,30 @@ async function openMembers(user: U) {
 }
 
 describe('project list', () => {
+  it('on a phone, keeps the order and the view in one ⋯ menu', async () => {
+    fakeBackend({ projects: [project('p1', 'Website'), project('p2', 'Shop')] })
+    const user = userEvent.setup()
+    await openSignedIn(user)
+    await screen.findByRole('link', { name: /Website/ })
+    await user.click(screen.getByRole('button', { name: 'List options' }))
+    expect(screen.getByRole('menuitemradio', { name: 'Sort by: Newest first' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    await user.click(screen.getByRole('menuitemradio', { name: 'Project view: List' }))
+    expect(localStorage.getItem('tf-projects-view')).toBe('list')
+    await user.click(screen.getByRole('button', { name: 'List options' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Sort by: Oldest first' }))
+    expect(localStorage.getItem('tf-projects-sort')).toBe('oldest')
+  })
+
+  it('greets the person by name, without their email', async () => {
+    fakeBackend({ projects: [] })
+    await openSignedIn(userEvent.setup())
+    expect(screen.getByRole('heading', { level: 1, name: 'Hello, Alice' })).toBeInTheDocument()
+    expect(screen.queryByText('alice@example.com')).not.toBeInTheDocument()
+  })
+
   it('shows cards at first and can switch to a list with the same details', async () => {
     fakeBackend({ projects: [project('p1', 'Website', { description: 'Redesign the site' })] })
     const user = userEvent.setup()
@@ -273,6 +295,17 @@ describe('sorting the project list', () => {
     await user.click(await screen.findByRole('button', { name: /^Sort projects/ }))
     await user.click(screen.getByRole('menuitemradio', { name }))
   }
+
+  it('shows a picture beside each way of sorting, as well as its words', async () => {
+    fakeBackend(sample())
+    const user = userEvent.setup()
+    await openSignedIn(user)
+    await user.click(await screen.findByRole('button', { name: /^Sort projects/ }))
+    const items = screen.getAllByRole('menuitemradio')
+    expect(items).toHaveLength(4)
+    for (const item of items)
+      expect(item.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
 
   it('starts with the newest first, without asking the server for a sort', async () => {
     const api = fakeBackend(sample())
@@ -515,12 +548,12 @@ describe('project page', () => {
     await openSignedIn(user, '/projects/p1')
     await screen.findByRole('heading', { level: 1, name: 'Team space' })
     expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'Trash' })).toBeInTheDocument() // the task trash is for everyone
+    expect(await screen.findByRole('link', { name: 'Task trash' })).toBeInTheDocument() // the task trash is for everyone
     expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument()
     // the member list itself is available, without the owner's tools
     const members = await openMembers(user)
-    expect(await within(members).findByText('bob@example.com')).toBeInTheDocument()
+    expect(await within(members).findByText('Bob')).toBeInTheDocument()
     expect(within(members).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument()
     expect(within(members).queryByLabelText('Their email')).not.toBeInTheDocument()
     expect(
@@ -659,13 +692,11 @@ describe('members', () => {
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
     const section = await openMembers(user)
-    expect(await within(section).findByText('bob@example.com')).toBeInTheDocument()
+    expect(await within(section).findByText('Bob')).toBeInTheDocument()
     expect(within(section).getByText(/Joined 1 Feb 2026/)).toBeInTheDocument()
     expect(within(section).getByText('(you)')).toBeInTheDocument()
     expect(within(section).getAllByRole('button', { name: /^Actions for/ })).toHaveLength(1)
-    expect(
-      within(section).getByRole('button', { name: 'Actions for bob@example.com' }),
-    ).toBeInTheDocument()
+    expect(within(section).getByRole('button', { name: 'Actions for Bob' })).toBeInTheDocument()
   })
 
   it('closes with Escape, the close button or the background, and returns the focus', async () => {
@@ -696,18 +727,16 @@ describe('members', () => {
     const { container } = await openSignedIn(user, '/projects/p1')
     container.id = 'root'
     const section = await openMembers(user)
-    await user.click(
-      await within(section).findByRole('button', { name: 'Actions for bob@example.com' }),
-    )
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    await user.click(await within(section).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     const confirm = await screen.findByRole('dialog', {
-      name: 'Remove bob@example.com from this project?',
+      name: 'Remove Bob from this project?',
     })
     expect(within(confirm).getByRole('button', { name: 'Cancel' })).toHaveFocus()
 
     await user.keyboard('{Escape}') // closes only the confirmation
     expect(screen.getByRole('dialog', { name: 'Members' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Actions for bob@example.com' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Actions for Bob' })).toHaveFocus()
     expect(container).toHaveAttribute('inert')
 
     await user.keyboard('{Escape}') // now the panel itself
@@ -723,10 +752,10 @@ describe('members', () => {
     await user.type(within(section).getByLabelText('Their email'), '  BOB@example.com ')
     await user.click(within(section).getByRole('button', { name: 'Invite' }))
 
-    expect(await within(section).findByText('bob@example.com')).toBeInTheDocument()
+    expect(await within(section).findByText('Bob')).toBeInTheDocument()
     expect(api.hits('POST /projects/p1/members')[0]!.body).toEqual({ email: 'BOB@example.com' })
     expect(within(section).getByLabelText('Their email')).toHaveValue('')
-    expect(await screen.findByText('bob@example.com was added to the project.')).toBeInTheDocument()
+    expect(await screen.findByText('Bob was added to the project.')).toBeInTheDocument()
   })
 
   it('explains an unknown email in plain words', async () => {
@@ -759,12 +788,15 @@ describe('members', () => {
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
     const section = await openMembers(user)
-    await user.click(within(section).getByRole('button', { name: 'Invite' }))
-    expect(within(section).getByText('This field is required.')).toBeInTheDocument()
+    // Invite is the drawer's main button, and it waits for an email that looks right.
+    const invite = within(section).getByRole('button', { name: 'Invite' })
+    expect(invite).toBeDisabled()
     await user.type(within(section).getByLabelText('Their email'), 'not-an-email')
-    await user.click(within(section).getByRole('button', { name: 'Invite' }))
-    expect(within(section).getByText('Enter a valid email address.')).toBeInTheDocument()
+    expect(invite).toBeDisabled()
+    await user.keyboard('{Enter}')
     expect(api.hits('POST /projects/p1/members')).toHaveLength(0)
+    await user.type(within(section).getByLabelText('Their email'), '@example.com')
+    expect(invite).toBeEnabled()
   })
 
   it('asks before removing, then removes', async () => {
@@ -772,32 +804,30 @@ describe('members', () => {
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
     const section = await openMembers(user)
-    await user.click(
-      await within(section).findByRole('button', { name: 'Actions for bob@example.com' }),
-    )
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    await user.click(await within(section).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
 
     const dialog = await screen.findByRole('dialog', {
-      name: 'Remove bob@example.com from this project?',
+      name: 'Remove Bob from this project?',
     })
-    expect(within(dialog).getByText(/bob@example\.com will lose access/)).toBeInTheDocument()
+    expect(
+      within(dialog).getByText(/Bob \(bob@example\.com\) will lose access/),
+    ).toBeInTheDocument()
     // Removing someone does not use the trash, so the dialog must not promise it can be restored.
     expect(dialog).not.toHaveTextContent(/trash|restore/i)
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(api.hits('DELETE /projects/p1/members/' + BOB.userId)).toHaveLength(0)
 
-    await user.click(within(section).getByRole('button', { name: 'Actions for bob@example.com' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    await user.click(within(section).getByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
       within(
-        await screen.findByRole('dialog', { name: 'Remove bob@example.com from this project?' }),
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
       ).getByRole('button', { name: 'Remove' }),
     )
-    await waitFor(() =>
-      expect(within(section).queryByText('bob@example.com')).not.toBeInTheDocument(),
-    )
-    expect(within(section).getByText('carol@example.com')).toBeInTheDocument()
-    expect(await screen.findByText('bob@example.com was removed.')).toBeInTheDocument()
+    await waitFor(() => expect(within(section).queryByText('Bob')).not.toBeInTheDocument())
+    expect(within(section).getByText('Carol')).toBeInTheDocument()
+    expect(await screen.findByText('Bob was removed.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
   })
 
@@ -806,16 +836,14 @@ describe('members', () => {
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
     const section = await openMembers(user)
-    await user.click(
-      await within(section).findByRole('button', { name: 'Actions for bob@example.com' }),
-    )
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    await user.click(await within(section).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
       within(
-        await screen.findByRole('dialog', { name: 'Remove bob@example.com from this project?' }),
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
       ).getByRole('button', { name: 'Remove' }),
     )
-    await screen.findByText('bob@example.com was removed.')
+    await screen.findByText('Bob was removed.')
 
     await waitFor(() => expect(within(section).getByLabelText('Their email')).toHaveFocus())
     await user.keyboard('{Escape}')
@@ -914,7 +942,7 @@ describe('privacy between people on the same browser', () => {
     await user.type(screen.getByLabelText('Email'), 'bob@example.com')
     await user.type(screen.getByLabelText('Password'), 'correct horse')
     await user.click(screen.getByRole('button', { name: 'Log in' }))
-    await screen.findByRole('heading', { level: 1, name: 'Hello, bob@example.com' })
+    await screen.findByRole('heading', { name: 'Hello, Bob' })
     expect(screen.queryByText('Alice private plan')).not.toBeInTheDocument()
     release()
   })

@@ -5,11 +5,18 @@ export interface MenuItem {
   key: string
   label: string
   icon?: IconName
+  /** Starts a new group of items, with this small heading above it. Give the items an ariaLabel too. */
+  heading?: string
+  /** Shown before the text instead of an icon, such as a person's avatar. Decorative. */
+  leading?: ReactNode
   /** danger: red text, set apart from the items above it. danger-soft: on a soft red background. */
   tone?: 'danger' | 'danger-soft'
   /** The accessible name when the visible label alone is not enough, such as "Remove: Bob". */
   ariaLabel?: string
-  /** Makes this one of a set of choices: true shows a tick and tells screen readers it is the chosen one. */
+  /**
+   * Makes this one of a set of choices: true shows a tick and tells screen readers it is chosen. In a
+   * `multiple` menu each item is ticked on its own, and the menu stays open.
+   */
   checked?: boolean
   onSelect: () => void
 }
@@ -39,6 +46,8 @@ export function Menu({
   items,
   header,
   floating = false,
+  multiple = false,
+  className = '',
 }: {
   /** The button's accessible name. */
   label: string
@@ -52,6 +61,10 @@ export function Menu({
    * It closes when anything scrolls, because it would no longer sit next to its button.
    */
   floating?: boolean
+  /** Several items can be ticked: choosing one leaves the menu open, for the next. */
+  multiple?: boolean
+  /** For the box around the button, such as its width. */
+  className?: string | undefined
 }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -138,7 +151,7 @@ export function Menu({
   }
 
   return (
-    <div ref={wrapper} className="relative">
+    <div ref={wrapper} className={`relative ${className}`}>
       <button
         ref={button}
         type="button"
@@ -165,22 +178,34 @@ export function Menu({
                 key={item.key}
                 role="none"
                 className={
-                  item.tone === 'danger' && index > 0
+                  (item.tone === 'danger' || item.heading) && index > 0
                     ? 'mt-1 border-t border-border pt-1'
                     : undefined
                 }
               >
+                {item.heading && (
+                  <p aria-hidden="true" className="px-3 pb-1 pt-1.5 text-xs font-medium text-muted">
+                    {item.heading}
+                  </p>
+                )}
                 <button
                   ref={(node) => {
                     itemRefs.current[index] = node
                   }}
                   type="button"
-                  role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+                  role={
+                    item.checked === undefined
+                      ? 'menuitem'
+                      : multiple
+                        ? 'menuitemcheckbox'
+                        : 'menuitemradio'
+                  }
                   aria-checked={item.checked}
                   tabIndex={index === active ? 0 : -1}
                   aria-label={item.ariaLabel}
                   onClick={() => {
-                    close()
+                    if (multiple) setActive(index)
+                    else close()
                     item.onSelect()
                   }}
                   className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-medium ${
@@ -188,7 +213,8 @@ export function Menu({
                   }`}
                 >
                   {item.icon && <Icon name={item.icon} />}
-                  <span className="min-w-0 flex-1">{item.label}</span>
+                  {item.leading}
+                  <span className="min-w-0 flex-1 break-words">{item.label}</span>
                   {item.checked && <Icon name="check" />}
                 </button>
               </div>

@@ -20,7 +20,7 @@ import { MembersDrawer } from '../features/projects/MembersDrawer'
 import { ProjectFormDialog } from '../features/projects/ProjectFormDialog'
 import { TaskBoard } from '../features/tasks/TaskBoard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { formatDate } from '../lib/format'
+import { formatDate, personName } from '../lib/format'
 
 const ICON_ON_PHONE = 'max-sm:h-10 max-sm:w-10 max-sm:px-0 max-sm:py-0'
 
@@ -112,7 +112,7 @@ export function ProjectPage() {
                 <span className="flex -space-x-2 max-sm:hidden" aria-hidden="true">
                   {members.data.slice(0, 3).map((m) => (
                     <span key={m.userId} className="rounded-full ring-2 ring-bg">
-                      <Avatar id={m.userId} name={m.email} size={24} />
+                      <Avatar id={m.userId} name={personName(m)} size={24} />
                     </span>
                   ))}
                 </span>

@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../../App'
 import type { Task } from '../../api/types'
 import { BOB, CAROL, fakeBackend, project, task } from '../../test/fakeBackend'
@@ -57,6 +57,13 @@ async function openBoard(
 }
 
 const column = (name: RegExp | string) => screen.getByRole('region', { name })
+
+/** Ticks or unticks people in the "Assigned to" menu, then closes it. */
+async function toggleAssignees(user: U, names: string[]) {
+  await user.click(screen.getByRole('button', { name: /^Assigned to:/ }))
+  for (const name of names) await user.click(screen.getByRole('menuitemcheckbox', { name }))
+  await user.keyboard('{Escape}')
+}
 const titlesIn = (region: HTMLElement) =>
   within(region)
     .queryAllByRole('listitem')
@@ -78,8 +85,8 @@ describe('board', () => {
     await openBoard(userEvent.setup())
     const todo = column(/^To do/)
     expect(within(todo).getAllByText('High').length).toBeGreaterThan(0)
-    expect(within(todo).getByTitle('Assigned to bob@example.com')).toBeInTheDocument()
-    expect(within(todo).getByTitle('Assigned to alice@example.com')).toBeInTheDocument()
+    expect(within(todo).getByTitle('Assigned to Bob')).toBeInTheDocument()
+    expect(within(todo).getByTitle('Assigned to Alice')).toBeInTheDocument()
     expect(within(column(/^Done/)).getByText('1 Jan 2020')).toBeInTheDocument()
   })
 
@@ -225,6 +232,19 @@ describe('filters', () => {
     expect(screen.getByRole('button', { name: 'Filters (1)' })).toHaveFocus()
   })
 
+  it('in the sheet, several people can be ticked', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    await user.click(screen.getByRole('button', { name: 'Filters' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Filters' })
+    const people = within(sheet).getByRole('group', { name: 'Assigned to' })
+    await user.click(within(people).getByRole('checkbox', { name: 'Bob' }))
+    await user.click(within(people).getByRole('checkbox', { name: 'Unassigned' }))
+    await user.click(within(sheet).getByRole('button', { name: /^Show \d+ tasks$/ }))
+    expect(screen.getByRole('button', { name: 'Filters (2)' })).toHaveFocus()
+    expect(titlesIn(column(/^To do/))).toEqual(['Draw logo', 'Write copy'])
+  })
+
   it('in the sheet, Clear all empties the choices; closing without Show keeps the board', async () => {
     const user = userEvent.setup()
     await openBoard(user)
@@ -238,6 +258,21 @@ describe('filters', () => {
 
     await user.keyboard('{Escape}')
     expect(document.getElementById('filter-priority')).toHaveValue('high')
+  })
+
+  it('on a phone, New task starts in the column that is in view', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    // The test browser has no layout: put the columns side by side, 320px apart, and swipe to the third.
+    const board = column(/^To do/).parentElement!
+    ;[...board.children].forEach((col, index) =>
+      Object.defineProperty(col, 'offsetLeft', { configurable: true, value: 16 + 320 * index }),
+    )
+    board.scrollLeft = 640
+    fireEvent.scroll(board)
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    const dialog = await screen.findByRole('dialog', { name: 'New task' })
+    expect(within(dialog).getByLabelText('Column')).toHaveValue('review')
   })
 
   it('offers New task in the project header, opening on the first column', async () => {
@@ -259,12 +294,56 @@ describe('filters', () => {
     expect(titlesIn(column(/^In progress/))).toEqual(['Build header'])
 
     await user.selectOptions(screen.getByLabelText('Priority'), 'All')
-    await user.selectOptions(screen.getByLabelText('Assigned to'), 'bob@example.com')
+    await toggleAssignees(user, ['Bob'])
     expect(titlesIn(column(/^To do/))).toEqual(['Draw logo'])
+    expect(screen.getByRole('button', { name: 'Assigned to: Bob' })).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText('Assigned to'), 'Unassigned')
+    await toggleAssignees(user, ['Bob', 'Unassigned']) // Bob off, Unassigned on
     expect(titlesIn(column(/^To do/))).toEqual(['Write copy'])
     expect(titlesIn(column(/^In progress/))).toEqual(['Build header'])
+  })
+
+  it('shows the tasks of every person ticked, and keeps them in the address', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    await user.click(screen.getByRole('button', { name: 'Assigned to: All' }))
+    expect(screen.getByRole('menuitemcheckbox', { name: 'All' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Bob' }))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Unassigned' }))
+    // The menu stays open for the next tick.
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Unassigned' })).toHaveFocus()
+    expect(screen.getByRole('menuitemcheckbox', { name: 'All' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+    await user.keyboard('{Escape}')
+
+    expect(screen.getByRole('button', { name: 'Assigned to: Unassigned +1' })).toHaveFocus()
+    expect(titlesIn(column(/^To do/))).toEqual(['Draw logo', 'Write copy'])
+    expect(titlesIn(column(/^In progress/))).toEqual(['Build header'])
+    expect(screen.getByRole('button', { name: 'Remove filter: Bob' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remove filter: Unassigned' }))
+    expect(titlesIn(column(/^To do/))).toEqual(['Draw logo'])
+
+    await user.click(screen.getByRole('button', { name: 'Assigned to: Bob' }))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'All' }))
+    await user.keyboard('{Escape}')
+    expect(titlesIn(column(/^To do/))).toHaveLength(3)
+  })
+
+  it('reads several people from the address', async () => {
+    const user = userEvent.setup()
+    fakeBackend({ projects: [WEBSITE()], tasks: sample() })
+    await openSignedIn(user, `/projects/p1?assignee=${BOB.userId},none,someone-else`)
+    await screen.findByRole('region', { name: /^To do/ })
+    expect(
+      await screen.findByRole('button', { name: 'Assigned to: Unassigned +1' }),
+    ).toBeInTheDocument()
+    expect(titlesIn(column(/^To do/))).toEqual(['Draw logo', 'Write copy'])
   })
 
   it('two quick changes in a row both count (the second does not undo the first)', async () => {
@@ -273,10 +352,10 @@ describe('filters', () => {
     // Both happen before the screen has redrawn, like a very fast double change.
     act(() => {
       fireEvent.change(screen.getByLabelText('Priority'), { target: { value: 'high' } })
-      fireEvent.change(screen.getByLabelText('Assigned to'), { target: { value: BOB.userId } })
+      fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'logo' } })
     })
     await waitFor(() => expect(screen.getByLabelText('Priority')).toHaveValue('high'))
-    expect(screen.getByLabelText('Assigned to')).toHaveValue(BOB.userId)
+    expect(screen.getByLabelText('Search tasks')).toHaveValue('logo')
     expect(titlesIn(column(/^To do/))).toEqual(['Draw logo'])
   })
 
@@ -303,7 +382,7 @@ describe('filters', () => {
     await openSignedIn(user, '/projects/p1?priority=urgent&assignee=someone-else')
     await screen.findByRole('region', { name: /^To do/ })
     expect(screen.getByLabelText('Priority')).toHaveValue('')
-    expect(screen.getByLabelText('Assigned to')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Assigned to: All' })).toBeInTheDocument()
     expect(titlesIn(column(/^To do/))).toHaveLength(3)
   })
 
@@ -363,8 +442,70 @@ describe('creating a task', () => {
     expect(titlesIn(column(/^To do/))).toEqual(['Draw logo', 'Pick colors', 'Write copy'])
     await user.click(screen.getByRole('button', { name: 'Sort To do: Highest priority first' }))
     expect(screen.getByRole('menuitemradio', { name: 'Highest priority first' })).toHaveFocus()
+    // Every choice has a picture as well as its words; the picture is not read out.
+    for (const item of screen.getAllByRole('menuitemradio'))
+      expect(item.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
     await user.click(screen.getByRole('menuitemradio', { name: 'Ending soonest' }))
     expect(JSON.parse(localStorage.getItem('tf-column-sorts:p1')!).todo).toBe('due')
+  })
+
+  it('lets a wide screen choose one row or two per row, and remembers it', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    const group = screen.getByRole('group', { name: 'Column layout' })
+    const board = column(/^To do/).parentElement!
+    const done = column(/^Done/)
+    expect(within(group).getByRole('button', { name: 'One row' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(board).toHaveClass('xl:grid-cols-5')
+    expect(done).not.toHaveClass('xl:last:col-span-2') // the same width as the others
+    expect(board).toHaveClass('sm:grid-cols-2', 'lg:grid-cols-3')
+
+    await user.click(within(group).getByRole('button', { name: 'Two per row' }))
+    expect(within(group).getByRole('button', { name: 'Two per row' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(board).not.toHaveClass('xl:grid-cols-5')
+    expect(board).toHaveClass('xl:grid-cols-2')
+    expect(column(/^Done/)).toHaveClass('xl:last:col-span-2')
+    expect(localStorage.getItem('tf-board-layout')).toBe('two')
+  })
+
+  it('dims the handles in a sorted column and says why', async () => {
+    localStorage.setItem('tf-column-sorts:p1', JSON.stringify({ todo: 'priority' }))
+    const user = userEvent.setup()
+    await openBoard(user)
+    const sorted = screen.getByRole('button', { name: 'Move task: Draw logo' })
+    expect(sorted).toHaveClass('opacity-50')
+    expect(sorted.getAttribute('title')).toMatch(/^Sorted automatically/)
+    const arranged = screen.getByRole('button', { name: 'Move task: Build header' })
+    expect(arranged).not.toHaveClass('opacity-50')
+    expect(arranged).not.toHaveAttribute('title')
+  })
+
+  it('on a phone, column tabs show where the board is and move it', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    const tabs = screen.getByRole('tablist', { name: 'Columns' })
+    expect(within(tabs).getAllByRole('tab')).toHaveLength(5)
+    expect(within(tabs).getByRole('tab', { name: 'To do 3' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await user.click(within(tabs).getByRole('tab', { name: /^In review/ }))
+    expect(within(tabs).getByRole('tab', { name: /^In review/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await user.keyboard('{ArrowRight}')
+    const onHold = within(tabs).getByRole('tab', { name: /^On hold/ })
+    expect(onHold).toHaveAttribute('aria-selected', 'true')
+    expect(onHold).toHaveFocus()
+    expect(onHold).toHaveAttribute('aria-controls', 'column-on_hold')
+    expect(document.getElementById('column-on_hold')).toBe(column(/^On hold/))
   })
 
   it('sorts only the cards that pass the filters', async () => {
@@ -400,7 +541,7 @@ describe('creating a task', () => {
     await user.type(within(dialog).getByLabelText('Title'), '  Test the app  ')
     await user.type(within(dialog).getByLabelText('Description (optional)'), 'All of it')
     await user.selectOptions(within(dialog).getByLabelText('Priority'), 'High')
-    await user.click(within(dialog).getByRole('checkbox', { name: 'bob@example.com' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Bob' }))
     await pickDay(user, 'End date (optional)', `${NEXT_YEAR}-03-04`)
     await user.click(within(dialog).getByRole('button', { name: 'Create task' }))
 
@@ -518,7 +659,7 @@ describe('editing a task', () => {
   it.each([
     ['the title', (card: HTMLElement) => within(card).getByRole('button', { name: 'Draw logo' })],
     ['the priority', (card: HTMLElement) => within(card).getByText('High')],
-    ['the assignee', (card: HTMLElement) => within(card).getByText('bob@example.com')],
+    ['the assignee', (card: HTMLElement) => within(card).getByText('Bob')],
     ['the card itself', (card: HTMLElement) => card.firstElementChild as HTMLElement],
     [
       'the drag handle',
@@ -553,7 +694,7 @@ describe('editing a task', () => {
     const { dialog } = await openEdit(user, 'Draw logo')
     expect(within(dialog).getByLabelText('Title')).toHaveValue('Draw logo')
     expect(within(dialog).getByLabelText('Priority')).toHaveValue('high')
-    expect(within(dialog).getByRole('checkbox', { name: 'bob@example.com' })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: 'Bob' })).toBeChecked()
     expect(within(dialog).getByLabelText('Column')).toHaveValue('todo')
   })
 
@@ -586,7 +727,7 @@ describe('editing a task', () => {
     const user = userEvent.setup()
     const tasks = [task('t1', 'Has both', { assigneeIds: [BOB.userId], dueDate: '2099-01-01' })]
     const { api, dialog } = await openEdit(user, 'Has both', tasks)
-    await user.click(within(dialog).getByRole('checkbox', { name: 'bob@example.com' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Bob' }))
     await user.click(within(dialog).getByRole('button', { name: 'Clear End date (optional)' }))
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(api.hits('PATCH /tasks/t1')).toHaveLength(1))
@@ -724,7 +865,7 @@ describe('task trash page', () => {
     await screen.findByRole('region', { name: /^To do/ })
     expect(screen.queryByText('Old idea')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('link', { name: 'Trash' }))
+    await user.click(screen.getByRole('link', { name: 'Task trash' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Task trash' })).toBeInTheDocument()
     expect(await screen.findByText('Old idea')).toBeInTheDocument()
     expect(screen.getByText(/Days left: 30/)).toBeInTheDocument()
@@ -768,18 +909,16 @@ describe('members and tasks', () => {
     await openBoard(user, [task('t1', 'Bobs job', { assigneeIds: [BOB.userId] })], {
       projects: [project('p1', 'Website', { members: [BOB, CAROL] })],
     })
-    expect(screen.getByTitle('Assigned to bob@example.com')).toBeInTheDocument()
-    await user.selectOptions(screen.getByLabelText('Assigned to'), 'Unassigned')
+    expect(screen.getByTitle('Assigned to Bob')).toBeInTheDocument()
+    await toggleAssignees(user, ['Unassigned'])
     expect(screen.queryByRole('button', { name: 'Bobs job' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /^Members \d+$/ }))
     const members = await screen.findByRole('dialog', { name: 'Members' })
-    await user.click(
-      await within(members).findByRole('button', { name: 'Actions for bob@example.com' }),
-    )
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    await user.click(await within(members).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
       within(
-        await screen.findByRole('dialog', { name: 'Remove bob@example.com from this project?' }),
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
       ).getByRole('button', { name: 'Remove' }),
     )
     // The task itself changed on the server (no assignee any more), so the board must reload it.
@@ -802,8 +941,8 @@ describe('several people and two dates on a task', () => {
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('group', { name: 'Assigned to' })).toBeInTheDocument()
     await user.type(within(dialog).getByLabelText('Title'), 'Together')
-    await user.click(within(dialog).getByRole('checkbox', { name: 'bob@example.com' }))
-    await user.click(within(dialog).getByRole('checkbox', { name: 'alice@example.com' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Bob' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Alice' }))
     await pickDay(user, 'Start date (optional)', `${NEXT_YEAR}-03-01`)
     await pickDay(user, 'End date (optional)', `${NEXT_YEAR}-03-01`)
     await user.click(within(dialog).getByRole('button', { name: 'Create task' }))
@@ -878,22 +1017,58 @@ describe('several people and two dates on a task', () => {
     expect(within(calendar).getByRole('button', { name: 'วันนี้' })).toBeInTheDocument()
   })
 
-  it('shows one name, how many more, and everyone on hover, in alphabetical order', async () => {
+  it('shows every name when they fit on the line, in alphabetical order, and everyone on hover', async () => {
     await openBoard(userEvent.setup(), [SHARED()])
-    // Only inside the column: the filter above the board lists the same emails.
-    expect(within(column(/^To do/)).getByText('alice@example.com')).toBeInTheDocument()
-    expect(screen.getByText('+1')).toBeInTheDocument()
-    expect(screen.getByText(', bob@example.com')).toHaveClass('sr-only')
-    expect(screen.getByTitle('Assigned to alice@example.com, bob@example.com')).toBeInTheDocument()
+    const card = column(/^To do/)
+    expect(within(card).getByText('Alice, Bob')).toBeInTheDocument()
+    expect(within(card).queryByText('+1')).not.toBeInTheDocument()
+    expect(within(card).getByText('Assigned to Alice, Bob')).toHaveClass('sr-only')
+    expect(screen.getByTitle('Assigned to Alice, Bob')).toBeInTheDocument()
+  })
+
+  it('shows one name and how many more when the names do not fit', async () => {
+    // The test browser has no layout: make the list 300px wide and its room 100px.
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(300)
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(100)
+    try {
+      await openBoard(userEvent.setup(), [SHARED()])
+      const card = column(/^To do/)
+      expect(within(card).getByText('Alice')).toBeInTheDocument()
+      expect(within(card).getByText('+1')).toBeInTheDocument()
+      expect(within(card).getByText('Assigned to Alice, Bob')).toHaveClass('sr-only') // still everyone
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 
   it('shows both dates on the card, each marked for machines and in full on hover', async () => {
     await openBoard(userEvent.setup(), [SHARED()])
-    const start = screen.getByText('1 Mar 2099')
-    expect(start).toHaveAttribute('datetime', '2099-03-01')
+    // One month: "1–4 Mar 2099", the month written once.
+    const start = document.querySelector('time[datetime="2099-03-01"]')!
+    expect(start).toHaveTextContent(/^1$/)
     expect(start).toHaveAttribute('title', 'Starts 1 Mar 2099')
     expect(screen.getByText('4 Mar 2099')).toHaveAttribute('title', 'Ends 4 Mar 2099')
+    expect(screen.getByText('–')).toHaveAttribute('aria-hidden', 'true')
     expect(screen.getByText('Starts')).toHaveClass('sr-only')
+  })
+
+  it('writes a range across months, or years, in full', async () => {
+    await openBoard(userEvent.setup(), [
+      task('m', 'Months', { startDate: '2099-10-28', dueDate: '2099-11-03', position: 1 }),
+      task('y', 'Years', { startDate: '2099-12-30', dueDate: '2100-01-02', position: 2 }),
+    ])
+    expect(screen.getByText('28 Oct')).toHaveAttribute('datetime', '2099-10-28')
+    expect(screen.getByText('3 Nov 2099')).toHaveAttribute('datetime', '2099-11-03')
+    expect(screen.getByText('30 Dec 2099')).toHaveAttribute('datetime', '2099-12-30')
+    expect(screen.getByText('2 Jan 2100')).toHaveAttribute('datetime', '2100-01-02')
+  })
+
+  it('writes one date when a task starts and ends on the same day', async () => {
+    await openBoard(userEvent.setup(), [
+      task('o', 'One day', { startDate: '2099-03-04', dueDate: '2099-03-04' }),
+    ])
+    expect(screen.getByText('4 Mar 2099')).toHaveAttribute('datetime', '2099-03-04')
+    expect(screen.queryByText('–')).not.toBeInTheDocument()
   })
 
   it('says "Starts" out loud when a task has only a start date', async () => {
@@ -901,15 +1076,39 @@ describe('several people and two dates on a task', () => {
     expect(screen.getByText('Starts')).not.toHaveClass('sr-only')
   })
 
+  it('marks an end date alone with "Due" and a flag', async () => {
+    await openBoard(userEvent.setup(), [task('d', 'Deadline', { dueDate: '2099-03-04' })])
+    const date = screen.getByText('4 Mar 2099')
+    expect(date).toHaveAttribute('title', 'Ends 4 Mar 2099')
+    expect(date.parentElement).toHaveTextContent('Due 4 Mar 2099')
+  })
+
+  it('never shows a task on hold as overdue: it is waiting, not late', async () => {
+    await openBoard(userEvent.setup(), [
+      task('h', 'Held', {
+        status: 'on_hold',
+        holdReason: 'Waiting for the client',
+        dueDate: '2020-01-01',
+      }),
+      task('l', 'Late', { dueDate: '2020-01-01' }),
+    ])
+    expect(within(column(/^On hold/)).queryByText('Overdue')).not.toBeInTheDocument()
+    expect(within(column(/^To do/)).getByText('Overdue')).toBeInTheDocument()
+    // The reason is one quiet line, in full on hover.
+    const reason = within(column(/^On hold/)).getByTitle('Waiting for the client')
+    expect(reason).toHaveClass('text-muted')
+    expect(reason).not.toHaveClass('bg-lemon-bg')
+  })
+
   it('finds a shared task under each of its people', async () => {
     const user = userEvent.setup()
     await openBoard(user, [SHARED(), task('o', 'Other')])
-    const filter = screen.getByLabelText('Assigned to')
-    for (const person of ['bob@example.com', 'alice@example.com']) {
-      await user.selectOptions(filter, person)
+    for (const person of ['Bob', 'Alice']) {
+      await toggleAssignees(user, [person])
       await waitFor(() => expect(titlesIn(column(/^To do/))).toEqual(['Shared']))
+      await toggleAssignees(user, [person])
     }
-    await user.selectOptions(filter, 'Unassigned')
+    await toggleAssignees(user, ['Unassigned'])
     await waitFor(() => expect(titlesIn(column(/^To do/))).toEqual(['Other']))
   })
 
@@ -918,7 +1117,7 @@ describe('several people and two dates on a task', () => {
     const api = await openBoard(user, [SHARED()])
     await user.click(screen.getByRole('button', { name: 'Shared' }))
     let dialog = await screen.findByRole('dialog')
-    const bob = within(dialog).getByRole('checkbox', { name: 'bob@example.com' })
+    const bob = within(dialog).getByRole('checkbox', { name: 'Bob' })
     expect(bob).toBeChecked()
     expect(within(dialog).getByLabelText('Start date (optional)')).toHaveTextContent('1 Mar 2099')
     await user.click(bob)
@@ -929,7 +1128,7 @@ describe('several people and two dates on a task', () => {
 
     await user.click(screen.getByRole('button', { name: 'Shared' }))
     dialog = await screen.findByRole('dialog')
-    await user.click(within(dialog).getByRole('checkbox', { name: 'bob@example.com' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Bob' }))
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(api.hits('PATCH /tasks/s')).toHaveLength(1))
     expect(api.hits('PATCH /tasks/s')[0]!.body).toEqual({ assigneeIds: [ME.id] })
@@ -942,16 +1141,14 @@ describe('several people and two dates on a task', () => {
     })
     await user.click(await screen.findByRole('button', { name: /^Members \d+$/ }))
     const members = await screen.findByRole('dialog', { name: 'Members' })
-    await user.click(
-      await within(members).findByRole('button', { name: 'Actions for bob@example.com' }),
-    )
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    await user.click(await within(members).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
       within(
-        await screen.findByRole('dialog', { name: 'Remove bob@example.com from this project?' }),
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
       ).getByRole('button', { name: 'Remove' }),
     )
-    expect(await screen.findByTitle('Assigned to alice@example.com')).toBeInTheDocument()
+    expect(await screen.findByTitle('Assigned to Alice')).toBeInTheDocument()
     expect(screen.queryByText('+1')).not.toBeInTheDocument()
   })
 })
@@ -996,6 +1193,18 @@ describe('subtasks', () => {
       subtasks: ['API route 1', 'API route 2'],
     })
     expect(await screen.findByText('0/2')).toBeInTheDocument()
+  })
+
+  it('keeps one empty line of space while there are no subtasks, and says nothing about saving', async () => {
+    const user = userEvent.setup()
+    await openBoard(user, [task('p', 'Plain')])
+    const dialog = await openTask(user, 'Plain')
+    expect(within(dialog).getByTestId('subtasks-empty')).toHaveAttribute('aria-hidden', 'true')
+    expect(within(dialog).queryByText(/saved right away/)).not.toBeInTheDocument()
+
+    await user.type(within(dialog).getByLabelText('Add a subtask'), 'First{Enter}')
+    expect(await within(dialog).findByRole('checkbox', { name: 'Done: First' })).toBeInTheDocument()
+    expect(within(dialog).queryByTestId('subtasks-empty')).not.toBeInTheDocument()
   })
 
   it('does not send subtasks at all when there are none', async () => {
@@ -1175,15 +1384,41 @@ describe('subtasks', () => {
 describe('the hold reason in the task form', () => {
   const REASON = 'Why is it on hold?'
 
+  it('keeps what was typed when the column goes away from On hold and back', async () => {
+    const user = userEvent.setup()
+    await openBoard(user, [])
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    const dialog = await screen.findByRole('dialog')
+    const column = within(dialog).getByLabelText('Column')
+    await user.selectOptions(column, 'On hold')
+    await user.type(within(dialog).getByLabelText(REASON), 'Waiting for the client')
+    await user.selectOptions(column, 'To do')
+    expect(within(dialog).getByTestId('hold-reason')).toHaveAttribute('inert')
+    await user.selectOptions(column, 'On hold')
+    expect(within(dialog).getByLabelText(REASON)).toHaveValue('Waiting for the client')
+  })
+
+  it('keeps the buttons at the bottom of the dialog, and starts the description at three lines', async () => {
+    const user = userEvent.setup()
+    await openBoard(user, [])
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    const dialog = await screen.findByRole('dialog')
+    const save = within(dialog).getByRole('button', { name: 'Create task' })
+    expect(save.parentElement!.parentElement).toHaveClass('sticky', 'border-t', 'bg-surface')
+    expect(within(dialog).getByLabelText('Description (optional)')).toHaveAttribute('rows', '3')
+  })
+
   it('asks for a reason only when the column is On hold, and needs it', async () => {
     const user = userEvent.setup()
     const api = await openBoard(user, [])
     await user.click(screen.getByRole('button', { name: 'New task' }))
     const dialog = await screen.findByRole('dialog')
     await user.type(within(dialog).getByLabelText('Title'), 'Paused')
-    expect(within(dialog).queryByLabelText(REASON)).not.toBeInTheDocument()
+    // Hidden and out of reach (inert) until "On hold" is chosen.
+    expect(within(dialog).getByTestId('hold-reason')).toHaveAttribute('inert')
 
     await user.selectOptions(within(dialog).getByLabelText('Column'), 'On hold')
+    expect(within(dialog).getByTestId('hold-reason')).not.toHaveAttribute('inert')
     await user.click(within(dialog).getByRole('button', { name: 'Create task' }))
     expect(await within(dialog).findByText('Enter why this task is on hold.')).toBeInTheDocument()
     expect(within(dialog).getByLabelText(REASON)).toHaveFocus()
@@ -1259,7 +1494,7 @@ describe('the hold reason in the task form', () => {
     await user.click(screen.getByRole('button', { name: 'Held' }))
     const dialog = await screen.findByRole('dialog')
     await user.selectOptions(within(dialog).getByLabelText('Column'), 'In progress')
-    expect(within(dialog).queryByLabelText(REASON)).not.toBeInTheDocument()
+    expect(within(dialog).getByTestId('hold-reason')).toHaveAttribute('inert') // hidden, out of reach
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(api.hits('POST /tasks/h/move')).toHaveLength(1))
     expect(api.hits('POST /tasks/h/move')[0]!.body).toEqual({

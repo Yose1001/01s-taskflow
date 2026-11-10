@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { createProjectViaApi, inviteViaApi, loginViaUi, newUser, openProject, pickDay } from './helpers'
+import { createProjectViaApi, inviteViaApi, loginViaUi, newUser, openProject, pickDay, toggleAssignees } from './helpers'
 
 test.use({ viewport: { width: 1400, height: 900 } })
 
@@ -18,8 +18,8 @@ test.describe('several people and two dates on a task', () => {
     await page.getByRole('button', { name: 'New task' }).click()
     const form = page.getByRole('dialog')
     await form.getByLabel('Title').fill('Shared job')
-    await form.getByRole('checkbox', { name: alice.person.email }).check()
-    await form.getByRole('checkbox', { name: bob.person.email }).check()
+    await form.getByRole('checkbox', { name: alice.person.name }).check()
+    await form.getByRole('checkbox', { name: bob.person.name }).check()
 
     // The end date's calendar starts at the start date, and the days before it cannot be chosen.
     const year = new Date().getFullYear() + 1
@@ -33,29 +33,31 @@ test.describe('several people and two dates on a task', () => {
     await form.getByRole('button', { name: 'Create task' }).click()
     await expect(form).toHaveCount(0)
 
-    const both = [alice.person.email, bob.person.email].sort().join(', ')
+    const both = [alice.person.name, bob.person.name].sort().join(', ')
     await expect(page.getByTitle(`Assigned to ${both}`)).toBeVisible()
-    await expect(page.getByText('+1', { exact: true })).toBeVisible()
+    // Two short names fit on the card, so both show in full (a long list would show "Alice +1").
+    await expect(page.getByText(both, { exact: true })).toBeVisible()
+    await expect(page.getByText('+1', { exact: true })).toHaveCount(0)
     await expect(page.locator(`time[datetime="${year}-02-02"]`)).toBeVisible()
     await expect(page.locator(`time[datetime="${year}-03-01"]`)).toBeVisible()
 
     // Everything is really saved, and the filter finds the task under each person.
     await page.reload()
-    await page.getByLabel('Assigned to', { exact: true }).selectOption(bob.person.email)
+    await toggleAssignees(page, [bob.person.name])
     await expect(page.getByRole('button', { name: 'Shared job', exact: true })).toBeVisible()
-    await page.getByLabel('Assigned to', { exact: true }).selectOption(alice.person.email)
+    await toggleAssignees(page, [bob.person.name, alice.person.name])
     await expect(page.getByRole('button', { name: 'Shared job', exact: true })).toBeVisible()
-    await page.getByLabel('Assigned to', { exact: true }).selectOption('Unassigned')
+    await toggleAssignees(page, [alice.person.name, 'Unassigned'])
     await expect(page.getByRole('button', { name: 'Shared job', exact: true })).toHaveCount(0)
-    await page.getByLabel('Assigned to', { exact: true }).selectOption('')
+    await toggleAssignees(page, ['All'])
 
     // Bob leaves: Alice is still on the task.
     await page.getByRole('button', { name: /^Members \d+$/ }).click()
-    await page.getByRole('button', { name: `Actions for ${bob.person.email}` }).click()
-    await page.getByRole('menuitem', { name: `Remove: ${bob.person.email}` }).click()
-    await page.getByRole('dialog', { name: `Remove ${bob.person.email}` }).getByRole('button', { name: 'Remove' }).click()
-    await expect(page.getByText(`${bob.person.email} was removed.`)).toBeVisible()
+    await page.getByRole('button', { name: `Actions for ${bob.person.name}` }).click()
+    await page.getByRole('menuitem', { name: `Remove: ${bob.person.name}` }).click()
+    await page.getByRole('dialog', { name: `Remove ${bob.person.name}` }).getByRole('button', { name: 'Remove' }).click()
+    await expect(page.getByText(`${bob.person.name} was removed.`)).toBeVisible()
     await page.keyboard.press('Escape')
-    await expect(page.getByTitle(`Assigned to ${alice.person.email}`)).toBeVisible()
+    await expect(page.getByTitle(`Assigned to ${alice.person.name}`)).toBeVisible()
   })
 })

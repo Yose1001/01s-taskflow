@@ -245,12 +245,13 @@ export function TaskFormDialog({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={fieldMessage('description')}
+          rows={3}
+          maxRows={8}
         />
         <SubtaskList
           inputId={FIELD_IDS.subtasks}
           items={lines}
           tickable={editing}
-          hint={editing ? t('tasks.subtasksHint') : undefined}
           draft={subtaskDraft}
           onDraftChange={setSubtaskDraft}
           onAdd={() => addLine()}
@@ -301,8 +302,20 @@ export function TaskFormDialog({
               </option>
             ))}
           </SelectField>
-          {status === 'on_hold' && (
-            <div className="sm:col-span-2">
+          {/*
+            Only for "On hold". It stays in the page while hidden, so what was typed is still there when the
+            person comes back to "On hold"; while hidden it is inert (not reachable, not read out).
+          */}
+          <div
+            inert={status !== 'on_hold'}
+            data-testid="hold-reason"
+            className={`grid transition-[grid-template-rows,opacity,margin] duration-150 ease-out motion-reduce:transition-none sm:col-span-2 ${
+              status === 'on_hold'
+                ? 'grid-rows-[1fr] opacity-100'
+                : '-mt-4 grid-rows-[0fr] opacity-0'
+            }`}
+          >
+            <div className="min-h-0 overflow-hidden">
               <TextAreaField
                 id={FIELD_IDS.holdReason}
                 label={t('tasks.holdLabel')}
@@ -310,9 +323,10 @@ export function TaskFormDialog({
                 value={holdReason}
                 onChange={(e) => setHoldReason(e.target.value)}
                 error={fieldMessage('holdReason')}
+                rows={2}
               />
             </div>
-          )}
+          </div>
           {/* Each calendar stops at the other date, so the two can never end up in the wrong order. */}
           <DatePicker
             id={FIELD_IDS.startDate}
@@ -338,7 +352,8 @@ export function TaskFormDialog({
           onChange={setAssigneeIds}
           error={fieldMessage('assigneeIds')}
         />
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        {/* Always in view at the bottom of the dialog, however long the form gets. */}
+        <div className="sticky -bottom-6 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-6 py-4">
           <div>
             {editing && onDelete && (
               <Button

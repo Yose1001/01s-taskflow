@@ -178,6 +178,7 @@ export const ICON_PATHS = {
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   logout: <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12h-9" />,
+  flag: <path d="M5 21V4m0 0h11l-2.5 4.5L16 13H5" />,
   checklist: (
     <path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M12 6h8M12 12h8M12 18h8" />
   ),
@@ -188,12 +189,27 @@ export const ICON_PATHS = {
       <path d="M10 18h4" />
     </>
   ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  // Bars of growing height: "how far along", for sorting by progress.
+  progress: <path d="M4 20h16M7 16v-3M12 16V9M17 16V5" />,
   grid: (
     <>
       <rect x="4" y="4" width="7" height="7" rx="1.5" />
       <rect x="13" y="4" width="7" height="7" rx="1.5" />
       <rect x="4" y="13" width="7" height="7" rx="1.5" />
       <rect x="13" y="13" width="7" height="7" rx="1.5" />
+    </>
+  ),
+  columns: (
+    <>
+      <rect x="3.5" y="4" width="4.5" height="16" rx="1.5" />
+      <rect x="9.75" y="4" width="4.5" height="16" rx="1.5" />
+      <rect x="16" y="4" width="4.5" height="16" rx="1.5" />
     </>
   ),
   list: (

@@ -74,12 +74,19 @@ describe('filterTasks()', () => {
   })
 
   it('filters by person, and "none" means unassigned', () => {
-    expect(ids({ assignee: A })).toEqual(['a'])
-    expect(ids({ assignee: 'none' })).toEqual(['c'])
+    expect(ids({ assignees: [A] })).toEqual(['a'])
+    expect(ids({ assignees: ['none'] })).toEqual(['c'])
+  })
+
+  it('shows the tasks of any of the chosen people', () => {
+    expect(ids({ assignees: [A, B] })).toEqual(['a', 'b'])
+    expect(ids({ assignees: [B, 'none'] })).toEqual(['b', 'c'])
+    expect(ids({ assignees: [] })).toEqual(['a', 'b', 'c'])
+    expect(hasFilters({ ...NO_FILTERS, assignees: [B] })).toBe(true)
   })
 
   it('combines filters (all must match)', () => {
-    expect(ids({ q: 'login', priority: 'high', assignee: A })).toEqual(['a'])
+    expect(ids({ q: 'login', priority: 'high', assignees: [A] })).toEqual(['a'])
     expect(ids({ q: 'docs', priority: 'high' })).toEqual([])
     expect(hasFilters({ ...NO_FILTERS, priority: 'low' })).toBe(true)
   })
@@ -237,6 +244,8 @@ describe('due dates', () => {
     expect(isOverdue({ dueDate: '2026-12-05', status: 'todo' }, noon)).toBe(false) // due today
     expect(isOverdue({ dueDate: '2026-12-06', status: 'todo' }, noon)).toBe(false)
     expect(isOverdue({ dueDate: '2026-12-04', status: 'done' }, noon)).toBe(false)
+    expect(isOverdue({ dueDate: '2026-12-04', status: 'on_hold' }, noon)).toBe(false) // waiting, not late
+    expect(isOverdue({ dueDate: '2026-12-04', status: 'review' }, noon)).toBe(true)
     expect(isOverdue({ dueDate: null, status: 'todo' }, noon)).toBe(false)
   })
 
@@ -256,7 +265,8 @@ describe('several assignees', () => {
   ])
 
   it('filters a shared task in under each of its people, and never as unassigned', () => {
-    const count = (assignee: string) => filterTasks([shared], { ...NO_FILTERS, assignee }).length
+    const count = (assignee: string) =>
+      filterTasks([shared], { ...NO_FILTERS, assignees: [assignee] }).length
     expect(count(A)).toBe(1)
     expect(count(B)).toBe(1)
     expect(count('someone-else')).toBe(0)

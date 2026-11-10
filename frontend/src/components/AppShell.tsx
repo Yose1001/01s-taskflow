@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/context'
+import { personName } from '../lib/format'
 import { Avatar } from './Avatar'
 import { Icon } from './Icon'
 import { LanguageSwitcher } from './LanguageSwitcher'
@@ -46,14 +47,14 @@ function Account() {
     return (
       <Menu
         label={t('nav.account')}
-        trigger={<Avatar id={user.id} name={user.email} size={36} />}
+        trigger={<Avatar id={user.id} name={personName(user)} size={36} />}
         triggerClassName="grid h-11 w-11 place-items-center rounded-full hover:ring-2 hover:ring-primary aria-expanded:ring-2 aria-expanded:ring-primary sm:h-9 sm:w-9"
         header={
           <div className="flex items-center gap-3">
-            <Avatar id={user.id} name={user.email} size={36} />
+            <Avatar id={user.id} name={personName(user)} size={36} />
             <div className="min-w-0">
-              <p className="text-sm text-muted">{t('nav.signedInAs')}</p>
-              <p className="break-words font-semibold">{user.email}</p>
+              <p className="break-words font-semibold">{personName(user)}</p>
+              <p className="break-words text-sm text-muted">{user.email}</p>
             </div>
           </div>
         }
