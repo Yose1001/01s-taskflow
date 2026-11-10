@@ -19,7 +19,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { restoreTask } from '../../api/tasks'
@@ -36,6 +36,7 @@ import { Menu } from '../../components/Menu'
 import { Modal } from '../../components/Modal'
 import { ErrorState, LoadingState } from '../../components/states'
 import { StatusBadge } from '../../components/StatusBadge'
+import { statusIcon } from '../../components/statusIcon'
 import { useToast } from '../../components/toast'
 import { TrashLink } from '../../components/TrashLink'
 import { useQueryClient } from '@tanstack/react-query'
@@ -132,6 +133,18 @@ export function TaskBoard({
     const [first, second] = [...el.children] as [HTMLElement, HTMLElement]
     const step = second.offsetLeft - first.offsetLeft
     if (step > 0) setColumnInView(Math.round(el.scrollLeft / step))
+  }
+  // A column tab was chosen: bring that column into view (snapping keeps it lined up).
+  function showColumn(index: number) {
+    setColumnInView(index)
+    const target = scroller.current?.children[index]
+    if (!(target instanceof HTMLElement) || typeof target.scrollIntoView !== 'function') return
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    target.scrollIntoView({
+      behavior: still ? 'auto' : 'smooth',
+      block: 'nearest',
+      inline: 'start',
+    })
   }
   // On a phone the board shows one column at a time, so a new task starts in the one in view.
   const wide =
@@ -329,6 +342,11 @@ export function TaskBoard({
         onDragEnd={onDragEnd}
         onDragCancel={() => endDrag()}
       >
+        <ColumnTabs
+          counts={STATUSES.map((status) => shown[status].length)}
+          current={columnInView}
+          onPick={showColumn}
+        />
         {/*
           Phones: one column at a time, swipe sideways. 640–1023px: two across. 1024–1279px: three across.
           In both, every column has the same width, so the last row is not stretched.
@@ -338,7 +356,7 @@ export function TaskBoard({
         <div
           ref={scroller}
           onScroll={onBoardScroll}
-          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3 ${
+          className={`no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3 ${
             layout === 'row' ? 'xl:grid-cols-5' : 'xl:grid-cols-2'
           } ${dragging ? '' : 'snap-x snap-mandatory'}`}
         >
@@ -352,17 +370,6 @@ export function TaskBoard({
               layout={layout}
               onSort={(sort) => chooseSort(status, sort)}
               onOpen={(task) => setColumnDialog({ kind: 'edit', task })}
-            />
-          ))}
-        </div>
-        {/* Decoration only: each column already announces its own name and task count. */}
-        <div aria-hidden="true" className="flex items-center justify-center gap-1.5 sm:hidden">
-          {STATUSES.map((status, index) => (
-            <span
-              key={status}
-              className={`h-1.5 rounded-full ${
-                index === columnInView ? 'w-4 bg-primary' : 'w-1.5 bg-border'
-              }`}
             />
           ))}
         </div>
@@ -467,6 +474,75 @@ function statusOf(columns: Columns, overId: string): TaskStatus | undefined {
   return undefined
 }
 
+/**
+ * Phones only: the columns as tabs above the board, so it is clear where the board is and any column is one
+ * tap away. Follows the WAI-ARIA tabs pattern: arrow keys, Home and End move between the tabs.
+ */
+function ColumnTabs({
+  counts,
+  current,
+  onPick,
+}: {
+  counts: number[]
+  current: number
+  onPick: (index: number) => void
+}) {
+  const { t } = useTranslation()
+  const tabs = useRef<(HTMLButtonElement | null)[]>([])
+  // The tab of the column in view stays in view too, however the board got there.
+  useEffect(() => {
+    const tab = tabs.current[current]
+    if (tab && typeof tab.scrollIntoView === 'function')
+      tab.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [current])
+
+  function onKeyDown(event: KeyboardEvent) {
+    const last = STATUSES.length - 1
+    const moves: Record<string, number> = {
+      ArrowRight: current === last ? 0 : current + 1,
+      ArrowLeft: current === 0 ? last : current - 1,
+      Home: 0,
+      End: last,
+    }
+    const next = moves[event.key]
+    if (next === undefined) return
+    event.preventDefault()
+    onPick(next)
+    tabs.current[next]?.focus()
+  }
+
+  return (
+    <div
+      role="tablist"
+      aria-label={t('tasks.columnTabs')}
+      onKeyDown={onKeyDown}
+      className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 sm:hidden"
+    >
+      {STATUSES.map((status, index) => (
+        <button
+          key={status}
+          ref={(node) => {
+            tabs.current[index] = node
+          }}
+          type="button"
+          role="tab"
+          id={`column-tab-${status}`}
+          aria-selected={index === current}
+          aria-controls={`column-${status}`}
+          tabIndex={index === current ? 0 : -1}
+          onClick={() => onPick(index)}
+          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-medium ${
+            index === current ? 'bg-primary-bg text-primary-fg' : 'text-muted hover:text-text'
+          }`}
+        >
+          <Icon name={statusIcon(status)} size={16} />
+          {t(`status.${status}`)} <span className="tabular-nums">{counts[index]}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 interface ColumnProps {
   status: TaskStatus
   tasks: Task[]
@@ -493,6 +569,7 @@ function Column({ status, tasks, nameOf, sort, layout, onSort, onOpen }: ColumnP
   const name = t(`status.${status}`)
   return (
     <section
+      id={`column-${status}`}
       aria-label={t('tasks.columnLabel', { column: name, count: tasks.length })}
       className={`relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto ${
         layout === 'two' ? 'xl:last:col-span-2' : ''
@@ -538,6 +615,7 @@ function Column({ status, tasks, nameOf, sort, layout, onSort, onOpen }: ColumnP
               task={task}
               assignees={assigneesOf(task, nameOf)}
               onOpen={() => onOpen(task)}
+              inSortedColumn={sort !== 'manual'}
             />
           ))}
           {tasks.length === 0 && (
@@ -798,6 +876,7 @@ function FilterBar({
         <TrashLink
           to={`/projects/${encodeURIComponent(projectId)}/trash`}
           label={t('tasks.trash')}
+          fullLabel={t('tasks.trashFull')}
           iconOnlyOnPhone
         />
       </div>

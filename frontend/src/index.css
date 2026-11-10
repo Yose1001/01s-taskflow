@@ -156,3 +156,11 @@ body {
     transition: none !important;
   }
 }
+
+/* Scrolls sideways without a visible scrollbar: on phones the column tabs say where the board is. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

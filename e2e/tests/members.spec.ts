@@ -79,8 +79,8 @@ test.describe('working together', () => {
     await expect(page.getByText('No account uses this email. Ask them to sign up first.')).toBeVisible()
 
     await page.getByLabel('Their email').fill('not an email')
-    await page.getByRole('button', { name: 'Invite' }).click()
-    await expect(page.getByText('Enter a valid email address.')).toBeVisible()
+    // Invite waits for an email that looks right, so nothing can be sent.
+    await expect(page.getByRole('button', { name: 'Invite' })).toBeDisabled()
 
     await page.getByLabel('Their email').fill(bob.person.email)
     await page.getByRole('button', { name: 'Invite' }).click()

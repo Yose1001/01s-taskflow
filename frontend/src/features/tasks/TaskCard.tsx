@@ -30,6 +30,8 @@ interface ViewProps {
   picked?: boolean
   /** This is the floating copy that follows the pointer. */
   lifted?: boolean
+  /** The column is sorted automatically, so moving a card inside it changes nothing. */
+  inSortedColumn?: boolean
 }
 
 function DatesChip({ task }: { task: Task }) {
@@ -176,6 +178,7 @@ export function TaskCardView({
   dragListeners,
   picked,
   lifted,
+  inSortedColumn,
 }: ViewProps) {
   const { t } = useTranslation()
   return (
@@ -202,11 +205,12 @@ export function TaskCardView({
           if (event.detail === 0) event.stopPropagation()
         }}
         aria-label={t('tasks.dragHandle', { title: task.title })}
+        title={inSortedColumn ? t('tasks.sortedHandle') : undefined}
         className={`grid min-h-11 cursor-grab touch-none place-items-center rounded-l-xl -outline-offset-2 active:cursor-grabbing ${
           picked
             ? 'bg-primary-bg text-primary-fg'
             : 'text-handle hover:text-muted focus-visible:text-muted'
-        }`}
+        } ${inSortedColumn && !picked ? 'opacity-50' : ''}`}
       >
         <Icon name="grip" />
       </button>
@@ -256,10 +260,12 @@ export function SortableTaskCard({
   task,
   assignees,
   onOpen,
+  inSortedColumn = false,
 }: {
   task: Task
   assignees: Assignee[]
   onOpen: () => void
+  inSortedColumn?: boolean
 }) {
   const {
     attributes,
@@ -290,6 +296,7 @@ export function SortableTaskCard({
         }}
         dragListeners={{ onPointerDown, onTouchStart } as ViewProps['dragListeners']}
         picked={isDragging}
+        inSortedColumn={inSortedColumn}
       />
     </li>
   )

@@ -220,7 +220,7 @@ test.describe('the task board', () => {
     await card(page, 'Test the order system').click()
     await page.getByRole('dialog', { name: 'Edit task' }).getByRole('button', { name: 'Delete' }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Move to trash' }).click()
-    await page.getByRole('link', { name: 'Trash' }).click()
+    await page.getByRole('link', { name: 'Task trash' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Task trash' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 2, name: 'Test the order system' })).toBeVisible()
     await expect(page.getByText(/Days left: 30/)).toBeVisible()

@@ -165,6 +165,51 @@ function SortMenu({
   )
 }
 
+/** Phones only: the order and the view of the list, in one ⋯ menu, so the row keeps to one line. */
+function PhoneListOptions({
+  sort,
+  view,
+  onSort,
+  onView,
+}: {
+  sort: ProjectSort
+  view: ProjectsView
+  onSort: (sort: ProjectSort) => void
+  onView: (view: ProjectsView) => void
+}) {
+  const { t } = useTranslation()
+  const sortHeading = t('projects.sortHeading')
+  const viewHeading = t('projects.viewLabel')
+  return (
+    <div className="sm:hidden">
+      <Menu
+        floating
+        label={t('projects.listOptions')}
+        trigger={<Icon name="more" size={20} />}
+        triggerClassName="grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface text-text hover:bg-primary-bg"
+        items={[
+          ...PROJECT_SORTS.map((value, index) => ({
+            key: `sort-${value}`,
+            ...(index === 0 && { heading: sortHeading }),
+            label: t(`projects.sort_${value}`),
+            ariaLabel: `${sortHeading}: ${t(`projects.sort_${value}`)}`,
+            checked: value === sort,
+            onSelect: () => onSort(value),
+          })),
+          ...(['cards', 'list'] as const).map((value, index) => ({
+            key: `view-${value}`,
+            ...(index === 0 && { heading: viewHeading }),
+            label: t(value === 'cards' ? 'projects.viewCards' : 'projects.viewList'),
+            ariaLabel: `${viewHeading}: ${t(value === 'cards' ? 'projects.viewCards' : 'projects.viewList')}`,
+            checked: value === view,
+            onSelect: () => onView(value),
+          })),
+        ]}
+      />
+    </div>
+  )
+}
+
 /** First visit (no projects yet): what TaskFlow is for and how to start, in three steps. */
 function Welcome({ onCreate }: { onCreate: () => void }) {
   const { t } = useTranslation()
@@ -233,9 +278,9 @@ export function ProjectsPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">{t('projects.title')}</h2>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
           {projects.data && projects.data.total > 0 && (
-            <>
+            <div className="flex items-center gap-2 max-sm:hidden">
               <SortMenu
                 sort={sort}
                 onChange={(next) => {
@@ -251,17 +296,34 @@ export function ProjectsPage() {
                   saveProjectsView(next)
                 }}
               />
-            </>
+            </div>
           )}
-          <TrashLink to="/projects/trash" label={t('projects.trash')} />
-          {/* A new person has one big button in the welcome panel instead: one primary button per page.
-              Waiting for the list means the button never flashes up and disappears again. */}
-          {projects.data && projects.data.total > 0 && (
-            <Button type="button" onClick={() => setCreating(true)}>
-              <Icon name="plus" />
-              {t('projects.new')}
-            </Button>
-          )}
+          <TrashLink to="/projects/trash" label={t('projects.trash')} ghostOnPhone />
+          <div className="flex items-center gap-2 max-sm:ml-auto">
+            {projects.data && projects.data.total > 0 && (
+              <PhoneListOptions
+                sort={sort}
+                view={view}
+                onSort={(next) => {
+                  setSort(next)
+                  saveProjectSort(next)
+                  setParams({})
+                }}
+                onView={(next) => {
+                  setView(next)
+                  saveProjectsView(next)
+                }}
+              />
+            )}
+            {/* A new person has one big button in the welcome panel instead: one primary button per page.
+                Waiting for the list means the button never flashes up and disappears again. */}
+            {projects.data && projects.data.total > 0 && (
+              <Button type="button" onClick={() => setCreating(true)}>
+                <Icon name="plus" />
+                {t('projects.new')}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

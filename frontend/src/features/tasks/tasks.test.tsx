@@ -471,6 +471,40 @@ describe('creating a task', () => {
     expect(localStorage.getItem('tf-board-layout')).toBe('two')
   })
 
+  it('dims the handles in a sorted column and says why', async () => {
+    localStorage.setItem('tf-column-sorts:p1', JSON.stringify({ todo: 'priority' }))
+    const user = userEvent.setup()
+    await openBoard(user)
+    const sorted = screen.getByRole('button', { name: 'Move task: Draw logo' })
+    expect(sorted).toHaveClass('opacity-50')
+    expect(sorted.getAttribute('title')).toMatch(/^Sorted automatically/)
+    const arranged = screen.getByRole('button', { name: 'Move task: Build header' })
+    expect(arranged).not.toHaveClass('opacity-50')
+    expect(arranged).not.toHaveAttribute('title')
+  })
+
+  it('on a phone, column tabs show where the board is and move it', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    const tabs = screen.getByRole('tablist', { name: 'Columns' })
+    expect(within(tabs).getAllByRole('tab')).toHaveLength(5)
+    expect(within(tabs).getByRole('tab', { name: 'To do 3' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await user.click(within(tabs).getByRole('tab', { name: /^In review/ }))
+    expect(within(tabs).getByRole('tab', { name: /^In review/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await user.keyboard('{ArrowRight}')
+    const onHold = within(tabs).getByRole('tab', { name: /^On hold/ })
+    expect(onHold).toHaveAttribute('aria-selected', 'true')
+    expect(onHold).toHaveFocus()
+    expect(onHold).toHaveAttribute('aria-controls', 'column-on_hold')
+    expect(document.getElementById('column-on_hold')).toBe(column(/^On hold/))
+  })
+
   it('sorts only the cards that pass the filters', async () => {
     localStorage.setItem('tf-column-sorts:p1', JSON.stringify({ todo: 'priority' }))
     const user = userEvent.setup()
@@ -828,7 +862,7 @@ describe('task trash page', () => {
     await screen.findByRole('region', { name: /^To do/ })
     expect(screen.queryByText('Old idea')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('link', { name: 'Trash' }))
+    await user.click(screen.getByRole('link', { name: 'Task trash' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Task trash' })).toBeInTheDocument()
     expect(await screen.findByText('Old idea')).toBeInTheDocument()
     expect(screen.getByText(/Days left: 30/)).toBeInTheDocument()

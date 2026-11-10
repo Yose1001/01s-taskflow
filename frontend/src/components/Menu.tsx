@@ -5,6 +5,8 @@ export interface MenuItem {
   key: string
   label: string
   icon?: IconName
+  /** Starts a new group of items, with this small heading above it. Give the items an ariaLabel too. */
+  heading?: string
   /** Shown before the text instead of an icon, such as a person's avatar. Decorative. */
   leading?: ReactNode
   /** danger: red text, set apart from the items above it. danger-soft: on a soft red background. */
@@ -176,11 +178,16 @@ export function Menu({
                 key={item.key}
                 role="none"
                 className={
-                  item.tone === 'danger' && index > 0
+                  (item.tone === 'danger' || item.heading) && index > 0
                     ? 'mt-1 border-t border-border pt-1'
                     : undefined
                 }
               >
+                {item.heading && (
+                  <p aria-hidden="true" className="px-3 pb-1 pt-1.5 text-xs font-medium text-muted">
+                    {item.heading}
+                  </p>
+                )}
                 <button
                   ref={(node) => {
                     itemRefs.current[index] = node

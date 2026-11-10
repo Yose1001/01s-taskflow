@@ -39,6 +39,23 @@ async function openMembers(user: U) {
 }
 
 describe('project list', () => {
+  it('on a phone, keeps the order and the view in one ⋯ menu', async () => {
+    fakeBackend({ projects: [project('p1', 'Website'), project('p2', 'Shop')] })
+    const user = userEvent.setup()
+    await openSignedIn(user)
+    await screen.findByRole('link', { name: /Website/ })
+    await user.click(screen.getByRole('button', { name: 'List options' }))
+    expect(screen.getByRole('menuitemradio', { name: 'Sort by: Newest first' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    await user.click(screen.getByRole('menuitemradio', { name: 'Project view: List' }))
+    expect(localStorage.getItem('tf-projects-view')).toBe('list')
+    await user.click(screen.getByRole('button', { name: 'List options' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Sort by: Oldest first' }))
+    expect(localStorage.getItem('tf-projects-sort')).toBe('oldest')
+  })
+
   it('greets the person by name, without their email', async () => {
     fakeBackend({ projects: [] })
     await openSignedIn(userEvent.setup())
@@ -520,7 +537,7 @@ describe('project page', () => {
     await openSignedIn(user, '/projects/p1')
     await screen.findByRole('heading', { level: 1, name: 'Team space' })
     expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'Trash' })).toBeInTheDocument() // the task trash is for everyone
+    expect(await screen.findByRole('link', { name: 'Task trash' })).toBeInTheDocument() // the task trash is for everyone
     expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument()
     // the member list itself is available, without the owner's tools
@@ -760,12 +777,15 @@ describe('members', () => {
     const user = userEvent.setup()
     await openSignedIn(user, '/projects/p1')
     const section = await openMembers(user)
-    await user.click(within(section).getByRole('button', { name: 'Invite' }))
-    expect(within(section).getByText('This field is required.')).toBeInTheDocument()
+    // Invite is the drawer's main button, and it waits for an email that looks right.
+    const invite = within(section).getByRole('button', { name: 'Invite' })
+    expect(invite).toBeDisabled()
     await user.type(within(section).getByLabelText('Their email'), 'not-an-email')
-    await user.click(within(section).getByRole('button', { name: 'Invite' }))
-    expect(within(section).getByText('Enter a valid email address.')).toBeInTheDocument()
+    expect(invite).toBeDisabled()
+    await user.keyboard('{Enter}')
     expect(api.hits('POST /projects/p1/members')).toHaveLength(0)
+    await user.type(within(section).getByLabelText('Their email'), '@example.com')
+    expect(invite).toBeEnabled()
   })
 
   it('asks before removing, then removes', async () => {

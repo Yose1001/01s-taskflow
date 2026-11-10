@@ -153,10 +153,10 @@ export function MembersDrawer({
               }}
               error={inviteMessage}
             />
+            {/* The drawer's main action. It waits for an email that looks right before it can be pressed. */}
             <Button
               type="submit"
-              variant="soft"
-              disabled={invite.isPending}
+              disabled={invite.isPending || !EMAIL_PATTERN.test(email.trim())}
               aria-busy={invite.isPending}
             >
               {invite.isPending ? t('members.inviting') : t('members.inviteButton')}
