@@ -107,7 +107,6 @@ export function TaskBoard({
   const del = useDeleteTask(projectId)
 
   const [columnDialog, setColumnDialog] = useState<Dialog>(null)
-  const dialog: Dialog = newTaskOpen ? { kind: 'create', status: 'todo' } : columnDialog
   function closeDialog() {
     setColumnDialog(null)
     onNewTaskClose()
@@ -134,6 +133,11 @@ export function TaskBoard({
     const step = second.offsetLeft - first.offsetLeft
     if (step > 0) setColumnInView(Math.round(el.scrollLeft / step))
   }
+  // On a phone the board shows one column at a time, so a new task starts in the one in view.
+  const wide =
+    typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 640px)').matches
+  const newTaskStatus = wide ? 'todo' : (STATUSES[columnInView] ?? 'todo')
+  const dialog: Dialog = newTaskOpen ? { kind: 'create', status: newTaskStatus } : columnDialog
 
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data])
   const [filters, setFilters] = useFilters(membersQuery.isSuccess ? members : null)

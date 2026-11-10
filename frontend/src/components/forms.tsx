@@ -1,4 +1,6 @@
 import {
+  useLayoutEffect,
+  useRef,
   useState,
   type InputHTMLAttributes,
   type ReactNode,
@@ -78,18 +80,39 @@ export function TextAreaField({
   label,
   error,
   hint,
+  maxRows,
   ...input
 }: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id' | 'className'> & {
   id: string
   label: string
   error?: string | undefined
   hint?: string | undefined
+  /** Grows with its text from `rows` up to this many lines, then scrolls inside. */
+  maxRows?: number | undefined
 }) {
+  const box = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el || !maxRows) return
+    const style = getComputedStyle(el)
+    const line = parseFloat(style.lineHeight) || 24
+    const edges =
+      parseFloat(style.paddingTop) +
+      parseFloat(style.paddingBottom) +
+      parseFloat(style.borderTopWidth) +
+      parseFloat(style.borderBottomWidth)
+    const most = line * maxRows + (edges || 0)
+    el.style.height = 'auto' // so it can shrink again when text is removed
+    const wanted = el.scrollHeight + (parseFloat(style.borderTopWidth) || 0) * 2
+    el.style.height = `${Math.min(wanted, most)}px`
+    el.style.overflowY = wanted > most ? 'auto' : 'hidden'
+  }, [maxRows, input.value])
   return (
     <Frame id={id} label={label} error={error} hint={hint}>
       <textarea
         rows={4}
         {...input}
+        ref={box}
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(id, error, hint)}

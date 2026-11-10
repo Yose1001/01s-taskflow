@@ -260,6 +260,21 @@ describe('filters', () => {
     expect(document.getElementById('filter-priority')).toHaveValue('high')
   })
 
+  it('on a phone, New task starts in the column that is in view', async () => {
+    const user = userEvent.setup()
+    await openBoard(user)
+    // The test browser has no layout: put the columns side by side, 320px apart, and swipe to the third.
+    const board = column(/^To do/).parentElement!
+    ;[...board.children].forEach((col, index) =>
+      Object.defineProperty(col, 'offsetLeft', { configurable: true, value: 16 + 320 * index }),
+    )
+    board.scrollLeft = 640
+    fireEvent.scroll(board)
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    const dialog = await screen.findByRole('dialog', { name: 'New task' })
+    expect(within(dialog).getByLabelText('Column')).toHaveValue('review')
+  })
+
   it('offers New task in the project header, opening on the first column', async () => {
     const user = userEvent.setup()
     await openBoard(user)
@@ -1287,15 +1302,41 @@ describe('subtasks', () => {
 describe('the hold reason in the task form', () => {
   const REASON = 'Why is it on hold?'
 
+  it('keeps what was typed when the column goes away from On hold and back', async () => {
+    const user = userEvent.setup()
+    await openBoard(user, [])
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    const dialog = await screen.findByRole('dialog')
+    const column = within(dialog).getByLabelText('Column')
+    await user.selectOptions(column, 'On hold')
+    await user.type(within(dialog).getByLabelText(REASON), 'Waiting for the client')
+    await user.selectOptions(column, 'To do')
+    expect(within(dialog).getByTestId('hold-reason')).toHaveAttribute('inert')
+    await user.selectOptions(column, 'On hold')
+    expect(within(dialog).getByLabelText(REASON)).toHaveValue('Waiting for the client')
+  })
+
+  it('keeps the buttons at the bottom of the dialog, and starts the description at three lines', async () => {
+    const user = userEvent.setup()
+    await openBoard(user, [])
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    const dialog = await screen.findByRole('dialog')
+    const save = within(dialog).getByRole('button', { name: 'Create task' })
+    expect(save.parentElement!.parentElement).toHaveClass('sticky', 'border-t', 'bg-surface')
+    expect(within(dialog).getByLabelText('Description (optional)')).toHaveAttribute('rows', '3')
+  })
+
   it('asks for a reason only when the column is On hold, and needs it', async () => {
     const user = userEvent.setup()
     const api = await openBoard(user, [])
     await user.click(screen.getByRole('button', { name: 'New task' }))
     const dialog = await screen.findByRole('dialog')
     await user.type(within(dialog).getByLabelText('Title'), 'Paused')
-    expect(within(dialog).queryByLabelText(REASON)).not.toBeInTheDocument()
+    // Hidden and out of reach (inert) until "On hold" is chosen.
+    expect(within(dialog).getByTestId('hold-reason')).toHaveAttribute('inert')
 
     await user.selectOptions(within(dialog).getByLabelText('Column'), 'On hold')
+    expect(within(dialog).getByTestId('hold-reason')).not.toHaveAttribute('inert')
     await user.click(within(dialog).getByRole('button', { name: 'Create task' }))
     expect(await within(dialog).findByText('Enter why this task is on hold.')).toBeInTheDocument()
     expect(within(dialog).getByLabelText(REASON)).toHaveFocus()
@@ -1371,7 +1412,7 @@ describe('the hold reason in the task form', () => {
     await user.click(screen.getByRole('button', { name: 'Held' }))
     const dialog = await screen.findByRole('dialog')
     await user.selectOptions(within(dialog).getByLabelText('Column'), 'In progress')
-    expect(within(dialog).queryByLabelText(REASON)).not.toBeInTheDocument()
+    expect(within(dialog).getByTestId('hold-reason')).toHaveAttribute('inert') // hidden, out of reach
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(api.hits('POST /tasks/h/move')).toHaveLength(1))
     expect(api.hits('POST /tasks/h/move')[0]!.body).toEqual({
