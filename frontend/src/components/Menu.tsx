@@ -5,6 +5,8 @@ export interface MenuItem {
   key: string
   label: string
   icon?: IconName
+  /** Shown before the text instead of an icon, such as a person's avatar. Decorative. */
+  leading?: ReactNode
   /** danger: red text, set apart from the items above it. danger-soft: on a soft red background. */
   tone?: 'danger' | 'danger-soft'
   /** The accessible name when the visible label alone is not enough, such as "Remove: Bob". */
@@ -204,6 +206,7 @@ export function Menu({
                   }`}
                 >
                   {item.icon && <Icon name={item.icon} />}
+                  {item.leading}
                   <span className="min-w-0 flex-1 break-words">{item.label}</span>
                   {item.checked && <Icon name="check" />}
                 </button>

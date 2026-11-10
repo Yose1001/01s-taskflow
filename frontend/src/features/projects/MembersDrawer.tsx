@@ -13,7 +13,7 @@ import { Modal } from '../../components/Modal'
 import { RoleBadge } from '../../components/RoleBadge'
 import { ErrorState, LoadingState } from '../../components/states'
 import { useToast } from '../../components/toast'
-import { formatDate } from '../../lib/format'
+import { formatDate, personName } from '../../lib/format'
 import { useInviteMember, useMembers, useRemoveMember } from './hooks'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -58,7 +58,7 @@ export function MembersDrawer({
     invite.mutate(trimmed, {
       onSuccess: (member) => {
         setEmail('')
-        toast.show({ message: t('members.invited', { name: member.email }) })
+        toast.show({ message: t('members.invited', { name: personName(member) }) })
       },
     })
   }
@@ -94,15 +94,16 @@ export function MembersDrawer({
           <ul className="divide-y divide-border">
             {members.data.map((m) => (
               <li key={m.userId} className="flex items-center gap-3 py-3">
-                <Avatar id={m.userId} name={m.email} size={36} />
+                <Avatar id={m.userId} name={personName(m)} size={36} />
                 <div className="min-w-0 flex-1">
                   <p className="break-words font-medium">
-                    {m.email}
+                    {personName(m)}
                     {m.userId === user?.id && (
                       <span className="font-normal text-muted"> {t('members.you')}</span>
                     )}
                   </p>
-                  <p className="text-sm text-muted">
+                  <p className="break-words text-sm text-muted">
+                    {m.email} ·{' '}
                     {t('members.joined', { date: formatDate(m.joinedAt, i18n.language) })}
                   </p>
                   <div className="mt-1">
@@ -111,14 +112,14 @@ export function MembersDrawer({
                 </div>
                 {isOwner && m.role !== 'owner' && (
                   <Menu
-                    label={t('members.actionsFor', { name: m.email })}
+                    label={t('members.actionsFor', { name: personName(m) })}
                     trigger={<Icon name="more" size={20} />}
                     triggerClassName="grid h-10 w-10 place-items-center rounded-xl text-text hover:bg-primary-bg"
                     items={[
                       {
                         key: 'remove',
                         label: t('members.removeFromProject'),
-                        ariaLabel: `${t('members.remove')}: ${m.email}`,
+                        ariaLabel: `${t('members.remove')}: ${personName(m)}`,
                         tone: 'danger-soft',
                         onSelect: () => setToRemove(m),
                       },
@@ -171,8 +172,11 @@ export function MembersDrawer({
       {toRemove && (
         <ConfirmDialog
           icon="users" // nothing goes to the trash here: the person simply loses access
-          title={t('members.removeTitle', { name: toRemove.email })}
-          message={t('members.removeMessage', { name: toRemove.email })}
+          title={t('members.removeTitle', { name: personName(toRemove) })}
+          // The email too, in case two people share a name.
+          message={t('members.removeMessage', {
+            name: `${personName(toRemove)} (${toRemove.email})`,
+          })}
           confirmLabel={t('members.removeConfirm')}
           pendingLabel={t('members.removing')}
           pending={remove.isPending}
@@ -184,7 +188,7 @@ export function MembersDrawer({
           onConfirm={() =>
             remove.mutate(toRemove.userId, {
               onSuccess: () => {
-                toast.show({ message: t('members.removed', { name: toRemove.email }) })
+                toast.show({ message: t('members.removed', { name: personName(toRemove) }) })
                 setToRemove(null)
               },
             })

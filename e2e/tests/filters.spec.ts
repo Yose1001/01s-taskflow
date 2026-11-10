@@ -45,7 +45,7 @@ test.describe('search and filters', () => {
 
     // Priority and person narrow it further
     await page.getByLabel('Priority').selectOption('High')
-    await toggleAssignees(page, [bob.person.email])
+    await toggleAssignees(page, [bob.person.name])
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Fix Login bug'])
     await expect.poll(() => titlesIn(page, /^In review/)).toEqual([])
     await expect(page.getByText('Showing 1 of 4 tasks')).toBeVisible()
@@ -59,12 +59,12 @@ test.describe('search and filters', () => {
     // Unassigned, then clear everything
     await page.getByLabel('Search tasks').fill('')
     await page.getByLabel('Priority').selectOption('All')
-    await toggleAssignees(page, [bob.person.email, 'Unassigned'])
+    await toggleAssignees(page, [bob.person.name, 'Unassigned'])
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Write docs'])
     // Several people at once: any of them is enough.
-    await toggleAssignees(page, [bob.person.email])
+    await toggleAssignees(page, [bob.person.name])
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Fix Login bug', 'Write docs'])
-    await expect(page.getByRole('button', { name: 'Assigned to: 2 people' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Assigned to: Unassigned +1' })).toBeVisible()
     await page.getByRole('button', { name: 'Clear all' }).click()
     await expect.poll(() => titlesIn(page, /^To do/)).toEqual(['Fix Login bug', 'Write docs'])
     await expect(page).not.toHaveURL(/priority=|assignee=|q=/)

@@ -4,7 +4,6 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { errorMessage } from '../auth/errors'
 import type { Project } from '../api/types'
-import { Avatar } from '../components/Avatar'
 import { ChoiceSwitch } from '../components/ChoiceSwitch'
 import { Button } from '../components/forms'
 import { Icon } from '../components/Icon'
@@ -25,7 +24,7 @@ import {
   type ProjectsView,
 } from '../features/projects/projectsView'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { formatDate } from '../lib/format'
+import { formatDate, personName } from '../lib/format'
 import { lastPage, parsePage } from '../lib/paging'
 
 /** How far along a project is: "3 of 5 done" and a bar. */
@@ -227,15 +226,9 @@ export function ProjectsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">{t('dashboard.welcome')}</h1>
-        {/* The avatar stands for "signed in as"; screen readers still hear the words. */}
-        <p className="mt-2 flex items-center gap-2 text-muted">
-          <Avatar id={user.id} name={user.email} size={24} />
-          <span className="min-w-0 break-words">
-            <span className="sr-only">{t('dashboard.signedInAs')} </span>
-            {user.email}
-          </span>
-        </p>
+        <h1 className="break-words text-2xl font-bold sm:text-3xl">
+          {t('dashboard.hello', { name: personName(user) })}
+        </h1>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">

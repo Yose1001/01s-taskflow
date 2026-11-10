@@ -125,7 +125,7 @@ export async function submitLogin(page: Page, person: Person): Promise<void> {
 export async function loginViaUi(page: Page, person: Person): Promise<void> {
   await page.goto('/login')
   await submitLogin(page, person)
-  await expect(page.getByText(`Signed in as ${person.email}`, { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: `Hello, ${person.name}` })).toBeVisible()
 }
 
 /**

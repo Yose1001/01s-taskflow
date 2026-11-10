@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import type { Member } from '../../api/types'
 import { Avatar } from '../../components/Avatar'
 import { Icon } from '../../components/Icon'
+import { personName } from '../../lib/format'
 import { UNASSIGNED } from './boardLogic'
 
 /**
@@ -30,8 +31,12 @@ export function AssigneePicker({
 }) {
   const { t } = useTranslation()
   const lines = [
-    ...(unassignedLabel ? [{ userId: UNASSIGNED, email: unassignedLabel, nobody: true }] : []),
-    ...members.map((member) => ({ userId: member.userId, email: member.email, nobody: false })),
+    ...(unassignedLabel ? [{ userId: UNASSIGNED, name: unassignedLabel, nobody: true }] : []),
+    ...members.map((member) => ({
+      userId: member.userId,
+      name: personName(member),
+      nobody: false,
+    })),
   ]
   const hintId = `${id}-hint`
   const errorId = `${id}-error`
@@ -73,9 +78,9 @@ export function AssigneePicker({
                     <Icon name="users" size={16} />
                   </span>
                 ) : (
-                  <Avatar id={member.userId} name={member.email} size={24} />
+                  <Avatar id={member.userId} name={member.name} size={24} />
                 )}
-                <span className="min-w-0 break-words">{member.email}</span>
+                <span className="min-w-0 break-words">{member.name}</span>
               </label>
             </li>
           )

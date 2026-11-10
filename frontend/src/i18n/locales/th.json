@@ -93,8 +93,7 @@
     "close": "ปิด"
   },
   "dashboard": {
-    "welcome": "ยินดีต้อนรับกลับมา",
-    "signedInAs": "ใช้งานในชื่อ"
+    "hello": "สวัสดี {{name}}"
   },
   "projects": {
     "title": "โปรเจกต์ของคุณ",
@@ -187,7 +186,6 @@
     "assigneeFilter": "ผู้รับผิดชอบ",
     "all": "ทั้งหมด",
     "unassigned": "ยังไม่มีผู้รับผิดชอบ",
-    "assigneesChosen": "{{count}} คน",
     "clearFilters": "ล้างทั้งหมด",
     "showing": "แสดง {{shown}} จาก {{total}} งาน",
     "dragHandle": "ย้ายงาน: {{title}}",

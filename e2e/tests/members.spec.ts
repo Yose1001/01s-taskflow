@@ -26,9 +26,9 @@ test.describe('working together', () => {
     await page.getByRole('button', { name: /^Members \d+$/ }).click()
     await page.getByLabel('Their email').fill(bob.person.email)
     await page.getByRole('button', { name: 'Invite' }).click()
-    await expect(page.getByText(`${bob.person.email} was added to the project.`)).toBeVisible()
+    await expect(page.getByText(`${bob.person.name} was added to the project.`)).toBeVisible()
     const members = page.getByRole('dialog', { name: 'Members' })
-    await expect(members.getByText(bob.person.email, { exact: true })).toBeVisible()
+    await expect(members.getByText(bob.person.name, { exact: true })).toBeVisible()
     await expect(members.getByRole('button', { name: /^Actions for/ })).toHaveCount(1)
     await page.keyboard.press('Escape')
 
@@ -84,7 +84,7 @@ test.describe('working together', () => {
 
     await page.getByLabel('Their email').fill(bob.person.email)
     await page.getByRole('button', { name: 'Invite' }).click()
-    await expect(page.getByText(`${bob.person.email} was added to the project.`)).toBeVisible()
+    await expect(page.getByText(`${bob.person.name} was added to the project.`)).toBeVisible()
     await page.getByLabel('Their email').fill(bob.person.email)
     await page.getByRole('button', { name: 'Invite' }).click()
     await expect(page.getByText('This person is already a member.')).toBeVisible()
@@ -102,18 +102,18 @@ test.describe('working together', () => {
 
     await loginViaUi(page, alice.person)
     await openProject(page, 'Crew')
-    await expect(page.getByTitle(`Assigned to ${bob.person.email}`)).toBeVisible()
+    await expect(page.getByTitle(`Assigned to ${bob.person.name}`)).toBeVisible()
 
     await page.getByRole('button', { name: /^Members \d+$/ }).click()
-    await page.getByRole('button', { name: `Actions for ${bob.person.email}` }).click()
-    await page.getByRole('menuitem', { name: `Remove: ${bob.person.email}` }).click()
-    await page.getByRole('dialog', { name: `Remove ${bob.person.email}` }).getByRole('button', { name: 'Remove' }).click()
-    await expect(page.getByText(`${bob.person.email} was removed.`)).toBeVisible()
+    await page.getByRole('button', { name: `Actions for ${bob.person.name}` }).click()
+    await page.getByRole('menuitem', { name: `Remove: ${bob.person.name}` }).click()
+    await page.getByRole('dialog', { name: `Remove ${bob.person.name}` }).getByRole('button', { name: 'Remove' }).click()
+    await expect(page.getByText(`${bob.person.name} was removed.`)).toBeVisible()
     // The removed row held the button that had the focus: the keyboard must still work in the panel.
     await expect(page.getByLabel('Their email')).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Members' })).toHaveCount(0)
-    await expect(page.getByTitle(`Assigned to ${bob.person.email}`)).toHaveCount(0)
+    await expect(page.getByTitle(`Assigned to ${bob.person.name}`)).toHaveCount(0)
     await toggleAssignees(page, ['Unassigned'])
     await expect(page.getByRole('button', { name: "Bob's job", exact: true })).toBeVisible()
 

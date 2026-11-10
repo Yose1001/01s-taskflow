@@ -93,8 +93,7 @@
     "close": "Close"
   },
   "dashboard": {
-    "welcome": "Welcome back",
-    "signedInAs": "Signed in as"
+    "hello": "Hello, {{name}}"
   },
   "projects": {
     "title": "Your projects",
@@ -187,7 +186,6 @@
     "assigneeFilter": "Assigned to",
     "all": "All",
     "unassigned": "Unassigned",
-    "assigneesChosen": "{{count}} people",
     "clearFilters": "Clear all",
     "showing": "Showing {{shown}} of {{total}} tasks",
     "dragHandle": "Move task: {{title}}",

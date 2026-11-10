@@ -26,7 +26,9 @@ import { restoreTask } from '../../api/tasks'
 import type { Member, Task, TaskStatus } from '../../api/types'
 import { useAuth } from '../../auth/context'
 import { errorMessage } from '../../auth/errors'
+import { Avatar } from '../../components/Avatar'
 import { ChoiceSwitch } from '../../components/ChoiceSwitch'
+import { personName } from '../../lib/format'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Button, CompactSelectField, CompactTextField, SelectField } from '../../components/forms'
 import { Icon, type IconName } from '../../components/Icon'
@@ -153,7 +155,7 @@ export function TaskBoard({
     setSorts(next)
     saveColumnSorts(projectId, next)
   }
-  const nameOf = useMemo(() => new Map(members.map((m) => [m.userId, m.email])), [members])
+  const nameOf = useMemo(() => new Map(members.map((m) => [m.userId, personName(m)])), [members])
   const activeTask = activeId ? all.find((task) => task.id === activeId) : undefined
 
   const sensors = useSensors(
@@ -324,15 +326,16 @@ export function TaskBoard({
         onDragCancel={() => endDrag()}
       >
         {/*
-          Phones: one column at a time, swipe sideways. Tablets: two across, with Done filling the last row.
-          Wide screens: all five, or the same as tablets if the person chose that.
+          Phones: one column at a time, swipe sideways. 640–1023px: two across. 1024–1279px: three across.
+          In both, every column has the same width, so the last row is not stretched.
+          From 1280px: all five in a row, or two per row with Done filling the last row, as the person chose.
           Snapping is off during a drag: it would fight with scrolling by itself near the edge.
         */}
         <div
           ref={scroller}
           onScroll={onBoardScroll}
-          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 ${
-            layout === 'row' ? 'xl:grid-cols-5' : ''
+          className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3 ${
+            layout === 'row' ? 'xl:grid-cols-5' : 'xl:grid-cols-2'
           } ${dragging ? '' : 'snap-x snap-mandatory'}`}
         >
           {STATUSES.map((status) => (
@@ -487,8 +490,8 @@ function Column({ status, tasks, nameOf, sort, layout, onSort, onOpen }: ColumnP
   return (
     <section
       aria-label={t('tasks.columnLabel', { column: name, count: tasks.length })}
-      className={`relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto sm:last:col-span-2 ${
-        layout === 'row' ? 'xl:last:col-span-1' : ''
+      className={`relative w-[86%] shrink-0 snap-start rounded-2xl border border-border bg-surface-2 p-3 sm:w-auto ${
+        layout === 'two' ? 'xl:last:col-span-2' : ''
       }`}
     >
       <span
@@ -587,14 +590,18 @@ function AssigneeFilter({
   const { t } = useTranslation()
   const toggle = (id: string) =>
     onChange(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id])
+  // "Nok", or "Nok +1" for more. The menu lists "Unassigned" before the people, and so does this.
+  const names = [UNASSIGNED, ...members.map((m) => m.userId)]
+    .filter((id) => chosen.includes(id))
+    .map((id) =>
+      id === UNASSIGNED ? t('tasks.unassigned') : personName(members.find((m) => m.userId === id)!),
+    )
   const summary =
-    chosen.length === 0
+    names.length === 0
       ? t('tasks.all')
-      : chosen.length === 1
-        ? chosen[0] === UNASSIGNED
-          ? t('tasks.unassigned')
-          : (members.find((m) => m.userId === chosen[0])?.email ?? t('tasks.all'))
-        : t('tasks.assigneesChosen', { count: chosen.length })
+      : names.length === 1
+        ? names[0]!
+        : `${names[0]} +${names.length - 1}`
   return (
     <Menu
       className={SELECT_WIDTH}
@@ -627,7 +634,8 @@ function AssigneeFilter({
         },
         ...members.map((m) => ({
           key: m.userId,
-          label: m.email,
+          label: personName(m),
+          leading: <Avatar id={m.userId} name={personName(m)} size={22} />,
           checked: chosen.includes(m.userId),
           onSelect: () => toggle(m.userId),
         })),
@@ -721,7 +729,9 @@ function FilterBar({
   const [sheetOpen, setSheetOpen] = useState(false)
   const inSheet = (filters.priority ? 1 : 0) + filters.assignees.length
   const nameFor = (id: string) =>
-    id === UNASSIGNED ? t('tasks.unassigned') : members.find((m) => m.userId === id)?.email
+    id === UNASSIGNED
+      ? t('tasks.unassigned')
+      : members.filter((m) => m.userId === id).map(personName)[0]
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">

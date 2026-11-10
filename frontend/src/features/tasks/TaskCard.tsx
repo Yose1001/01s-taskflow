@@ -1,5 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../../api/types'
 import { Avatar, EmptyAvatar } from '../../components/Avatar'
@@ -82,6 +83,23 @@ function AssigneeRow({ task, people }: { task: Task; people: Assignee[] }) {
   const { t } = useTranslation()
   const row = 'flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted'
   const [first, ...others] = people
+  const everyone = people.map((person) => person.name).join(', ')
+  // "Nok, Tester" when it fits on the line, otherwise "Nok +1". An unseen copy of the whole list is
+  // measured against the room there is, again whenever the card changes width.
+  const box = useRef<HTMLSpanElement>(null)
+  const whole = useRef<HTMLSpanElement>(null)
+  const [fits, setFits] = useState(true)
+  useLayoutEffect(() => {
+    const outer = box.current
+    const inner = whole.current
+    if (!outer || !inner) return
+    const check = () => setFits(inner.offsetWidth <= outer.clientWidth)
+    check()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(check)
+    observer.observe(outer)
+    return () => observer.disconnect()
+  }, [everyone])
   if (!first) {
     // Somebody is assigned but the member list has not arrived yet: say nothing rather than "nobody".
     if (task.assigneeIds.length > 0) return <div className="h-[22px]" />
@@ -92,24 +110,32 @@ function AssigneeRow({ task, people }: { task: Task; people: Assignee[] }) {
       </div>
     )
   }
-  const everyone = people.map((person) => person.name).join(', ')
+  const short = !fits && others.length > 0
   return (
     <div className={row}>
       <span
-        className="flex min-w-0 items-center gap-1"
+        ref={box}
+        className="relative flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
         title={t('tasks.assignedTo', { name: everyone })}
       >
-        <span className="min-w-0 truncate">
-          <span className="sr-only">{t('tasks.assignedWord')} </span>
-          <span>{first.name}</span>
+        {/* The text comes from CSS, so it is never read out or found twice on the page. */}
+        <span
+          ref={whole}
+          aria-hidden="true"
+          data-text={everyone}
+          className="invisible absolute whitespace-nowrap before:content-[attr(data-text)]"
+        />
+        {/* Screen readers always hear every name; the shortening is only for the eye. */}
+        <span className="sr-only">
+          {t('tasks.assignedWord')} {everyone}
         </span>
-        {others.length > 0 && (
-          <>
-            <span aria-hidden="true" className="shrink-0 font-medium">
-              +{others.length}
-            </span>
-            <span className="sr-only">, {others.map((person) => person.name).join(', ')}</span>
-          </>
+        <span aria-hidden="true" className="min-w-0 truncate">
+          {short ? first.name : everyone}
+        </span>
+        {short && (
+          <span aria-hidden="true" className="shrink-0 font-medium">
+            +{others.length}
+          </span>
         )}
       </span>
       <span className="flex shrink-0 -space-x-1.5">

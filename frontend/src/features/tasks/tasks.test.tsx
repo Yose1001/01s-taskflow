@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../../App'
 import type { Task } from '../../api/types'
 import { BOB, CAROL, fakeBackend, project, task } from '../../test/fakeBackend'
@@ -85,8 +85,8 @@ describe('board', () => {
     await openBoard(userEvent.setup())
     const todo = column(/^To do/)
     expect(within(todo).getAllByText('High').length).toBeGreaterThan(0)
-    expect(within(todo).getByTitle('Assigned to bob@example.com')).toBeInTheDocument()
-    expect(within(todo).getByTitle('Assigned to alice@example.com')).toBeInTheDocument()
+    expect(within(todo).getByTitle('Assigned to Bob')).toBeInTheDocument()
+    expect(within(todo).getByTitle('Assigned to Alice')).toBeInTheDocument()
     expect(within(column(/^Done/)).getByText('1 Jan 2020')).toBeInTheDocument()
   })
 
@@ -238,7 +238,7 @@ describe('filters', () => {
     await user.click(screen.getByRole('button', { name: 'Filters' }))
     const sheet = await screen.findByRole('dialog', { name: 'Filters' })
     const people = within(sheet).getByRole('group', { name: 'Assigned to' })
-    await user.click(within(people).getByRole('checkbox', { name: 'bob@example.com' }))
+    await user.click(within(people).getByRole('checkbox', { name: 'Bob' }))
     await user.click(within(people).getByRole('checkbox', { name: 'Unassigned' }))
     await user.click(within(sheet).getByRole('button', { name: /^Show \d+ tasks$/ }))
     expect(screen.getByRole('button', { name: 'Filters (2)' })).toHaveFocus()
@@ -279,11 +279,11 @@ describe('filters', () => {
     expect(titlesIn(column(/^In progress/))).toEqual(['Build header'])
 
     await user.selectOptions(screen.getByLabelText('Priority'), 'All')
-    await toggleAssignees(user, ['bob@example.com'])
+    await toggleAssignees(user, ['Bob'])
     expect(titlesIn(column(/^To do/))).toEqual(['Draw logo'])
-    expect(screen.getByRole('button', { name: 'Assigned to: bob@example.com' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Assigned to: Bob' })).toBeInTheDocument()
 
-    await toggleAssignees(user, ['bob@example.com', 'Unassigned']) // Bob off, Unassigned on
+    await toggleAssignees(user, ['Bob', 'Unassigned']) // Bob off, Unassigned on
     expect(titlesIn(column(/^To do/))).toEqual(['Write copy'])
     expect(titlesIn(column(/^In progress/))).toEqual(['Build header'])
   })
@@ -296,7 +296,7 @@ describe('filters', () => {
       'aria-checked',
       'true',
     )
-    await user.click(screen.getByRole('menuitemcheckbox', { name: 'bob@example.com' }))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Bob' }))
     await user.click(screen.getByRole('menuitemcheckbox', { name: 'Unassigned' }))
     // The menu stays open for the next tick.
     expect(screen.getByRole('menuitemcheckbox', { name: 'Unassigned' })).toHaveFocus()
@@ -306,17 +306,15 @@ describe('filters', () => {
     )
     await user.keyboard('{Escape}')
 
-    expect(screen.getByRole('button', { name: 'Assigned to: 2 people' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Assigned to: Unassigned +1' })).toHaveFocus()
     expect(titlesIn(column(/^To do/))).toEqual(['Draw logo', 'Write copy'])
     expect(titlesIn(column(/^In progress/))).toEqual(['Build header'])
-    expect(
-      screen.getByRole('button', { name: 'Remove filter: bob@example.com' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove filter: Bob' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Remove filter: Unassigned' }))
     expect(titlesIn(column(/^To do/))).toEqual(['Draw logo'])
 
-    await user.click(screen.getByRole('button', { name: 'Assigned to: bob@example.com' }))
+    await user.click(screen.getByRole('button', { name: 'Assigned to: Bob' }))
     await user.click(screen.getByRole('menuitemcheckbox', { name: 'All' }))
     await user.keyboard('{Escape}')
     expect(titlesIn(column(/^To do/))).toHaveLength(3)
@@ -327,7 +325,9 @@ describe('filters', () => {
     fakeBackend({ projects: [WEBSITE()], tasks: sample() })
     await openSignedIn(user, `/projects/p1?assignee=${BOB.userId},none,someone-else`)
     await screen.findByRole('region', { name: /^To do/ })
-    expect(await screen.findByRole('button', { name: 'Assigned to: 2 people' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Assigned to: Unassigned +1' }),
+    ).toBeInTheDocument()
     expect(titlesIn(column(/^To do/))).toEqual(['Draw logo', 'Write copy'])
   })
 
@@ -442,7 +442,8 @@ describe('creating a task', () => {
       'true',
     )
     expect(board).toHaveClass('xl:grid-cols-5')
-    expect(done).toHaveClass('xl:last:col-span-1')
+    expect(done).not.toHaveClass('xl:last:col-span-2') // the same width as the others
+    expect(board).toHaveClass('sm:grid-cols-2', 'lg:grid-cols-3')
 
     await user.click(within(group).getByRole('button', { name: 'Two per row' }))
     expect(within(group).getByRole('button', { name: 'Two per row' })).toHaveAttribute(
@@ -450,7 +451,8 @@ describe('creating a task', () => {
       'true',
     )
     expect(board).not.toHaveClass('xl:grid-cols-5')
-    expect(column(/^Done/)).not.toHaveClass('xl:last:col-span-1')
+    expect(board).toHaveClass('xl:grid-cols-2')
+    expect(column(/^Done/)).toHaveClass('xl:last:col-span-2')
     expect(localStorage.getItem('tf-board-layout')).toBe('two')
   })
 
@@ -487,7 +489,7 @@ describe('creating a task', () => {
     await user.type(within(dialog).getByLabelText('Title'), '  Test the app  ')
     await user.type(within(dialog).getByLabelText('Description (optional)'), 'All of it')
     await user.selectOptions(within(dialog).getByLabelText('Priority'), 'High')
-    await user.click(within(dialog).getByRole('checkbox', { name: 'bob@example.com' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Bob' }))
     await pickDay(user, 'End date (optional)', `${NEXT_YEAR}-03-04`)
     await user.click(within(dialog).getByRole('button', { name: 'Create task' }))
 
@@ -605,7 +607,7 @@ describe('editing a task', () => {
   it.each([
     ['the title', (card: HTMLElement) => within(card).getByRole('button', { name: 'Draw logo' })],
     ['the priority', (card: HTMLElement) => within(card).getByText('High')],
-    ['the assignee', (card: HTMLElement) => within(card).getByText('bob@example.com')],
+    ['the assignee', (card: HTMLElement) => within(card).getByText('Bob')],
     ['the card itself', (card: HTMLElement) => card.firstElementChild as HTMLElement],
     [
       'the drag handle',
@@ -640,7 +642,7 @@ describe('editing a task', () => {
     const { dialog } = await openEdit(user, 'Draw logo')
     expect(within(dialog).getByLabelText('Title')).toHaveValue('Draw logo')
     expect(within(dialog).getByLabelText('Priority')).toHaveValue('high')
-    expect(within(dialog).getByRole('checkbox', { name: 'bob@example.com' })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: 'Bob' })).toBeChecked()
     expect(within(dialog).getByLabelText('Column')).toHaveValue('todo')
   })
 
@@ -673,7 +675,7 @@ describe('editing a task', () => {
     const user = userEvent.setup()
     const tasks = [task('t1', 'Has both', { assigneeIds: [BOB.userId], dueDate: '2099-01-01' })]
     const { api, dialog } = await openEdit(user, 'Has both', tasks)
-    await user.click(within(dialog).getByRole('checkbox', { name: 'bob@example.com' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Bob' }))
     await user.click(within(dialog).getByRole('button', { name: 'Clear End date (optional)' }))
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(api.hits('PATCH /tasks/t1')).toHaveLength(1))
@@ -855,18 +857,16 @@ describe('members and tasks', () => {
     await openBoard(user, [task('t1', 'Bobs job', { assigneeIds: [BOB.userId] })], {
       projects: [project('p1', 'Website', { members: [BOB, CAROL] })],
     })
-    expect(screen.getByTitle('Assigned to bob@example.com')).toBeInTheDocument()
+    expect(screen.getByTitle('Assigned to Bob')).toBeInTheDocument()
     await toggleAssignees(user, ['Unassigned'])
     expect(screen.queryByRole('button', { name: 'Bobs job' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /^Members \d+$/ }))
     const members = await screen.findByRole('dialog', { name: 'Members' })
-    await user.click(
-      await within(members).findByRole('button', { name: 'Actions for bob@example.com' }),
-    )
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    await user.click(await within(members).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
       within(
-        await screen.findByRole('dialog', { name: 'Remove bob@example.com from this project?' }),
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
       ).getByRole('button', { name: 'Remove' }),
     )
     // The task itself changed on the server (no assignee any more), so the board must reload it.
@@ -889,8 +889,8 @@ describe('several people and two dates on a task', () => {
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('group', { name: 'Assigned to' })).toBeInTheDocument()
     await user.type(within(dialog).getByLabelText('Title'), 'Together')
-    await user.click(within(dialog).getByRole('checkbox', { name: 'bob@example.com' }))
-    await user.click(within(dialog).getByRole('checkbox', { name: 'alice@example.com' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Bob' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Alice' }))
     await pickDay(user, 'Start date (optional)', `${NEXT_YEAR}-03-01`)
     await pickDay(user, 'End date (optional)', `${NEXT_YEAR}-03-01`)
     await user.click(within(dialog).getByRole('button', { name: 'Create task' }))
@@ -965,13 +965,28 @@ describe('several people and two dates on a task', () => {
     expect(within(calendar).getByRole('button', { name: 'วันนี้' })).toBeInTheDocument()
   })
 
-  it('shows one name, how many more, and everyone on hover, in alphabetical order', async () => {
+  it('shows every name when they fit on the line, in alphabetical order, and everyone on hover', async () => {
     await openBoard(userEvent.setup(), [SHARED()])
-    // Only inside the column: the filter above the board lists the same emails.
-    expect(within(column(/^To do/)).getByText('alice@example.com')).toBeInTheDocument()
-    expect(screen.getByText('+1')).toBeInTheDocument()
-    expect(screen.getByText(', bob@example.com')).toHaveClass('sr-only')
-    expect(screen.getByTitle('Assigned to alice@example.com, bob@example.com')).toBeInTheDocument()
+    const card = column(/^To do/)
+    expect(within(card).getByText('Alice, Bob')).toBeInTheDocument()
+    expect(within(card).queryByText('+1')).not.toBeInTheDocument()
+    expect(within(card).getByText('Assigned to Alice, Bob')).toHaveClass('sr-only')
+    expect(screen.getByTitle('Assigned to Alice, Bob')).toBeInTheDocument()
+  })
+
+  it('shows one name and how many more when the names do not fit', async () => {
+    // The test browser has no layout: make the list 300px wide and its room 100px.
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(300)
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(100)
+    try {
+      await openBoard(userEvent.setup(), [SHARED()])
+      const card = column(/^To do/)
+      expect(within(card).getByText('Alice')).toBeInTheDocument()
+      expect(within(card).getByText('+1')).toBeInTheDocument()
+      expect(within(card).getByText('Assigned to Alice, Bob')).toHaveClass('sr-only') // still everyone
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 
   it('shows both dates on the card, each marked for machines and in full on hover', async () => {
@@ -991,7 +1006,7 @@ describe('several people and two dates on a task', () => {
   it('finds a shared task under each of its people', async () => {
     const user = userEvent.setup()
     await openBoard(user, [SHARED(), task('o', 'Other')])
-    for (const person of ['bob@example.com', 'alice@example.com']) {
+    for (const person of ['Bob', 'Alice']) {
       await toggleAssignees(user, [person])
       await waitFor(() => expect(titlesIn(column(/^To do/))).toEqual(['Shared']))
       await toggleAssignees(user, [person])
@@ -1005,7 +1020,7 @@ describe('several people and two dates on a task', () => {
     const api = await openBoard(user, [SHARED()])
     await user.click(screen.getByRole('button', { name: 'Shared' }))
     let dialog = await screen.findByRole('dialog')
-    const bob = within(dialog).getByRole('checkbox', { name: 'bob@example.com' })
+    const bob = within(dialog).getByRole('checkbox', { name: 'Bob' })
     expect(bob).toBeChecked()
     expect(within(dialog).getByLabelText('Start date (optional)')).toHaveTextContent('1 Mar 2099')
     await user.click(bob)
@@ -1016,7 +1031,7 @@ describe('several people and two dates on a task', () => {
 
     await user.click(screen.getByRole('button', { name: 'Shared' }))
     dialog = await screen.findByRole('dialog')
-    await user.click(within(dialog).getByRole('checkbox', { name: 'bob@example.com' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Bob' }))
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(api.hits('PATCH /tasks/s')).toHaveLength(1))
     expect(api.hits('PATCH /tasks/s')[0]!.body).toEqual({ assigneeIds: [ME.id] })
@@ -1029,16 +1044,14 @@ describe('several people and two dates on a task', () => {
     })
     await user.click(await screen.findByRole('button', { name: /^Members \d+$/ }))
     const members = await screen.findByRole('dialog', { name: 'Members' })
-    await user.click(
-      await within(members).findByRole('button', { name: 'Actions for bob@example.com' }),
-    )
-    await user.click(screen.getByRole('menuitem', { name: 'Remove: bob@example.com' }))
+    await user.click(await within(members).findByRole('button', { name: 'Actions for Bob' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove: Bob' }))
     await user.click(
       within(
-        await screen.findByRole('dialog', { name: 'Remove bob@example.com from this project?' }),
+        await screen.findByRole('dialog', { name: 'Remove Bob from this project?' }),
       ).getByRole('button', { name: 'Remove' }),
     )
-    expect(await screen.findByTitle('Assigned to alice@example.com')).toBeInTheDocument()
+    expect(await screen.findByTitle('Assigned to Alice')).toBeInTheDocument()
     expect(screen.queryByText('+1')).not.toBeInTheDocument()
   })
 })

@@ -43,6 +43,11 @@ export function formatDayShort(day: string, language: string, now: Date = new Da
  * One or two letters for a small avatar: "Alice Smith" -> "AS", "สมชาย" -> "ส".
  * Thai vowels written before the consonant (เ แ โ ใ ไ) are skipped, so "เอก" gives "อ".
  */
+/** What to call a person on screen: the name they chose, or their email if the name is empty. */
+export function personName(person: { displayName?: string | undefined; email: string }): string {
+  return person.displayName?.trim() || person.email
+}
+
 export function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean)
   const picked = words.length > 1 ? [words[0]!, words[words.length - 1]!] : words
