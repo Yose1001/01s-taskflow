@@ -746,6 +746,10 @@ components:
         status: { $ref: "#/components/schemas/TaskStatus" }
         startDate: { type: string, format: date, nullable: true }
         dueDate: { type: string, format: date, nullable: true }
+        assigneeIds:
+          type: array
+          items: { type: string, format: uuid }
+          description: ผู้รับผิดชอบงาน ใช้กรองดูงานของคนใดคนหนึ่งในปฏิทิน
     Notification:
       type: object
       properties:

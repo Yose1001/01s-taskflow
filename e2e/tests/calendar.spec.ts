@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { createProjectViaApi, createTaskViaApi, inviteViaApi, loginViaUi, newUser } from './helpers'
 
 test.describe('the calendar', () => {
-  test('an important day for a project is seen by its members, and changed only by the right people', async ({
+  test('an important day shared with a person is seen by them, and changed only by its owner', async ({
     page,
     request,
     context,
@@ -25,7 +25,8 @@ test.describe('the calendar', () => {
     await page.getByRole('button', { name: 'Add an important day' }).click()
     const form = page.getByRole('dialog', { name: 'Add an important day' })
     await form.getByLabel('Name').fill('Client demo')
-    await form.getByLabel('Belongs to').selectOption({ label: 'Launch' })
+    await form.getByLabel('Belongs to').selectOption({ label: 'Chosen people' })
+    await form.getByRole('group', { name: 'Share with' }).getByRole('checkbox', { name: /Bob/ }).check()
     await form.getByRole('checkbox', { name: '3 days before' }).check()
     await form.getByRole('button', { name: 'Add' }).click()
     await expect(form).toHaveCount(0)
@@ -39,6 +40,7 @@ test.describe('the calendar', () => {
     await bobPage.goto('/calendar?day=2099-03-15')
     const bobDay = bobPage.getByRole('region', { name: 'Sunday, 15 March 2099' })
     await expect(bobDay.getByText('Client demo')).toBeVisible()
+    await expect(bobDay.getByText('Shared by Alice')).toBeVisible()
     await expect(bobDay.getByRole('button', { name: 'Edit Client demo' })).toHaveCount(0)
     await other.close()
 
@@ -52,6 +54,24 @@ test.describe('the calendar', () => {
     await page.getByRole('dialog', { name: 'Edit important day' }).getByRole('button', { name: 'Delete' }).click()
     await page.getByRole('dialog', { name: 'Delete "Client demo day"?' }).getByRole('button', { name: 'Delete for good' }).click()
     await expect(day.getByText('Client demo day')).toHaveCount(0)
+  })
+
+  test("the calendar can show one person's tasks", async ({ page, request }) => {
+    const alice = await newUser(request, 'Alice')
+    const bob = await newUser(request, 'Bob')
+    const projectId = await createProjectViaApi(request, alice.token, 'Launch')
+    const bobId = await inviteViaApi(request, alice.token, projectId, bob.person.email)
+    await createTaskViaApi(request, alice.token, projectId, { title: "Bob's task", dueDate: '2099-03-15', assigneeIds: [bobId] })
+    await createTaskViaApi(request, alice.token, projectId, { title: 'Nobody yet', dueDate: '2099-03-15' })
+
+    await loginViaUi(page, alice.person)
+    await page.goto('/calendar?day=2099-03-15')
+    const day = page.getByRole('region', { name: 'Sunday, 15 March 2099' })
+    await expect(day.getByRole('link', { name: /Nobody yet/ })).toBeVisible()
+    await page.getByLabel('Tasks of').selectOption({ label: `Bob · ${bob.person.email}` })
+    await expect(day.getByRole('link', { name: /Bob's task/ })).toBeVisible()
+    await expect(day.getByRole('link', { name: /Nobody yet/ })).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`person=${bobId}`))
   })
 
   test('the keyboard moves through the month', async ({ page, request }) => {

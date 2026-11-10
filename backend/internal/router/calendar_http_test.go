@@ -204,6 +204,21 @@ func TestTheCalendarShowsDatedTasksFromMyProjects(t *testing.T) {
 	if _, tasks := e.calendar(carol, "2030-05-01", "2030-05-31"); len(tasks) != 0 {
 		t.Errorf("carol sees other people's tasks: %v", tasks)
 	}
+	// Each task says who works on it, so the calendar can show one person's tasks.
+	e.addMember(alice, pid, carol)
+	shared := e.createTask(alice, pid, `{"title":"Shared","dueDate":"2030-05-16","assigneeIds":["`+carol.id+`","`+alice.id+`"]}`)
+	r := do(t, e.h, "GET", "/api/v1/calendar?from=2030-05-16&to=2030-05-16", alice.token, "")
+	got := map[string][]any{}
+	for _, it := range r.body["tasks"].([]any) {
+		task := it.(map[string]any)
+		got[task["id"].(string)] = task["assigneeIds"].([]any)
+	}
+	if len(got[shared]) != 2 {
+		t.Errorf("assignees of the shared task = %v, want both", got[shared])
+	}
+	if _, tasks := e.calendar(carol, "2030-05-01", "2030-05-31"); len(tasks) != 4 {
+		t.Errorf("carol, now a member, sees %v", tasks)
+	}
 	// A project in the trash leaves the calendar, with its days.
 	e.createEvent(alice, `{"title":"Launch day","day":"2030-05-20","projectId":"`+pid+`"}`)
 	if got := e.status(alice, "DELETE", "/api/v1/projects/"+pid, ""); got != 204 {

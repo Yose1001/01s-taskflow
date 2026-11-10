@@ -29,7 +29,7 @@ async function openCalendar(user: U, extra: Parameters<typeof fakeBackend>[0] = 
   const api = fakeBackend({
     projects: [WEBSITE()],
     tasks: [
-      task('t1', 'Ship the site', { dueDate: '2099-03-15' }),
+      task('t1', 'Ship the site', { dueDate: '2099-03-15', assigneeIds: [BOB.userId] }),
       task('t2', 'Design', {
         startDate: '2099-03-10',
         dueDate: '2099-03-20',
@@ -149,18 +149,44 @@ describe('the calendar page', () => {
     expect(await within(panel()).findByText('Dentist')).toBeInTheDocument()
   })
 
-  it('adds a day to a project the person is in, for every member', async () => {
+  it('offers a personal day or chosen people, not projects', async () => {
     const user = userEvent.setup()
-    const api = await openCalendar(user)
+    await openCalendar(user)
     await user.click(screen.getByRole('button', { name: 'Add an important day' }))
     const dialog = await screen.findByRole('dialog', { name: 'Add an important day' })
-    await user.type(within(dialog).getByLabelText('Name'), 'Launch')
     const belongs = within(dialog).getByLabelText('Belongs to')
-    await within(belongs).findByRole('option', { name: 'Website' })
-    await user.selectOptions(belongs, 'Website')
-    await user.click(within(dialog).getByRole('button', { name: 'Add' }))
-    await waitFor(() => expect(api.hits('POST /events')).toHaveLength(1))
-    expect(api.hits('POST /events')[0]!.body).toMatchObject({ title: 'Launch', projectId: 'p1' })
+    expect(
+      within(belongs)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Personal', 'Chosen people'])
+  })
+
+  it("shows only one person's tasks when chosen, and keeps the choice in the address", async () => {
+    const user = userEvent.setup()
+    await openCalendar(user)
+    const filter = screen.getByLabelText('Tasks of')
+    await within(filter).findByRole('option', { name: 'Bob · bob@example.com' })
+    expect(
+      within(filter)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Everyone', 'Me', 'Bob · bob@example.com'])
+    await user.selectOptions(filter, 'Bob · bob@example.com')
+    // Ship the site is Bob's; Design is nobody's, so it leaves the calendar.
+    expect(within(panel()).getByRole('link', { name: /Ship the site/ })).toBeInTheDocument()
+    expect(within(panel()).queryByRole('link', { name: /Design/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tuesday, 10 March 2099' })).toBeInTheDocument()
+    // Important days stay.
+    expect(within(panel()).getByText('Client demo')).toBeInTheDocument()
+
+    // Moving through the days keeps the choice.
+    await user.click(screen.getByRole('button', { name: 'Next month' }))
+    expect(await screen.findByRole('grid', { name: 'April 2099' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Tasks of')).toHaveValue(BOB.userId)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Show tasks' }))
+    expect(screen.getByLabelText('Tasks of')).toBeDisabled()
   })
 
   it('shares a personal day with chosen people from the same projects', async () => {

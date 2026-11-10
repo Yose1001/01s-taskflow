@@ -12,13 +12,7 @@ import { Modal } from '../../components/Modal'
 import { useToast } from '../../components/toast'
 import { personName } from '../../lib/format'
 import { belongsText } from './calendarLogic'
-import {
-  useCreateEvent,
-  useDeleteEvent,
-  usePeople,
-  useProjectChoices,
-  useUpdateEvent,
-} from './hooks'
+import { useCreateEvent, useDeleteEvent, usePeople, useUpdateEvent } from './hooks'
 
 const MAX_TITLE = 120
 const MAX_NOTE = 1000
@@ -134,7 +128,6 @@ export function EventDialog({
   const [errors, setErrors] = useState<Errors>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const projects = useProjectChoices()
   const people = usePeople()
   const choosingPeople = editing ? ownPersonal : projectId === PEOPLE
   const create = useCreateEvent()
@@ -189,7 +182,6 @@ export function EventDialog({
     if (!event) {
       const input: EventInput = { title: trimmed, note: note.trim(), day, remindDays }
       if (projectId === PEOPLE) input.sharedWith = sharedWith
-      else if (projectId) input.projectId = projectId
       create.mutate(input, handlers)
       return
     }
@@ -253,19 +245,12 @@ export function EventDialog({
               <SelectField
                 id={FIELD_IDS.projectId}
                 label={t('calendar.belongsLabel')}
-                // Said only for a project's day; chosen people have their own words below.
-                hint={projectId && projectId !== PEOPLE ? t('calendar.belongsHint') : undefined}
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
                 error={fieldMessage('projectId')}
               >
                 <option value="">{t('calendar.personal')}</option>
                 <option value={PEOPLE}>{t('calendar.belongsPeople')}</option>
-                {(projects.data?.items ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
               </SelectField>
             )}
           </div>

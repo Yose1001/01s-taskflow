@@ -355,7 +355,6 @@
     "titlePlaceholder": "For example: client presentation",
     "dayLabel": "Day",
     "belongsLabel": "Belongs to",
-    "belongsHint": "A project's day is seen, and reminded, by every member.",
     "noteLabel": "Note (optional)",
     "remindLabel": "Remind me",
     "remindHint": "At 8:00 (Thai time), by the bell at the top. Choose any.",
@@ -380,7 +379,10 @@
     "peopleHint": "They see this day on their calendar and are reminded, but cannot change it.",
     "peopleEmpty": "Nobody is in a project with you yet.",
     "sharedBy": "Shared by {{name}}",
-    "sharedWith": "Shared with {{names}}"
+    "sharedWith": "Shared with {{names}}",
+    "personFilter": "Tasks of",
+    "personAll": "Everyone",
+    "personMe": "Me"
   },
   "notifications": {
     "label": "Notifications",

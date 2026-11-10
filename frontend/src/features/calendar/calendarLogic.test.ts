@@ -26,6 +26,7 @@ const task = (id: string, startDate: string | null, dueDate: string | null): Cal
   status: 'todo',
   startDate,
   dueDate,
+  assigneeIds: [],
 })
 
 // The week of Sunday 7 March 2099 to Saturday 13 March 2099.

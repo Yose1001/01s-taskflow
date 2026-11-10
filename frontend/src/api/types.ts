@@ -134,6 +134,8 @@ export interface CalendarTask {
   status: TaskStatus
   startDate: string | null
   dueDate: string | null
+  /** Who works on it, so the calendar can show one person's tasks. */
+  assigneeIds: string[]
 }
 
 export interface CalendarRange {

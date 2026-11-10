@@ -70,13 +70,14 @@ func toEventResponse(e model.Event) eventResponse {
 }
 
 type calendarTaskResponse struct {
-	ID          string  `json:"id"`
-	ProjectID   string  `json:"projectId"`
-	ProjectName string  `json:"projectName"`
-	Title       string  `json:"title"`
-	Status      string  `json:"status"`
-	StartDate   *string `json:"startDate"`
-	DueDate     *string `json:"dueDate"`
+	ID          string   `json:"id"`
+	ProjectID   string   `json:"projectId"`
+	ProjectName string   `json:"projectName"`
+	Title       string   `json:"title"`
+	Status      string   `json:"status"`
+	StartDate   *string  `json:"startDate"`
+	DueDate     *string  `json:"dueDate"`
+	AssigneeIDs []string `json:"assigneeIds"`
 }
 
 type notificationResponse struct {
@@ -111,7 +112,8 @@ func (h *Calendar) Range(w http.ResponseWriter, r *http.Request) {
 	tasks := make([]calendarTaskResponse, 0, len(page.Tasks))
 	for _, t := range page.Tasks {
 		tasks = append(tasks, calendarTaskResponse{ID: t.ID, ProjectID: t.ProjectID, ProjectName: t.ProjectName,
-			Title: t.Title, Status: t.Status, StartDate: dateString(t.StartDate), DueDate: dateString(t.DueDate)})
+			Title: t.Title, Status: t.Status, StartDate: dateString(t.StartDate), DueDate: dateString(t.DueDate),
+			AssigneeIDs: t.AssigneeIDs})
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"events": events, "tasks": tasks})
 }

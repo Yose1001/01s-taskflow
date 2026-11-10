@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { CalendarEvent, CalendarRange } from '../api/types'
 import { errorMessage } from '../auth/errors'
-import { Button } from '../components/forms'
+import { useAuth } from '../auth/context'
+import { Button, CompactSelectField } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
@@ -18,8 +19,9 @@ import {
   type DayItems,
   type TaskMark,
 } from '../features/calendar/calendarLogic'
-import { useCalendar } from '../features/calendar/hooks'
+import { useCalendar, usePeople } from '../features/calendar/hooks'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { personName } from '../lib/format'
 import {
   addDays,
   addMonths,
@@ -71,11 +73,19 @@ export function CalendarPage() {
   const month = monthOf(selected)
   const monthTitle = `${text.months[month]} ${text.year(Number(selected.slice(0, 4)))}`
 
-  const visible = useMemo<CalendarRange | undefined>(
-    () =>
-      calendar.data && (showTasks ? calendar.data : { events: calendar.data.events, tasks: [] }),
-    [calendar.data, showTasks],
-  )
+  // Whose tasks: everyone's (empty), or one person's, from the address (?person=<user id>).
+  const { user } = useAuth()
+  const people = usePeople()
+  const person = params.get('person') ?? ''
+  const visible = useMemo<CalendarRange | undefined>(() => {
+    if (!calendar.data) return undefined
+    if (!showTasks) return { events: calendar.data.events, tasks: [] }
+    if (!person) return calendar.data
+    return {
+      events: calendar.data.events,
+      tasks: calendar.data.tasks.filter((task) => task.assigneeIds.includes(person)),
+    }
+  }, [calendar.data, showTasks, person])
   // Cheap (six weeks of days), and the React Compiler keeps it between renders.
   const byDay = itemsByDay(visible, cells[0]!, cells[41]!)
 
@@ -90,7 +100,14 @@ export function CalendarPage() {
 
   function choose(day: string, withFocus = false) {
     focusChosen.current = withFocus
-    setParams({ day }, { replace: true })
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current) // keep the person filter
+        next.set('day', day)
+        return next
+      },
+      { replace: true },
+    )
   }
 
   function onGridKeyDown(event: KeyboardEvent) {
@@ -165,6 +182,33 @@ export function CalendarPage() {
           />
           {t('calendar.showTasks')}
         </label>
+        <CompactSelectField
+          id="calendar-person"
+          icon="users"
+          className="w-full sm:w-64"
+          label={t('calendar.personFilter')}
+          value={person}
+          disabled={!showTasks}
+          onChange={(e) =>
+            setParams(
+              (current) => {
+                const next = new URLSearchParams(current)
+                if (e.target.value) next.set('person', e.target.value)
+                else next.delete('person')
+                return next
+              },
+              { replace: true },
+            )
+          }
+        >
+          <option value="">{t('calendar.personAll')}</option>
+          {user && <option value={user.id}>{t('calendar.personMe')}</option>}
+          {(people.data?.items ?? []).map((p) => (
+            <option key={p.userId} value={p.userId}>
+              {personName(p)} · {p.email}
+            </option>
+          ))}
+        </CompactSelectField>
       </div>
 
       {calendar.isPending ? (

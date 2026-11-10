@@ -62,6 +62,8 @@ type CalendarTask struct {
 	Status      string
 	StartDate   *time.Time
 	DueDate     *time.Time
+	// AssigneeIDs are the people working on it, so the calendar can show one person's tasks.
+	AssigneeIDs []string
 }
 
 // Notification is one reminder about an important day.

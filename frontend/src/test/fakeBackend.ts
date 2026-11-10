@@ -258,6 +258,7 @@ export function fakeBackend(options: Options = {}) {
               status: t.status,
               startDate: t.startDate,
               dueDate: t.dueDate,
+              assigneeIds: t.assigneeIds,
             })),
         },
       }

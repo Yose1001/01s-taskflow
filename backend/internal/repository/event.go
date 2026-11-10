@@ -239,7 +239,9 @@ const maxCalendarTasks = 500
 // on either side of it, from every active project userID is a member of.
 func (r *EventRepo) ListCalendarTasks(ctx context.Context, userID, from, to string) ([]model.CalendarTask, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT t.id::text, t.project_id::text, p.name, t.title, t.status, t.start_date, t.due_date
+		SELECT t.id::text, t.project_id::text, p.name, t.title, t.status, t.start_date, t.due_date,
+		       coalesce((SELECT array_agg(a.user_id::text ORDER BY a.user_id::text)
+		                 FROM task_assignees a WHERE a.task_id = t.id), '{}')
 		FROM tasks t
 		JOIN projects p ON p.id = t.project_id AND p.deleted_at IS NULL
 		JOIN project_members m ON m.project_id = t.project_id AND m.user_id = $1::uuid
@@ -255,7 +257,8 @@ func (r *EventRepo) ListCalendarTasks(ctx context.Context, userID, from, to stri
 	out := []model.CalendarTask{}
 	for rows.Next() {
 		var t model.CalendarTask
-		if err := rows.Scan(&t.ID, &t.ProjectID, &t.ProjectName, &t.Title, &t.Status, &t.StartDate, &t.DueDate); err != nil {
+		if err := rows.Scan(&t.ID, &t.ProjectID, &t.ProjectName, &t.Title, &t.Status, &t.StartDate, &t.DueDate,
+			&t.AssigneeIDs); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

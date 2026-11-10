@@ -10,7 +10,6 @@ import {
   type EventInput,
   type EventPatch,
 } from '../../api/calendar'
-import { listProjects } from '../../api/projects'
 import { useAuth } from '../../auth/context'
 
 // Cache keys. Changing an important day refreshes every calendar range and the reminders.
@@ -18,7 +17,6 @@ export const calendarKeys = {
   all: ['calendar'] as const,
   range: (from: string, to: string) => ['calendar', from, to] as const,
   notifications: ['notifications'] as const,
-  projects: ['projects', 'for-calendar'] as const,
   people: ['people'] as const,
 }
 
@@ -31,16 +29,6 @@ export function useCalendar(from: string, to: string) {
     queryKey: calendarKeys.range(from, to),
     queryFn: ({ signal }) => getCalendar(request, { from, to, signal }),
     placeholderData: keepPreviousData, // keep the old month on screen while the next one loads
-  })
-}
-
-/** The person's active projects, to choose where a new important day belongs (the API's largest page). */
-export function useProjectChoices() {
-  const { request } = useAuth()
-  return useQuery({
-    queryKey: calendarKeys.projects,
-    queryFn: ({ signal }) =>
-      listProjects(request, { page: 1, pageSize: 100, trashed: false, signal }),
   })
 }
 
