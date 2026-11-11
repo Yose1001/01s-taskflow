@@ -587,15 +587,6 @@ function DayPanel({
                   )}
                   <EventPeople people={eventPeople(event, me, nameOf)} />
                 </div>
-                {event.canEdit && (
-                  // A sign that this one can be changed; the card itself is the button.
-                  <span
-                    aria-hidden="true"
-                    className="grid h-9 w-9 shrink-0 place-items-center text-muted"
-                  >
-                    <Icon name="pencil" size={16} />
-                  </span>
-                )}
               </div>
             </li>
           ))}
