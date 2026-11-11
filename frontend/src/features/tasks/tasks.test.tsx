@@ -889,6 +889,60 @@ describe('task trash page', () => {
     ).toBeInTheDocument()
   })
 
+  it('opens a deleted task to read, and restores it from there', async () => {
+    const user = userEvent.setup()
+    const api = fakeBackend({
+      projects: [WEBSITE()],
+      tasks: [
+        task('d2', 'Plan launch', {
+          description: 'Book the hall',
+          priority: 'high',
+          assigneeIds: [BOB.userId],
+          startDate: '2099-03-10',
+          dueDate: '2099-03-12',
+          subtasks: [
+            { id: 's1', title: 'Call venue', done: true },
+            { id: 's2', title: 'Pay deposit', done: false },
+          ],
+          deletedAt: new Date().toISOString(),
+        }),
+      ],
+    })
+    await openSignedIn(user, '/projects/p1/trash')
+    await user.click(await screen.findByRole('button', { name: 'Plan launch' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Plan launch' })
+    expect(
+      within(dialog).getByText('This task is in the trash. Restore it to change it.'),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText('Book the hall')).toBeInTheDocument()
+    expect(within(dialog).getByText('High')).toBeInTheDocument()
+    expect(within(dialog).getByText('10 Mar 2099 – 12 Mar 2099')).toBeInTheDocument()
+    expect(await within(dialog).findByText('Bob')).toBeInTheDocument()
+    expect(within(dialog).getByText('Call venue').previousSibling).toHaveTextContent('Done:')
+    expect(within(dialog).getByText('Pay deposit').previousSibling).toHaveTextContent('Not done:')
+    // Nothing to type into: it cannot be changed from the trash.
+    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Restore' }))
+    expect(await screen.findByText('"Plan launch" restored.')).toBeInTheDocument()
+    expect(api.hits('POST /tasks/d2/restore')).toHaveLength(1)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('closes the task without changing anything', async () => {
+    const user = userEvent.setup()
+    const api = fakeBackend({ projects: [WEBSITE()], tasks: trashed() })
+    await openSignedIn(user, '/projects/p1/trash')
+    await user.click(await screen.findByRole('button', { name: 'Old idea' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Old idea' })
+    expect(within(dialog).getByText('No description')).toBeInTheDocument()
+    expect(within(dialog).getByText('No dates')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Old idea' })).toHaveFocus()
+    expect(api.hits('POST /tasks/d1/restore')).toHaveLength(0)
+  })
+
   it('has an empty state', async () => {
     fakeBackend({ projects: [WEBSITE()], tasks: sample() })
     await openSignedIn(userEvent.setup(), '/projects/p1/trash')

@@ -288,7 +288,18 @@
     "holdLabel": "สาเหตุที่พักงาน",
     "holdHint": "บอกทีมว่างานนี้รออะไรอยู่",
     "holdConfirm": "พักงาน",
-    "holdWord": "สาเหตุที่พัก"
+    "holdWord": "สาเหตุที่พัก",
+    "trashedNote": "งานนี้อยู่ในถังขยะ กู้คืนก่อนถึงจะแก้ไขได้",
+    "viewDescription": "รายละเอียด",
+    "viewNoDescription": "ไม่มีรายละเอียด",
+    "viewDates": "วันที่",
+    "viewNoDates": "ไม่ได้กำหนดวัน",
+    "viewStarts": "เริ่ม {{day}}",
+    "viewEnds": "สิ้นสุด {{day}}",
+    "viewHold": "เหตุผลที่พักไว้",
+    "viewSubtasks": "รายการย่อย",
+    "viewSubtaskDone": "เสร็จแล้ว",
+    "viewSubtaskOpen": "ยังไม่เสร็จ"
   },
   "status": {
     "todo": "รอทำ",

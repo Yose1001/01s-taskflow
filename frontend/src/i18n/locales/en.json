@@ -288,7 +288,18 @@
     "holdLabel": "Why is it on hold?",
     "holdHint": "Tell the team what it is waiting for.",
     "holdConfirm": "Put on hold",
-    "holdWord": "On hold because"
+    "holdWord": "On hold because",
+    "trashedNote": "This task is in the trash. Restore it to change it.",
+    "viewDescription": "Description",
+    "viewNoDescription": "No description",
+    "viewDates": "Dates",
+    "viewNoDates": "No dates",
+    "viewStarts": "Starts {{day}}",
+    "viewEnds": "Ends {{day}}",
+    "viewHold": "On hold because",
+    "viewSubtasks": "Subtasks",
+    "viewSubtaskDone": "Done",
+    "viewSubtaskOpen": "Not done"
   },
   "status": {
     "todo": "To do",
