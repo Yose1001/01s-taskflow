@@ -19,7 +19,14 @@ export function saveProjectsView(view: ProjectsView) {
   }
 }
 
-export const PROJECT_SORTS = ['newest', 'oldest', 'progress_high', 'progress_low'] as const
+export const PROJECT_SORTS = [
+  'newest',
+  'oldest',
+  'updated',
+  'name',
+  'progress_high',
+  'progress_low',
+] as const
 export type ProjectSort = (typeof PROJECT_SORTS)[number]
 
 const SORT_KEY = 'tf-projects-sort'

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TaskFlow API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     REST API ของ TaskFlow (ฉบับร่างรออนุมัติ)
 
@@ -166,8 +166,17 @@ paths:
         - { name: trashed, in: query, schema: { type: boolean, default: false } }
         - name: sort
           in: query
-          description: การเรียง โปรเจกต์ที่ไม่มีงานจะอยู่ท้ายสุดเมื่อเรียงตามความคืบหน้า ถังขยะไม่ใช้ค่านี้
-          schema: { type: string, enum: [newest, oldest, progress_high, progress_low], default: newest }
+          description: >-
+            การเรียง โปรเจกต์ที่ไม่มีงานจะอยู่ท้ายสุดเมื่อเรียงตามความคืบหน้า updated = มีการเปลี่ยนแปลงล่าสุดก่อน
+            (ตัวโปรเจกต์หรืองานในนั้น) name = ชื่อ ก-ฮ / A-Z ถังขยะไม่ใช้ค่านี้
+          schema:
+            type: string
+            enum: [newest, oldest, updated, name, progress_high, progress_low]
+            default: newest
+        - name: person
+          in: query
+          description: เฉพาะโปรเจกต์ที่คนนี้มีงาน (ที่ไม่อยู่ในถังขยะ) ถังขยะไม่ใช้ค่านี้ ผิดรูปแบบคืน 422 `fields.person` = `invalid_id`
+          schema: { type: string, format: uuid }
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -836,6 +845,12 @@ components:
           description: เวลาที่จะถูกลบถาวร (deletedAt + 30 วัน) มีค่าเฉพาะรายการในถังขยะ
         taskCount: { type: integer, description: จำนวนงานที่ไม่อยู่ในถังขยะ }
         doneCount: { type: integer, description: ในนั้นมีกี่งานที่อยู่คอลัมน์ "เสร็จแล้ว" }
+        memberCount: { type: integer, description: จำนวนสมาชิกทั้งหมด }
+        members:
+          type: array
+          maxItems: 5
+          items: { $ref: "#/components/schemas/Person" }
+          description: สมาชิก 5 คนแรก (เจ้าของก่อน แล้วตามเวลาที่เข้าร่วม)
     ProjectInput:
       type: object
       required: [name]

@@ -199,6 +199,11 @@ export function fakeBackend(options: Options = {}) {
     taskCount: tasks.filter((t) => t.projectId === p.id && !t.deletedAt).length,
     doneCount: tasks.filter((t) => t.projectId === p.id && !t.deletedAt && t.status === 'done')
       .length,
+    // Like the real API: everyone counted, the first five named, the owner first.
+    memberCount: p.members.length,
+    members: p.members
+      .slice(0, 5)
+      .map((m) => ({ userId: m.userId, displayName: m.displayName, email: m.email })),
   })
   // The API answers 404 for "does not exist" and for "you are not a member": it never says which.
   const find = (id: string) => projects.find((p) => p.id === id && roleOf(p) !== undefined)
@@ -328,11 +333,18 @@ export function fakeBackend(options: Options = {}) {
       const page = Number(req.query.get('page') ?? 1)
       const size = Number(req.query.get('pageSize') ?? 20)
       const sort = req.query.get('sort')
-      if (sort && !['newest', 'oldest', 'progress_high', 'progress_low'].includes(sort))
+      if (
+        sort &&
+        !['newest', 'oldest', 'updated', 'name', 'progress_high', 'progress_low'].includes(sort)
+      )
         return err(422, 'validation_failed', { sort: 'invalid_sort' })
+      const person = req.query.get('person')
       const all = projects.filter((p) => {
         const r = roleOf(p)
         if (!r) return false
+        const hasTask = (id: string) =>
+          tasks.some((t) => t.projectId === p.id && !t.deletedAt && t.assigneeIds.includes(id))
+        if (person && !trashed && !hasTask(person)) return false
         return trashed ? r === 'owner' && p.deletedAt !== null : p.deletedAt === null
       })
       // Like the real API: a project with no tasks goes last when sorting by progress.
@@ -341,6 +353,15 @@ export function fakeBackend(options: Options = {}) {
         return taskCount === 0 ? null : doneCount / taskCount
       }
       if (sort === 'oldest') all.reverse()
+      if (sort === 'name')
+        all.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+      if (sort === 'updated') {
+        const latest = (p: FakeProject) =>
+          [p.updatedAt, ...tasks.filter((t) => t.projectId === p.id).map((t) => t.updatedAt)]
+            .sort()
+            .at(-1)!
+        all.sort((a, b) => latest(b).localeCompare(latest(a)))
+      }
       if (sort === 'progress_high' || sort === 'progress_low') {
         const direction = sort === 'progress_high' ? -1 : 1
         all.sort((a, b) => {

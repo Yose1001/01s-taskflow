@@ -100,7 +100,7 @@ func TestProgressSortIgnoresTasksInTheTrash(t *testing.T) {
 func TestUnknownProjectSortIsRefused(t *testing.T) {
 	e := newEnv(t)
 	alice := e.newUser("alice")
-	for _, sort := range []string{"name", "bogus", "created_at"} {
+	for _, sort := range []string{"title", "bogus", "created_at"} {
 		if got := e.status(alice, "GET", "/api/v1/projects?sort="+sort, ""); got != 422 {
 			t.Errorf("sort=%s = %d, want 422", sort, got)
 		}

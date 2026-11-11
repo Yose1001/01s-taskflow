@@ -149,7 +149,19 @@
     "sort_newest": "Newest first",
     "sort_oldest": "Oldest first",
     "sort_progress_high": "Most progress first",
-    "sort_progress_low": "Least progress first"
+    "sort_progress_low": "Least progress first",
+    "sort_updated": "Recently changed first",
+    "sort_name": "Name A–Z",
+    "filterHeading": "Show projects",
+    "filterAll": "All projects",
+    "filterMine": "Where I have tasks",
+    "filterOf": "Where {{name}} has tasks",
+    "filterLabel": "Show: {{choice}}",
+    "filterEmpty": "No projects match this choice.",
+    "filterClear": "Show all projects",
+    "membersWord": "Members",
+    "membersTitle": "Members: {{names}}",
+    "moreMembers": "+{{count}} more"
   },
   "members": {
     "title": "Members",

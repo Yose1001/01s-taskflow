@@ -23,8 +23,18 @@ const (
 	// Both use the board index (project_id, status, position) on active tasks.
 	projectCols = `p.id::text, p.name, p.description, p.owner_id::text, m.role, p.created_at, p.updated_at, p.deleted_at,
 		(SELECT count(*) FROM tasks t WHERE t.project_id = p.id AND t.deleted_at IS NULL)::int,
-		(SELECT count(*) FROM tasks t WHERE t.project_id = p.id AND t.deleted_at IS NULL AND t.status = 'done')::int`
-	projectFrom = `FROM projects p JOIN project_members m ON m.project_id = p.id`
+		(SELECT count(*) FROM tasks t WHERE t.project_id = p.id AND t.deleted_at IS NULL AND t.status = 'done')::int,
+		(SELECT count(*) FROM project_members pm WHERE pm.project_id = p.id)::int, ` + projectMembersPreview
+	// projectMembersPreview is the first few members as JSON: the owner, then by when they joined.
+	projectMembersPreview = `(SELECT coalesce(json_agg(json_build_object(
+			'userId', x.id::text, 'displayName', x.display_name, 'email', x.email) ORDER BY x.n), '[]'::json)
+		FROM (SELECT u.id, u.display_name, u.email,
+		             row_number() OVER (ORDER BY pm.role = 'owner' DESC, pm.joined_at, u.id) AS n
+		        FROM project_members pm JOIN users u ON u.id = pm.user_id
+		       WHERE pm.project_id = p.id
+		       ORDER BY n LIMIT ` + membersPreviewSize + `) x)`
+	membersPreviewSize = "5"
+	projectFrom        = `FROM projects p JOIN project_members m ON m.project_id = p.id`
 )
 
 type scanner interface{ Scan(dest ...any) error }
@@ -32,7 +42,7 @@ type scanner interface{ Scan(dest ...any) error }
 func scanProject(row scanner) (model.Project, error) {
 	var p model.Project
 	err := row.Scan(&p.ID, &p.Name, &p.Description, &p.OwnerID, &p.MyRole, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt,
-		&p.TaskCount, &p.DoneCount)
+		&p.TaskCount, &p.DoneCount, &p.MemberCount, &p.Members)
 	return p, err
 }
 
@@ -45,8 +55,9 @@ func (r *ProjectRepo) CreateProject(ctx context.Context, ownerID, name, descript
 			INSERT INTO project_members (project_id, user_id, role) SELECT id, owner_id, 'owner' FROM p
 		)
 		SELECT p.id::text, p.name, p.description, p.owner_id::text, 'owner'::text, p.created_at, p.updated_at, p.deleted_at,
-		       0, 0
-		FROM p`, name, description, ownerID))
+		       0, 0, 1,
+		       json_build_array(json_build_object('userId', u.id::text, 'displayName', u.display_name, 'email', u.email))
+		FROM p JOIN users u ON u.id = p.owner_id`, name, description, ownerID))
 	return p, mapNotFound(err)
 }
 
@@ -71,16 +82,28 @@ var projectOrders = map[string]string{
 	model.ProjectSortOldest:       `p.created_at, p.id`,
 	model.ProjectSortProgressHigh: projectProgress + ` DESC NULLS LAST, p.created_at DESC, p.id`,
 	model.ProjectSortProgressLow:  projectProgress + ` ASC NULLS LAST, p.created_at DESC, p.id`,
+	// GREATEST skips NULL, so a project with no tasks counts its own last change.
+	model.ProjectSortUpdated: `GREATEST(p.updated_at, (SELECT max(t.updated_at) FROM tasks t WHERE t.project_id = p.id)) DESC, p.id`,
+	model.ProjectSortName:    `lower(p.name), p.name, p.id`,
 }
 
+// onlyWithTasksOf keeps the projects where a person ($2) has a task that is not in the trash.
+const onlyWithTasksOf = ` AND EXISTS (SELECT 1 FROM task_assignees ta JOIN tasks t ON t.id = ta.task_id
+	WHERE ta.project_id = p.id AND ta.user_id = $2::uuid AND t.deleted_at IS NULL)`
+
 // ListActive returns one page of the user's non-deleted projects in the given order, and the total count.
-// An order it does not know counts as the newest first.
-func (r *ProjectRepo) ListActive(ctx context.Context, userID, sort string, limit, offset int) ([]model.Project, int, error) {
+// An order it does not know counts as the newest first. With a person, only the projects where that person
+// has a task are listed.
+func (r *ProjectRepo) ListActive(ctx context.Context, userID, sort, person string, limit, offset int) ([]model.Project, int, error) {
 	order, ok := projectOrders[sort]
 	if !ok {
 		order = projectOrders[model.ProjectSortNewest]
 	}
-	return r.list(ctx, `WHERE m.user_id = $1::uuid AND p.deleted_at IS NULL`, []any{userID}, order, limit, offset)
+	where, args := `WHERE m.user_id = $1::uuid AND p.deleted_at IS NULL`, []any{userID}
+	if person != "" {
+		where, args = where+onlyWithTasksOf, append(args, person)
+	}
+	return r.list(ctx, where, args, order, limit, offset)
 }
 
 // ListTrashed returns projects the user OWNS that were deleted after cutoff (still restorable).

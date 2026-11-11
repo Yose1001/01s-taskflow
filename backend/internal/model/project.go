@@ -27,6 +27,8 @@ type Project struct {
 	PurgeAt     *time.Time // when it will be deleted for good (DeletedAt + retention)
 	TaskCount   int        // tasks not in the trash
 	DoneCount   int        // of those, how many are in the "done" column
+	MemberCount int        // everyone in the project
+	Members     []Person   // the first few of them: the owner, then by when they joined
 }
 
 // ProjectPatch updates a project; nil fields are left unchanged.
@@ -50,4 +52,6 @@ const (
 	ProjectSortOldest       = "oldest"
 	ProjectSortProgressHigh = "progress_high"
 	ProjectSortProgressLow  = "progress_low"
+	ProjectSortUpdated      = "updated" // the latest change to the project or any of its tasks first
+	ProjectSortName         = "name"
 )

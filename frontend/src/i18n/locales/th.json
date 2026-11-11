@@ -149,7 +149,19 @@
     "sort_newest": "สร้างล่าสุดก่อน",
     "sort_oldest": "สร้างเก่าสุดก่อน",
     "sort_progress_high": "คืบหน้ามากสุดก่อน",
-    "sort_progress_low": "คืบหน้าน้อยสุดก่อน"
+    "sort_progress_low": "คืบหน้าน้อยสุดก่อน",
+    "sort_updated": "อัปเดตล่าสุดก่อน",
+    "sort_name": "ชื่อ ก–ฮ",
+    "filterHeading": "แสดงโปรเจกต์",
+    "filterAll": "ทุกโปรเจกต์",
+    "filterMine": "ที่ฉันมีงาน",
+    "filterOf": "ที่ {{name}} มีงาน",
+    "filterLabel": "แสดง: {{choice}}",
+    "filterEmpty": "ไม่มีโปรเจกต์ที่ตรงกับตัวเลือกนี้",
+    "filterClear": "แสดงทุกโปรเจกต์",
+    "membersWord": "สมาชิก",
+    "membersTitle": "สมาชิก: {{names}}",
+    "moreMembers": "+{{count}} คน"
   },
   "members": {
     "title": "สมาชิก",

@@ -36,6 +36,10 @@ export interface Project {
   taskCount: number
   /** Of those, how many are done. */
   doneCount: number
+  /** Everyone in the project. */
+  memberCount: number
+  /** The first few of them (up to 5): the owner, then by when they joined. */
+  members: Person[]
 }
 
 export interface Page<T> {

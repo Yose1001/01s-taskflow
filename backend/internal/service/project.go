@@ -30,7 +30,7 @@ var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[
 type ProjectStore interface {
 	CreateProject(ctx context.Context, ownerID, name, description string) (model.Project, error)
 	GetProject(ctx context.Context, projectID, userID string) (model.Project, error)
-	ListActive(ctx context.Context, userID, sort string, limit, offset int) ([]model.Project, int, error)
+	ListActive(ctx context.Context, userID, sort, person string, limit, offset int) ([]model.Project, int, error)
 	ListTrashed(ctx context.Context, userID string, cutoff time.Time, limit, offset int) ([]model.Project, int, error)
 	UpdateProject(ctx context.Context, projectID string, patch model.ProjectPatch, at time.Time) error
 	SoftDeleteProject(ctx context.Context, projectID, deletedBy string, at time.Time) error
@@ -91,12 +91,21 @@ func (s *Projects) Create(ctx context.Context, userID, name, description string)
 // projectSorts are the orders the project list can be asked for. The trash has one order only and ignores this.
 var projectSorts = []string{
 	model.ProjectSortNewest, model.ProjectSortOldest, model.ProjectSortProgressHigh, model.ProjectSortProgressLow,
+	model.ProjectSortUpdated, model.ProjectSortName,
 }
 
 // List returns the user's active projects, or (trashed=true) the projects they own that can still be restored.
-func (s *Projects) List(ctx context.Context, userID string, trashed bool, sort string, page, pageSize int) (Page, error) {
+// person (a user id, optional) keeps only the active projects where that person has a task.
+func (s *Projects) List(ctx context.Context, userID string, trashed bool, sort, person string, page, pageSize int) (Page, error) {
+	fields := map[string]string{}
 	if sort != "" && !contains(projectSorts, sort) {
-		return Page{}, &ValidationError{Fields: map[string]string{"sort": "invalid_sort"}}
+		fields["sort"] = "invalid_sort"
+	}
+	if person != "" && !uuidRe.MatchString(person) {
+		fields["person"] = "invalid_id"
+	}
+	if len(fields) > 0 {
+		return Page{}, &ValidationError{Fields: fields}
 	}
 	limit, offset := paging(page, pageSize)
 	var (
@@ -107,7 +116,7 @@ func (s *Projects) List(ctx context.Context, userID string, trashed bool, sort s
 	if trashed {
 		items, total, err = s.store.ListTrashed(ctx, userID, s.cutoff(), limit, offset)
 	} else {
-		items, total, err = s.store.ListActive(ctx, userID, sort, limit, offset)
+		items, total, err = s.store.ListActive(ctx, userID, sort, person, limit, offset)
 	}
 	if err != nil {
 		return Page{}, err

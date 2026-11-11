@@ -9,6 +9,7 @@ import { BackLink } from '../components/BackLink'
 import { Button } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { Menu, type MenuItem } from '../components/Menu'
+import { PeopleRow } from '../components/PeopleRow'
 import { ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
 import { CalendarTaskDialog } from '../features/calendar/CalendarTaskDialog'
@@ -498,34 +499,6 @@ function TasksMenu({
       triggerClassName="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 text-sm font-medium text-text hover:bg-primary-bg"
       items={items}
     />
-  )
-}
-
-/** Names, then small pictures of the first three, on one line of a card. */
-function PeopleRow({
-  people,
-  word,
-  describe,
-}: {
-  people: Named[]
-  word: string
-  describe: (names: string) => string
-}) {
-  const names = people.map((p) => p.name).join(', ')
-  return (
-    <span className="mt-2 flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted">
-      <span className="min-w-0 truncate" title={describe(names)}>
-        <span className="sr-only">{word} </span>
-        {names}
-      </span>
-      <span className="flex shrink-0 -space-x-1.5" aria-hidden="true">
-        {people.slice(0, 3).map((p) => (
-          <span key={p.id} className="rounded-full ring-2 ring-surface">
-            <Avatar id={p.id} name={p.name} size={22} />
-          </span>
-        ))}
-      </span>
-    </span>
   )
 }
 
