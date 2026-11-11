@@ -45,6 +45,11 @@ test.describe('the calendar', () => {
     await expect(bobDay.getByText('Shared by Alice')).toBeVisible()
     await expect(bobDay.getByTitle('People: Alice, Bob')).toBeVisible()
     await expect(bobDay.getByRole('button', { name: 'Edit Client demo' })).toHaveCount(0)
+    await bobDay.getByRole('listitem').filter({ hasText: 'Client demo' }).click() // anywhere on the card
+    const look = bobPage.getByRole('dialog', { name: 'Important day' })
+    await expect(look.getByLabel('Name')).toHaveValue('Client demo')
+    await expect(look.getByLabel('Name')).toBeDisabled()
+    await look.getByRole('button', { name: 'Close' }).click()
     await other.close()
 
     // Alice renames it, then deletes it.

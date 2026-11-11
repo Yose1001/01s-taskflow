@@ -371,7 +371,6 @@
     "belongsLabel": "เป็นของ",
     "noteLabel": "โน้ต (ไม่บังคับ)",
     "remindLabel": "แจ้งเตือน",
-    "remindHint": "เตือนเวลา 8:00 น. ที่กระดิ่งด้านบน เลือกได้มากกว่า 1 อัน",
     "remind_0": "วันนั้น",
     "remind_1": "1 วันก่อน",
     "remind_3": "3 วันก่อน",
@@ -401,7 +400,10 @@
     "peopleWord": "ผู้เกี่ยวข้อง",
     "peopleTitle": "ผู้เกี่ยวข้อง: {{names}}",
     "hideTasks": "ซ่อนงาน",
-    "tasksHidden": "ไม่แสดงงาน"
+    "tasksHidden": "ไม่แสดงงาน",
+    "viewTitle": "วันสำคัญ",
+    "viewEvent": "เปิด {{title}}",
+    "viewOnlyNote": "ดูวันนี้ได้ แต่เจ้าของวันเท่านั้นที่แก้ไขได้"
   },
   "notifications": {
     "label": "การแจ้งเตือน",

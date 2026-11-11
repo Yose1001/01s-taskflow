@@ -371,7 +371,6 @@
     "belongsLabel": "Belongs to",
     "noteLabel": "Note (optional)",
     "remindLabel": "Remind me",
-    "remindHint": "At 8:00 (Thai time), by the bell at the top. Choose any.",
     "remind_0": "On the day",
     "remind_1": "1 day before",
     "remind_3": "3 days before",
@@ -401,7 +400,10 @@
     "peopleWord": "People",
     "peopleTitle": "People: {{names}}",
     "hideTasks": "Hide tasks",
-    "tasksHidden": "Tasks hidden"
+    "tasksHidden": "Tasks hidden",
+    "viewTitle": "Important day",
+    "viewEvent": "Open {{title}}",
+    "viewOnlyNote": "You can look at this day, but only its owner can change it."
   },
   "notifications": {
     "label": "Notifications",

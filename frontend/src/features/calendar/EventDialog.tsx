@@ -33,7 +33,7 @@ const FIELD_IDS: Record<FieldName, string> = {
   note: 'event-note',
   remindDays: 'event-remind-0',
 }
-const FIELD_ORDER: FieldName[] = ['title', 'day', 'projectId', 'sharedWith', 'note', 'remindDays']
+const FIELD_ORDER: FieldName[] = ['title', 'note', 'day', 'projectId', 'sharedWith', 'remindDays']
 
 const sameDays = (a: RemindDay[], b: RemindDay[]) =>
   a.length === b.length && a.every((d) => b.includes(d))
@@ -115,6 +115,8 @@ export function EventDialog({
   const { t } = useTranslation()
   const toast = useToast()
   const editing = event !== undefined
+  // A day the person may not change (shared with them, or a project's day someone else added) opens to look at.
+  const viewOnly = event !== undefined && !event.canEdit
   const [title, setTitle] = useState(event?.title ?? '')
   const [note, setNote] = useState(event?.note ?? '')
   const [day, setDay] = useState(event?.day ?? initialDay)
@@ -150,6 +152,7 @@ export function EventDialog({
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
+    if (viewOnly) return
     const trimmed = title.trim()
     const next: Errors = {}
     const length = Array.from(trimmed).length
@@ -212,101 +215,114 @@ export function EventDialog({
   return (
     <>
       <Modal
-        title={editing ? t('calendar.editTitle') : t('calendar.addTitle')}
+        title={
+          viewOnly
+            ? t('calendar.viewTitle')
+            : editing
+              ? t('calendar.editTitle')
+              : t('calendar.addTitle')
+        }
         onClose={pending ? () => {} : onClose}
       >
         <form onSubmit={onSubmit} noValidate className="space-y-4">
           {showBanner && <Alert>{errorMessage(t, serverError)}</Alert>}
-          <TextField
-            id={FIELD_IDS.title}
-            label={t('calendar.titleLabel')}
-            placeholder={t('calendar.titlePlaceholder')}
-            value={title}
-            maxLength={MAX_TITLE}
-            autoComplete="off"
-            onChange={(e) => setTitle(e.target.value)}
-            error={fieldMessage('title')}
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <DatePicker
-              id={FIELD_IDS.day}
-              label={t('calendar.dayLabel')}
-              value={day}
-              onChange={setDay}
-              error={fieldMessage('day')}
-            />
-            {editing ? (
-              // Where a day belongs is chosen once, when it is added.
-              <div>
-                <p className="mb-1 text-sm font-medium">{t('calendar.belongsLabel')}</p>
-                <p className="py-2 text-muted">{belongsText(t, event)}</p>
-              </div>
-            ) : (
-              <SelectField
-                id={FIELD_IDS.projectId}
-                label={t('calendar.belongsLabel')}
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                error={fieldMessage('projectId')}
-              >
-                <option value="">{t('calendar.personal')}</option>
-                <option value={PEOPLE}>{t('calendar.belongsPeople')}</option>
-              </SelectField>
-            )}
-          </div>
-          {choosingPeople && (
-            <PeoplePicker
-              people={people.data?.items ?? []}
-              selected={sharedWith}
-              onChange={setSharedWith}
-              error={fieldMessage('sharedWith')}
-            />
+          {viewOnly && (
+            <p className="rounded-xl bg-surface-2 p-3 text-sm text-muted">
+              {t('calendar.viewOnlyNote')}
+            </p>
           )}
-          <TextAreaField
-            id={FIELD_IDS.note}
-            label={t('calendar.noteLabel')}
-            value={note}
-            rows={2}
-            maxRows={6}
-            onChange={(e) => setNote(e.target.value)}
-            error={fieldMessage('note')}
-          />
-          <fieldset className="min-w-0">
-            <legend className="mb-1 text-sm font-medium">{t('calendar.remindLabel')}</legend>
-            <p className="mb-2 text-sm text-muted">{t('calendar.remindHint')}</p>
-            <div className="flex flex-wrap gap-2">
-              {REMIND_DAYS.map((value) => {
-                const checked = remindDays.includes(value)
-                return (
-                  <label
-                    key={value}
-                    className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${
-                      checked
-                        ? 'border-primary bg-primary-bg text-primary-fg'
-                        : 'border-border text-text hover:bg-primary-bg'
-                    }`}
-                  >
-                    <input
-                      id={`event-remind-${value}`}
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleDay(value)}
-                      className="h-4 w-4 accent-primary"
-                    />
-                    {t(`calendar.remind_${value}`)}
-                  </label>
-                )
-              })}
+          {/* Disabled as a whole when it is not theirs to change: everything shows, nothing changes. */}
+          <fieldset disabled={viewOnly} className="min-w-0 space-y-4">
+            <TextField
+              id={FIELD_IDS.title}
+              label={t('calendar.titleLabel')}
+              placeholder={t('calendar.titlePlaceholder')}
+              value={title}
+              maxLength={MAX_TITLE}
+              autoComplete="off"
+              onChange={(e) => setTitle(e.target.value)}
+              error={fieldMessage('title')}
+            />
+            <TextAreaField
+              id={FIELD_IDS.note}
+              label={t('calendar.noteLabel')}
+              value={note}
+              rows={2}
+              maxRows={6}
+              onChange={(e) => setNote(e.target.value)}
+              error={fieldMessage('note')}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <DatePicker
+                id={FIELD_IDS.day}
+                label={t('calendar.dayLabel')}
+                value={day}
+                onChange={setDay}
+                error={fieldMessage('day')}
+              />
+              {editing ? (
+                // Where a day belongs is chosen once, when it is added.
+                <div>
+                  <p className="mb-1 text-sm font-medium">{t('calendar.belongsLabel')}</p>
+                  <p className="py-2 text-muted">{belongsText(t, event)}</p>
+                </div>
+              ) : (
+                <SelectField
+                  id={FIELD_IDS.projectId}
+                  label={t('calendar.belongsLabel')}
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  error={fieldMessage('projectId')}
+                >
+                  <option value="">{t('calendar.personal')}</option>
+                  <option value={PEOPLE}>{t('calendar.belongsPeople')}</option>
+                </SelectField>
+              )}
             </div>
-            {fieldMessage('remindDays') && (
-              <p className="mt-1 text-sm font-medium text-danger-fg">
-                {fieldMessage('remindDays')}
-              </p>
+            {choosingPeople && (
+              <PeoplePicker
+                people={people.data?.items ?? []}
+                selected={sharedWith}
+                onChange={setSharedWith}
+                error={fieldMessage('sharedWith')}
+              />
             )}
+            <fieldset className="min-w-0">
+              <legend className="mb-2 text-sm font-medium">{t('calendar.remindLabel')}</legend>
+              <div className="flex flex-wrap gap-2">
+                {REMIND_DAYS.map((value) => {
+                  const checked = remindDays.includes(value)
+                  return (
+                    <label
+                      key={value}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${
+                        checked
+                          ? 'border-primary bg-primary-bg text-primary-fg'
+                          : 'border-border text-text hover:bg-primary-bg'
+                      }`}
+                    >
+                      <input
+                        id={`event-remind-${value}`}
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleDay(value)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      {t(`calendar.remind_${value}`)}
+                    </label>
+                  )
+                })}
+              </div>
+              {fieldMessage('remindDays') && (
+                <p className="mt-1 text-sm font-medium text-danger-fg">
+                  {fieldMessage('remindDays')}
+                </p>
+              )}
+            </fieldset>
           </fieldset>
           <div className="sticky -bottom-6 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-6 py-4">
             <div>
-              {editing && (
+              {editing && !viewOnly && (
                 <Button
                   type="button"
                   variant="danger-outline"
@@ -317,14 +333,24 @@ export function EventDialog({
                 </Button>
               )}
             </div>
-            <div className="flex flex-wrap justify-end gap-3">
-              <Button type="button" variant="soft" onClick={onClose} disabled={pending}>
-                {t('common.cancel')}
+            {viewOnly ? (
+              <Button type="button" variant="soft" onClick={onClose}>
+                {t('common.close')}
               </Button>
-              <Button type="submit" disabled={pending} aria-busy={pending}>
-                {pending ? t('calendar.saving') : editing ? t('calendar.save') : t('calendar.add')}
-              </Button>
-            </div>
+            ) : (
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button type="button" variant="soft" onClick={onClose} disabled={pending}>
+                  {t('common.cancel')}
+                </Button>
+                <Button type="submit" disabled={pending} aria-busy={pending}>
+                  {pending
+                    ? t('calendar.saving')
+                    : editing
+                      ? t('calendar.save')
+                      : t('calendar.add')}
+                </Button>
+              </div>
+            )}
           </div>
         </form>
       </Modal>

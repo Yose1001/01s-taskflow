@@ -267,7 +267,7 @@ export function CalendarPage() {
             title={text.fullDay(selected)}
             items={chosen}
             nameOf={nameOf}
-            onEdit={(event) => setDialog({ event, day: event.day })}
+            onOpen={(event) => setDialog({ event, day: event.day })}
             onOpenTask={setOpenTask}
           />
         </div>
@@ -523,13 +523,13 @@ function DayPanel({
   title,
   items,
   nameOf,
-  onEdit,
+  onOpen,
   onOpenTask,
 }: {
   title: string
   items: DayItems
   nameOf: Map<string, string>
-  onEdit: (event: CalendarEvent) => void
+  onOpen: (event: CalendarEvent) => void
   onOpenTask: (task: CalendarTask) => void
 }) {
   const { t } = useTranslation()
@@ -555,14 +555,26 @@ function DayPanel({
           {items.events.map((event) => (
             <li
               key={event.id}
-              className="rounded-xl border border-border bg-surface p-3 shadow-card"
+              className="relative rounded-xl border border-border bg-surface p-3 shadow-card transition-colors hover:border-primary"
             >
               <div className="flex items-start gap-2">
                 <span className="mt-0.5 shrink-0 text-primary">
                   <Icon name="bookmark" size={18} />
                 </span>
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="break-words font-semibold">{event.title}</p>
+                  <p className="break-words font-semibold">
+                    {/* The whole card opens the day: to change it when it is the person's to change, else to look. */}
+                    <button
+                      type="button"
+                      onClick={() => onOpen(event)}
+                      aria-label={t(event.canEdit ? 'calendar.editEvent' : 'calendar.viewEvent', {
+                        title: event.title,
+                      })}
+                      className="text-left after:absolute after:inset-0 after:rounded-xl after:content-['']"
+                    >
+                      {event.title}
+                    </button>
+                  </p>
                   <p className="text-sm text-muted">{belongsText(t, event)}</p>
                   {event.remindDays.length > 0 && (
                     <p className="flex items-center gap-1 text-sm text-muted">
@@ -576,14 +588,13 @@ function DayPanel({
                   <EventPeople people={eventPeople(event, me, nameOf)} />
                 </div>
                 {event.canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => onEdit(event)}
-                    aria-label={t('calendar.editEvent', { title: event.title })}
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-primary-bg hover:text-text"
+                  // A sign that this one can be changed; the card itself is the button.
+                  <span
+                    aria-hidden="true"
+                    className="grid h-9 w-9 shrink-0 place-items-center text-muted"
                   >
                     <Icon name="pencil" size={16} />
-                  </button>
+                  </span>
                 )}
               </div>
             </li>
