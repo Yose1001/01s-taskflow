@@ -46,8 +46,9 @@ test("the project list shows each project's people and can keep one person's pro
   await expect(page.getByTitle('Members: Alice, Bob')).toBeVisible()
 
   await page.getByRole('button', { name: 'Show: All projects' }).click()
-  await page.getByRole('menuitemradio', { name: `Show projects: Where Bob has tasks · ${bob.person.email}` }).click()
+  await page.getByRole('menuitemcheckbox', { name: `Show projects: Where Bob has tasks · ${bob.person.email}` }).click()
   await expect.poll(names).toEqual(['Shared'])
+  await page.keyboard.press('Escape') // several people can be ticked, so the menu stays open until then
   await expect(page).toHaveURL(new RegExp(`person=${bobId}`))
 
   await page.getByRole('button', { name: /^Sort projects/ }).click()

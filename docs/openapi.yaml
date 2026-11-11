@@ -175,8 +175,10 @@ paths:
             default: newest
         - name: person
           in: query
-          description: เฉพาะโปรเจกต์ที่คนนี้มีงาน (ที่ไม่อยู่ในถังขยะ) ถังขยะไม่ใช้ค่านี้ ผิดรูปแบบคืน 422 `fields.person` = `invalid_id`
-          schema: { type: string, format: uuid }
+          description: >-
+            เฉพาะโปรเจกต์ที่คนใดคนหนึ่งในนี้มีงาน (ที่ไม่อยู่ในถังขยะ) ใส่ได้หลายคนคั่นด้วยจุลภาค เช่น `id1,id2` ไม่เกิน 50 คน
+            ถังขยะไม่ใช้ค่านี้ ผิดรูปแบบคืน 422 `fields.person` = `invalid_id` เกินคืน `too_many_people`
+          schema: { type: string, example: "id1,id2" }
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:

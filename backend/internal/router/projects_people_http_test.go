@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +20,15 @@ func (e *env) listed(u user, query string) map[string]map[string]any {
 		out[p["name"].(string)] = p
 	}
 	return out
+}
+
+// manyIDs is n different user ids joined by commas.
+func manyIDs(n int) string {
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("00000000-0000-0000-0000-%012d", i)
+	}
+	return strings.Join(ids, ",")
 }
 
 func memberNames(p map[string]any) []string {
@@ -86,15 +96,24 @@ func TestTheProjectListCanKeepOnlyOnePersonsProjects(t *testing.T) {
 		{"?person=" + bob.id, []string{"Bob works here"}}, // only Alice's own projects, never Carol's
 		{"?person=" + alice.id, []string{"Mine"}},
 		{"?person=" + carol.id, []string{}},
+		// Several people: the projects where any of them has a task.
+		{"?sort=name&person=" + bob.id + "," + alice.id, []string{"Bob works here", "Mine"}},
+		{"?person=" + alice.id + ",," + alice.id, []string{"Mine"}},
 	}
 	for _, c := range cases {
 		if got := e.projectNames(alice, c.query); !eq(got, c.want) {
 			t.Errorf("%q = %v, want %v", c.query, got, c.want)
 		}
 	}
-	r := do(t, e.h, "GET", "/api/v1/projects?person=bob", alice.token, "")
-	if r.code != 422 || r.body["fields"].(map[string]any)["person"] != "invalid_id" {
-		t.Errorf("person=bob = %d %s", r.code, r.raw)
+	for query, code := range map[string]string{
+		"?person=bob":                  "invalid_id",
+		"?person=" + alice.id + ",bob": "invalid_id",
+		"?person=" + manyIDs(51):       "too_many_people",
+	} {
+		r := do(t, e.h, "GET", "/api/v1/projects"+query, alice.token, "")
+		if r.code != 422 || r.body["fields"].(map[string]any)["person"] != code {
+			t.Errorf("%s = %d %s", query[:min(len(query), 40)], r.code, r.raw)
+		}
 	}
 	if got := do(t, e.h, "GET", "/api/v1/projects?person="+bob.id, alice.token, "").body["total"]; got != float64(1) {
 		t.Errorf("total = %v, want 1", got)

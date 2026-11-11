@@ -338,13 +338,14 @@ export function fakeBackend(options: Options = {}) {
         !['newest', 'oldest', 'updated', 'name', 'progress_high', 'progress_low'].includes(sort)
       )
         return err(422, 'validation_failed', { sort: 'invalid_sort' })
-      const person = req.query.get('person')
+      // Like the real API: several people joined by commas, any of them with a task.
+      const people = (req.query.get('person') ?? '').split(',').filter(Boolean)
       const all = projects.filter((p) => {
         const r = roleOf(p)
         if (!r) return false
         const hasTask = (id: string) =>
           tasks.some((t) => t.projectId === p.id && !t.deletedAt && t.assigneeIds.includes(id))
-        if (person && !trashed && !hasTask(person)) return false
+        if (people.length > 0 && !trashed && !people.some(hasTask)) return false
         return trashed ? r === 'owner' && p.deletedAt !== null : p.deletedAt === null
       })
       // Like the real API: a project with no tasks goes last when sorting by progress.

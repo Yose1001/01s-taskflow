@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/context'
@@ -168,27 +168,53 @@ const PROJECT_SORT_ICON: Record<ProjectSort, IconName> = {
 }
 
 /**
- * Which projects show: all of them, those where I have a task, or those where one other person has a task.
- * onChoose gets '' for all of them, or a user id.
+ * Which projects show: all of them, or those where any of the ticked people (me among them) has a task,
+ * like the person filter on the board. The menu stays open while people are ticked.
  */
 function ProjectsFilterMenu({
-  person,
-  onChoose,
+  chosen,
+  onChange,
 }: {
-  person: string
-  onChoose: (person: string) => void
+  chosen: string[]
+  onChange: (next: string[]) => void
 }) {
   const { t } = useTranslation()
   const { user } = useAuth()
   const people = usePeople().data?.items ?? []
+  // The ticks live in the address, which the page reads a moment later. A second tick in that moment
+  // must build on the first, not on what the page still shows, or the first would be lost.
+  const latest = useRef<string[] | null>(null)
+  const shown = chosen.join(',')
+  useEffect(() => {
+    latest.current = null // the page has caught up
+  }, [shown])
   if (!user) return null
   const heading = t('projects.filterHeading')
-  const chosen = people.find((p) => p.userId === person)
-  const choice = !person
-    ? t('projects.filterAll')
-    : person === user.id
-      ? t('projects.filterMine')
-      : t('projects.filterOf', { name: chosen ? personName(chosen) : '…' })
+  const choose = (next: string[]) => {
+    latest.current = next
+    onChange(next)
+  }
+  const toggle = (id: string) => {
+    const now = latest.current ?? chosen
+    choose(now.includes(id) ? now.filter((x) => x !== id) : [...now, id])
+  }
+  const words = (id: string) => {
+    if (id === user.id) return t('projects.filterMine')
+    const person = people.find((p) => p.userId === id)
+    return t('projects.filterOf', { name: person ? personName(person) : '…' })
+  }
+  // In the menu's order: "Where I have tasks", then "Where Bob has tasks +1" for more.
+  const order = [user.id, ...people.map((p) => p.userId)]
+  const ticked = [...chosen].sort(
+    (a, b) =>
+      (order.indexOf(a) + 1 || order.length + 1) - (order.indexOf(b) + 1 || order.length + 1),
+  )
+  const choice =
+    ticked.length === 0
+      ? t('projects.filterAll')
+      : ticked.length === 1
+        ? words(ticked[0]!)
+        : `${words(ticked[0]!)} +${ticked.length - 1}`
   const label = t('projects.filterLabel', { choice })
   const items: MenuItem[] = [
     {
@@ -197,16 +223,16 @@ function ProjectsFilterMenu({
       icon: 'grid',
       label: t('projects.filterAll'),
       ariaLabel: `${heading}: ${t('projects.filterAll')}`,
-      checked: !person,
-      onSelect: () => onChoose(''),
+      checked: chosen.length === 0,
+      onSelect: () => choose([]),
     },
     {
       key: user.id,
       leading: <Avatar id={user.id} name={personName(user)} size={20} />,
       label: t('projects.filterMine'),
       ariaLabel: `${heading}: ${t('projects.filterMine')}`,
-      checked: person === user.id,
-      onSelect: () => onChoose(user.id),
+      checked: chosen.includes(user.id),
+      onSelect: () => toggle(user.id),
     },
     ...people.map((p) => ({
       key: p.userId,
@@ -214,12 +240,13 @@ function ProjectsFilterMenu({
       label: personName(p),
       // Two people may share a name: the email tells them apart for a screen reader.
       ariaLabel: `${heading}: ${t('projects.filterOf', { name: personName(p) })} · ${p.email}`,
-      checked: person === p.userId,
-      onSelect: () => onChoose(p.userId),
+      checked: chosen.includes(p.userId),
+      onSelect: () => toggle(p.userId),
     })),
   ]
   return (
     <Menu
+      multiple
       floating // on a phone the button sits near the left edge, and the menu must stay on screen
       label={label}
       trigger={
@@ -234,7 +261,7 @@ function ProjectsFilterMenu({
   )
 }
 
-/** Nothing matches the chosen person: say so, and offer every project again. */
+/** Nothing matches the chosen people: say so, and offer every project again. */
 function FilterEmpty({ onClear }: { onClear: () => void }) {
   const { t } = useTranslation()
   return (
@@ -249,6 +276,8 @@ function FilterEmpty({ onClear }: { onClear: () => void }) {
 
 // A user id, as the address may carry one: anything else is ignored.
 const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// As many people as the API takes at once.
+const MAX_PEOPLE = 50
 
 /** Chooses the order of the list. On phones the button shows only its icon. */
 function SortMenu({
@@ -372,9 +401,12 @@ export function ProjectsPage() {
   const [params, setParams] = useSearchParams()
   const page = parsePage(params.get('page'))
   const [sort, setSort] = useState(loadProjectSort)
-  // Whose projects: everyone's (empty), or one person's, from the address (?person=<user id>).
-  const asked = params.get('person') ?? ''
-  const person = USER_ID.test(asked) ? asked : ''
+  // Whose projects: everyone's (empty), or those of the people in the address (?person=<id>,<id>).
+  // Anything that is not a user id is left out, and so is a second copy of one.
+  const chosen = [
+    ...new Set((params.get('person') ?? '').split(',').filter((id) => USER_ID.test(id))),
+  ].slice(0, MAX_PEOPLE)
+  const person = chosen.join(',')
   // The newest first is the server's own order, so the address stays plain unless the person chose another.
   const projects = useProjects(
     page,
@@ -412,8 +444,8 @@ export function ProjectsPage() {
         <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
           {listed && (
             <ProjectsFilterMenu
-              person={person}
-              onChoose={(next) => setParams(next ? { person: next } : {})}
+              chosen={chosen}
+              onChange={(next) => setParams(next.length > 0 ? { person: next.join(',') } : {})}
             />
           )}
           {listed && (

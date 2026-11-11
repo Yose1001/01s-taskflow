@@ -87,21 +87,21 @@ var projectOrders = map[string]string{
 	model.ProjectSortName:    `lower(p.name), p.name, p.id`,
 }
 
-// onlyWithTasksOf keeps the projects where a person ($2) has a task that is not in the trash.
+// onlyWithTasksOf keeps the projects where any of some people ($2) has a task that is not in the trash.
 const onlyWithTasksOf = ` AND EXISTS (SELECT 1 FROM task_assignees ta JOIN tasks t ON t.id = ta.task_id
-	WHERE ta.project_id = p.id AND ta.user_id = $2::uuid AND t.deleted_at IS NULL)`
+	WHERE ta.project_id = p.id AND ta.user_id = ANY($2::uuid[]) AND t.deleted_at IS NULL)`
 
 // ListActive returns one page of the user's non-deleted projects in the given order, and the total count.
-// An order it does not know counts as the newest first. With a person, only the projects where that person
+// An order it does not know counts as the newest first. With people, only the projects where any of them
 // has a task are listed.
-func (r *ProjectRepo) ListActive(ctx context.Context, userID, sort, person string, limit, offset int) ([]model.Project, int, error) {
+func (r *ProjectRepo) ListActive(ctx context.Context, userID, sort string, people []string, limit, offset int) ([]model.Project, int, error) {
 	order, ok := projectOrders[sort]
 	if !ok {
 		order = projectOrders[model.ProjectSortNewest]
 	}
 	where, args := `WHERE m.user_id = $1::uuid AND p.deleted_at IS NULL`, []any{userID}
-	if person != "" {
-		where, args = where+onlyWithTasksOf, append(args, person)
+	if len(people) > 0 {
+		where, args = where+onlyWithTasksOf, append(args, people)
 	}
 	return r.list(ctx, where, args, order, limit, offset)
 }
