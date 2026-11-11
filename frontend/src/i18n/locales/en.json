@@ -290,16 +290,7 @@
     "holdConfirm": "Put on hold",
     "holdWord": "On hold because",
     "trashedNote": "This task is in the trash. Restore it to change it.",
-    "viewDescription": "Description",
-    "viewNoDescription": "No description",
-    "viewDates": "Dates",
-    "viewNoDates": "No dates",
-    "viewStarts": "Starts {{day}}",
-    "viewEnds": "Ends {{day}}",
-    "viewHold": "On hold because",
-    "viewSubtasks": "Subtasks",
-    "viewSubtaskDone": "Done",
-    "viewSubtaskOpen": "Not done"
+    "trashedTitle": "Task in the trash"
   },
   "status": {
     "todo": "To do",

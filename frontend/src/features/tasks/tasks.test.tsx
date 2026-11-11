@@ -910,18 +910,30 @@ describe('task trash page', () => {
     })
     await openSignedIn(user, '/projects/p1/trash')
     await user.click(await screen.findByRole('button', { name: 'Plan launch' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Plan launch' })
+    // The same form as on the board, with everything as it was, and nothing can change.
+    const dialog = await screen.findByRole('dialog', { name: 'Task in the trash' })
     expect(
       within(dialog).getByText('This task is in the trash. Restore it to change it.'),
     ).toBeInTheDocument()
-    expect(within(dialog).getByText('Book the hall')).toBeInTheDocument()
-    expect(within(dialog).getByText('High')).toBeInTheDocument()
-    expect(within(dialog).getByText('10 Mar 2099 – 12 Mar 2099')).toBeInTheDocument()
-    expect(await within(dialog).findByText('Bob')).toBeInTheDocument()
-    expect(within(dialog).getByText('Call venue').previousSibling).toHaveTextContent('Done:')
-    expect(within(dialog).getByText('Pay deposit').previousSibling).toHaveTextContent('Not done:')
-    // Nothing to type into: it cannot be changed from the trash.
-    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
+    const fields: [HTMLElement, string][] = [
+      [within(dialog).getByLabelText('Title'), 'Plan launch'],
+      [within(dialog).getByLabelText(/^Description/), 'Book the hall'],
+      [within(dialog).getByLabelText('Priority'), 'high'],
+      [within(dialog).getByLabelText('Column'), 'todo'],
+    ]
+    for (const [field, value] of fields) {
+      expect(field).toHaveValue(value)
+      expect(field).toBeDisabled()
+    }
+    const done = within(dialog).getByRole('checkbox', { name: /Call venue/ })
+    expect(done).toBeChecked()
+    expect(done).toBeDisabled()
+    expect(within(dialog).getByRole('checkbox', { name: /Pay deposit/ })).not.toBeChecked()
+    const bob = await within(dialog).findByRole('checkbox', { name: /Bob/ })
+    expect(bob).toBeChecked()
+    expect(bob).toBeDisabled()
+    expect(within(dialog).queryByLabelText('Add a subtask')).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Restore' }))
     expect(await screen.findByText('"Plan launch" restored.')).toBeInTheDocument()
@@ -934,10 +946,11 @@ describe('task trash page', () => {
     const api = fakeBackend({ projects: [WEBSITE()], tasks: trashed() })
     await openSignedIn(user, '/projects/p1/trash')
     await user.click(await screen.findByRole('button', { name: 'Old idea' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Old idea' })
-    expect(within(dialog).getByText('No description')).toBeInTheDocument()
-    expect(within(dialog).getByText('No dates')).toBeInTheDocument()
-    await user.click(within(dialog).getByRole('button', { name: 'Close' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Task in the trash' })
+    expect(within(dialog).getByLabelText('Title')).toHaveValue('Old idea')
+    // The locked fields are skipped: the focus starts on the first button that works, and Escape closes.
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveFocus()
+    await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Old idea' })).toHaveFocus()
     expect(api.hits('POST /tasks/d1/restore')).toHaveLength(0)

@@ -10,9 +10,9 @@ import { Icon } from '../components/Icon'
 import { EmptyState, ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
 import { useToast } from '../components/toast'
-import { useProject } from '../features/projects/hooks'
+import { useMembers, useProject } from '../features/projects/hooks'
 import { useRestoreTask, useTrashedTasks } from '../features/tasks/hooks'
-import { TrashedTaskDialog } from '../features/tasks/TrashedTaskDialog'
+import { TaskFormDialog } from '../features/tasks/TaskFormDialog'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { daysUntil, formatDate } from '../lib/format'
 
@@ -26,6 +26,8 @@ export function TaskTrashPage() {
   const restore = useRestoreTask(projectId)
   // The task open for reading, if any.
   const [viewing, setViewing] = useState<Task | null>(null)
+  // Names for the people on the open task. Asked for only once a task is open.
+  const members = useMembers(projectId, viewing !== null)
   useDocumentTitle(t('tasks.trashTitle'))
 
   function restoreTask(task: Task) {
@@ -128,11 +130,17 @@ export function TaskTrashPage() {
       )}
 
       {viewing && (
-        <TrashedTaskDialog
+        <TaskFormDialog
+          projectId={projectId}
+          members={members.data ?? []}
           task={viewing}
-          restoring={restore.isPending && restore.variables === viewing.id}
-          onRestore={() => restoreTask(viewing)}
+          subtasks={viewing.subtasks}
           onClose={() => setViewing(null)}
+          onSaved={() => setViewing(null)}
+          trashed={{
+            restoring: restore.isPending && restore.variables === viewing.id,
+            onRestore: () => restoreTask(viewing),
+          }}
         />
       )}
     </div>
