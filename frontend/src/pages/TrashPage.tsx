@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { errorMessage } from '../auth/errors'
 import { BackLink } from '../components/BackLink'
+import { PageIcon } from '../components/PageIcon'
 import { Alert, Button } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { Pagination } from '../components/Pagination'
@@ -28,7 +29,10 @@ export function TrashPage() {
         <BackLink to="/">{t('projects.back')}</BackLink>
       </p>
       <div>
-        <h1 className="text-3xl font-bold">{t('trash.title')}</h1>
+        <h1 className="flex items-center gap-3 text-3xl font-bold">
+          <PageIcon page="trash" />
+          {t('trash.title')}
+        </h1>
         <p className="mt-1 text-muted">{t('trash.intro')}</p>
       </div>
 

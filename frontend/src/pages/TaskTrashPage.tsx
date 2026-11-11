@@ -5,6 +5,7 @@ import { ApiError } from '../api/client'
 import type { Task } from '../api/types'
 import { errorMessage } from '../auth/errors'
 import { BackLink } from '../components/BackLink'
+import { PageIcon } from '../components/PageIcon'
 import { Alert, Button } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { EmptyState, ErrorState, LoadingState } from '../components/states'
@@ -67,7 +68,10 @@ export function TaskTrashPage() {
     <div className="space-y-6">
       {back}
       <div>
-        <h1 className="text-3xl font-bold">{t('tasks.trashTitle')}</h1>
+        <h1 className="flex items-center gap-3 text-3xl font-bold">
+          <PageIcon page="trash" />
+          {t('tasks.trashTitle')}
+        </h1>
         {project.data && <p className="mt-1 break-words text-muted">{project.data.name}</p>}
         <p className="mt-1 text-muted">{t('tasks.trashIntro')}</p>
       </div>

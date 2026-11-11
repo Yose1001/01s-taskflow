@@ -9,6 +9,7 @@ import { BackLink } from '../components/BackLink'
 import { Button } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { Menu, type MenuItem } from '../components/Menu'
+import { PageIcon } from '../components/PageIcon'
 import { PeopleRow } from '../components/PeopleRow'
 import { ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
@@ -145,7 +146,10 @@ export function CalendarPage() {
       {/* Back to the projects, the same way as on every other page. */}
       <BackLink to="/">{t('projects.myProjects')}</BackLink>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold sm:text-3xl">{t('calendar.pageTitle')}</h1>
+        <h1 className="flex items-center gap-3 text-2xl font-bold sm:text-3xl">
+          <PageIcon page="calendar" />
+          {t('calendar.pageTitle')}
+        </h1>
         <Button type="button" onClick={() => setDialog({ day: selected })}>
           <Icon name="plus" />
           {t('calendar.addButton')}

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import type { AppNotification } from '../../api/types'
 import { Icon } from '../../components/Icon'
 import { Menu, type MenuItem } from '../../components/Menu'
+import { PageIcon } from '../../components/PageIcon'
+import { PAGE_ICONS } from '../../components/pageIcons'
 import { formatDayShort } from '../../lib/format'
 import { today } from '../../lib/calendar'
 import { daysUntil } from './calendarLogic'
@@ -79,7 +81,9 @@ export function NotificationBell() {
       triggerClassName="relative grid h-11 w-11 place-items-center rounded-xl text-text hover:bg-primary-bg aria-expanded:bg-primary-bg sm:h-9 sm:w-9"
       trigger={
         <>
-          <Icon name="bell" size={20} />
+          <span className={PAGE_ICONS.notifications.ink}>
+            <Icon name="bell" size={20} />
+          </span>
           {unread > 0 && (
             <span
               aria-hidden="true"
@@ -91,7 +95,8 @@ export function NotificationBell() {
         </>
       }
       header={
-        <p className="font-semibold">
+        <p className="flex items-center gap-2 font-semibold">
+          <PageIcon page="notifications" size="sm" />
           {list.length === 0 ? t('notifications.empty') : t('notifications.title')}
         </p>
       }

@@ -9,6 +9,7 @@ import { ChoiceSwitch } from '../components/ChoiceSwitch'
 import { Button } from '../components/forms'
 import { Icon, type IconName } from '../components/Icon'
 import { Menu, type MenuItem } from '../components/Menu'
+import { PageIcon } from '../components/PageIcon'
 import { Pagination } from '../components/Pagination'
 import { PeopleRow } from '../components/PeopleRow'
 import { RoleBadge } from '../components/RoleBadge'
@@ -440,7 +441,10 @@ export function ProjectsPage() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">{t('projects.title')}</h2>
+        <h2 className="flex items-center gap-2 text-xl font-semibold">
+          <PageIcon page="projects" size="sm" />
+          {t('projects.title')}
+        </h2>
         <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
           {listed && (
             <ProjectsFilterMenu

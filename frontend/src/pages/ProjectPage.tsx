@@ -7,6 +7,7 @@ import { ApiError } from '../api/client'
 import { useAuth } from '../auth/context'
 import { errorMessage } from '../auth/errors'
 import { Avatar } from '../components/Avatar'
+import { PageIcon } from '../components/PageIcon'
 import { BackLink } from '../components/BackLink'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Button } from '../components/forms'
@@ -81,6 +82,7 @@ export function ProjectPage() {
         <div className="flex items-center justify-between gap-2 sm:flex-wrap sm:gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 sm:flex-wrap">
+              <PageIcon page="board" />
               <h1 className="min-w-0 truncate text-2xl font-bold sm:whitespace-normal sm:break-words sm:text-3xl">
                 {p.name}
               </h1>
