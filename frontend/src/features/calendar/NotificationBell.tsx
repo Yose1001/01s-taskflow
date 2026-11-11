@@ -29,7 +29,8 @@ export function NotificationBell() {
   // When, counted from today rather than from when the reminder was made, so it never goes stale.
   function when(n: AppNotification) {
     const days = daysUntil(n.day, now)
-    const date = formatDayShort(n.day, i18n.language)
+    const day = formatDayShort(n.day, i18n.language)
+    const date = n.atTime ? t('notifications.dayAndTime', { day, time: n.atTime }) : day
     if (days === 0) return t('notifications.today', { date })
     if (days === 1) return t('notifications.tomorrow', { date })
     if (days > 1) return t('notifications.inDays', { count: days, date })

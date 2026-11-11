@@ -576,10 +576,19 @@ function DayPanel({
                     </button>
                   </p>
                   <p className="text-sm text-muted">{belongsText(t, event)}</p>
-                  {event.remindDays.length > 0 && (
+                  {event.atTime && (
+                    <p className="flex items-center gap-1 text-sm text-muted">
+                      <Icon name="clock" size={14} />
+                      {t('calendar.atTime', { time: event.atTime })}
+                    </p>
+                  )}
+                  {event.remindMinutes.length + event.remindDays.length > 0 && (
                     <p className="flex items-center gap-1 text-sm text-muted">
                       <Icon name="bell" size={14} />
-                      {event.remindDays.map((d) => t(`calendar.remind_${d}`)).join(', ')}
+                      {[
+                        ...event.remindMinutes.map((m) => t(`calendar.remindMin_${m}`)),
+                        ...event.remindDays.map((d) => t(`calendar.remind_${d}`)),
+                      ].join(', ')}
                     </p>
                   )}
                   {event.note && (

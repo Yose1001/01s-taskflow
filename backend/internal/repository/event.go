@@ -26,7 +26,7 @@ const (
 	eventSharedBy = `CASE WHEN e.owner_id IS NOT NULL AND e.owner_id <> $1::uuid
 		THEN (SELECT u.display_name FROM users u WHERE u.id = e.owner_id) END`
 	eventCols = `e.id::text, e.title, e.note, e.day, e.project_id::text, p.name, e.owner_id::text, e.created_by::text,
-		e.remind_days, ` + eventSharedBy + `,
+		e.remind_days, e.remind_minutes, to_char(e.at_time, 'HH24:MI'), ` + eventSharedBy + `,
 		coalesce(e.owner_id = $1::uuid OR (e.owner_id IS NULL AND e.created_by = $1::uuid) OR EXISTS (
 			SELECT 1 FROM project_members o WHERE o.project_id = e.project_id AND o.user_id = $1::uuid AND o.role = 'owner'), false),
 		e.created_at, e.updated_at`
@@ -34,20 +34,26 @@ const (
 
 func scanEvent(row scanner) (model.Event, error) {
 	var ev model.Event
-	var days []int32
+	var days, minutes []int32
 	err := row.Scan(&ev.ID, &ev.Title, &ev.Note, &ev.Day, &ev.ProjectID, &ev.ProjectName, &ev.OwnerID, &ev.CreatedBy,
-		&days, &ev.SharedBy, &ev.CanEdit, &ev.CreatedAt, &ev.UpdatedAt)
-	ev.RemindDays = make([]int, 0, len(days))
-	for _, d := range days {
-		ev.RemindDays = append(ev.RemindDays, int(d))
-	}
+		&days, &minutes, &ev.AtTime, &ev.SharedBy, &ev.CanEdit, &ev.CreatedAt, &ev.UpdatedAt)
+	ev.RemindDays = ints(days)
+	ev.RemindMinutes = ints(minutes)
 	return ev, err
+}
+
+func ints(values []int32) []int {
+	out := make([]int, 0, len(values))
+	for _, v := range values {
+		out = append(out, int(v))
+	}
+	return out
 }
 
 func int32s(days []int) []int32 {
 	out := make([]int32, 0, len(days))
 	for _, d := range days {
-		out = append(out, int32(d)) //nolint:gosec // only 0, 1, 3 or 7 get this far
+		out = append(out, int32(d)) //nolint:gosec // only the few reminder choices get this far
 	}
 	return out
 }
@@ -92,7 +98,7 @@ func (r *EventRepo) addShares(ctx context.Context, userID string, events []model
 func (r *EventRepo) ListEvents(ctx context.Context, userID, from, to string) ([]model.Event, error) {
 	rows, err := r.db.Query(ctx, `SELECT `+eventCols+` `+eventFrom+`
 		WHERE `+eventVisible+` AND e.day BETWEEN $2::date AND $3::date
-		ORDER BY e.day, e.created_at, e.id`, userID, from, to)
+		ORDER BY e.day, e.at_time NULLS FIRST, e.created_at, e.id`, userID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -140,14 +146,16 @@ func (r *EventRepo) CreateEvent(ctx context.Context, userID string, in model.Eve
 	var id string
 	err := r.db.QueryRow(ctx, `
 		WITH ev AS (
-			INSERT INTO events (title, note, day, project_id, owner_id, created_by, remind_days, created_at, updated_at)
-			VALUES ($1, $2, $3::date, $4::uuid, $5::uuid, $6::uuid, $7::int[], $8, $8)
+			INSERT INTO events (title, note, day, project_id, owner_id, created_by, remind_days, at_time, remind_minutes,
+			                    created_at, updated_at)
+			VALUES ($1, $2, $3::date, $4::uuid, $5::uuid, $6::uuid, $7::int[], $10::text::time, $11::int[], $8, $8)
 			RETURNING id
 		), shares AS (
 			INSERT INTO event_shares (event_id, user_id) SELECT ev.id, u FROM ev, unnest($9::uuid[]) AS u
 		)
 		SELECT id::text FROM ev`,
-		in.Title, in.Note, in.Day.Format("2006-01-02"), in.ProjectID, owner, userID, int32s(in.RemindDays), at, shared).Scan(&id)
+		in.Title, in.Note, in.Day.Format("2006-01-02"), in.ProjectID, owner, userID, int32s(in.RemindDays), at, shared,
+		in.AtTime, int32s(in.RemindMinutes)).Scan(&id)
 	if err != nil {
 		return model.Event{}, mapNotFound(err)
 	}
@@ -155,33 +163,45 @@ func (r *EventRepo) CreateEvent(ctx context.Context, userID string, in model.Eve
 }
 
 // UpdateEvent changes an important day. When its day moves, the reminders already made for the old
-// day are removed, so the new day can remind again. A new share list replaces the old one.
+// day are removed, so the new day can remind again; when only its time moves, so are the ones made
+// before the old time. A new share list replaces the old one.
 func (r *EventRepo) UpdateEvent(ctx context.Context, eventID string, p model.EventPatch, at time.Time) error {
 	var day *string
 	if p.Day != nil {
 		s := p.Day.Format("2006-01-02")
 		day = &s
 	}
-	var days []int32
+	var days, minutes []int32
 	if p.RemindDays != nil {
 		days = int32s(*p.RemindDays)
 	}
+	if p.RemindMinutes != nil {
+		minutes = int32s(*p.RemindMinutes)
+	}
+	// The time: left alone (nil), taken away (""), or set.
+	setTime, atTime := p.AtTime != nil, (*string)(nil)
+	if setTime && *p.AtTime != "" {
+		atTime = p.AtTime
+	}
 	if _, err := r.db.Exec(ctx, `
 		WITH old AS (
-			SELECT day FROM events WHERE id = $1::uuid
+			SELECT day, at_time FROM events WHERE id = $1::uuid
 		), changed AS (
 			UPDATE events SET
 				title = coalesce($2, title),
 				note = coalesce($3, note),
 				day = coalesce($4::date, day),
 				remind_days = coalesce($5::int[], remind_days),
+				at_time = CASE WHEN $7::boolean THEN $8::text::time ELSE at_time END,
+				remind_minutes = coalesce($9::int[], remind_minutes),
 				updated_at = $6
 			WHERE id = $1::uuid
-			RETURNING day
+			RETURNING day, at_time
 		)
 		DELETE FROM notifications n USING old, changed
-		WHERE n.event_id = $1::uuid AND old.day <> changed.day`,
-		eventID, p.Title, p.Note, day, days, at); err != nil {
+		WHERE n.event_id = $1::uuid
+		  AND (old.day <> changed.day OR (n.minutes_before > 0 AND old.at_time IS DISTINCT FROM changed.at_time))`,
+		eventID, p.Title, p.Note, day, days, at, setTime, atTime, minutes); err != nil {
 		return mapNotFound(err)
 	}
 	if p.SharedWith == nil {
@@ -270,7 +290,7 @@ func (r *EventRepo) ListCalendarTasks(ctx context.Context, userID, from, to stri
 func (r *EventRepo) ListNotifications(ctx context.Context, userID string, limit int) ([]model.Notification, int, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT n.id::text, e.id::text, e.title, e.day, e.project_id::text, p.name, `+eventSharedBy+`,
-		       n.days_before, n.created_at, n.read_at,
+		       n.days_before, n.minutes_before, to_char(e.at_time, 'HH24:MI'), n.created_at, n.read_at,
 		       count(*) FILTER (WHERE n.read_at IS NULL) OVER ()
 		FROM notifications n
 		JOIN events e ON e.id = n.event_id
@@ -287,7 +307,7 @@ func (r *EventRepo) ListNotifications(ctx context.Context, userID string, limit 
 	for rows.Next() {
 		var n model.Notification
 		if err := rows.Scan(&n.ID, &n.EventID, &n.Title, &n.Day, &n.ProjectID, &n.ProjectName, &n.SharedBy,
-			&n.DaysBefore, &n.CreatedAt, &n.ReadAt, &unread); err != nil {
+			&n.DaysBefore, &n.MinutesBefore, &n.AtTime, &n.CreatedAt, &n.ReadAt, &unread); err != nil {
 			return nil, 0, err
 		}
 		out = append(out, n)
@@ -315,15 +335,27 @@ func (r *EventRepo) MarkRead(ctx context.Context, userID string, ids []string, a
 
 // GenerateReminders makes every reminder that is due at now and not made yet, and says how many it made.
 // A reminder for "n days before" is due at remindAt (such as "08:00") in the time zone tz, n days before
-// the day, and only until the day is over. Running it twice makes nothing new: each reminder is unique.
+// the day, and only until the day is over (or, for a day with a time, until that time). A reminder for
+// "m minutes before" is due m minutes before the day's time, and only until that time. Running it twice
+// makes nothing new: each reminder is unique.
 // Who is reminded: the owner of a personal day and the people it is shared with; every member of an
 // active project for a project's day.
 func (r *EventRepo) GenerateReminders(ctx context.Context, now time.Time, tz, remindAt string) (int64, error) {
 	tag, err := r.db.Exec(ctx, `
-		INSERT INTO notifications (user_id, event_id, days_before, created_at)
-		SELECT who.user_id, e.id, d.days, $1
+		INSERT INTO notifications (user_id, event_id, days_before, minutes_before, created_at)
+		SELECT who.user_id, e.id, due.days, due.minutes, $1
 		FROM events e
-		CROSS JOIN LATERAL unnest(e.remind_days) AS d(days)
+		CROSS JOIN LATERAL (
+			SELECT d AS days, 0 AS minutes FROM unnest(e.remind_days) AS d
+			WHERE e.day >= ($1::timestamptz AT TIME ZONE $2)::date
+			  AND (((e.day - d)::timestamp + $3::time) AT TIME ZONE $2) <= $1::timestamptz
+			  AND (e.at_time IS NULL OR ((e.day + e.at_time) AT TIME ZONE $2) > $1::timestamptz)
+			UNION ALL
+			SELECT 0, m FROM unnest(e.remind_minutes) AS m
+			WHERE e.at_time IS NOT NULL
+			  AND ((e.day + e.at_time) AT TIME ZONE $2) > $1::timestamptz
+			  AND ((e.day + e.at_time) AT TIME ZONE $2) - make_interval(mins => m) <= $1::timestamptz
+		) due
 		CROSS JOIN LATERAL (
 			SELECT e.owner_id AS user_id WHERE e.owner_id IS NOT NULL
 			UNION
@@ -332,8 +364,6 @@ func (r *EventRepo) GenerateReminders(ctx context.Context, now time.Time, tz, re
 			SELECT m.user_id FROM project_members m JOIN projects p ON p.id = m.project_id
 			WHERE m.project_id = e.project_id AND p.deleted_at IS NULL
 		) who
-		WHERE e.day >= ($1::timestamptz AT TIME ZONE $2)::date
-		  AND (((e.day - d.days)::timestamp + $3::time) AT TIME ZONE $2) <= $1::timestamptz
 		ON CONFLICT ON CONSTRAINT notifications_once DO NOTHING`, now, tz, remindAt)
 	if err != nil {
 		return 0, err

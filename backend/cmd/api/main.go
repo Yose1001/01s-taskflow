@@ -30,7 +30,7 @@ const (
 
 	// Reminders for important days go out at 08:00 Thai time. The job looks every few minutes, so a
 	// reminder made while the server was down still goes out soon after it comes back.
-	reminderInterval = 5 * time.Minute
+	reminderInterval = time.Minute // often enough for "15 minutes before"
 	reminderTZ       = "Asia/Bangkok"
 	reminderAt       = "08:00"
 )

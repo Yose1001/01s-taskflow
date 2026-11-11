@@ -95,6 +95,8 @@ export function calendarEvent(
     ownerId: ME.id,
     createdBy: ME.id,
     remindDays: [],
+    atTime: null,
+    remindMinutes: [],
     sharedWith: [],
     sharedBy: null,
     canEdit: true,
@@ -120,6 +122,8 @@ export function notification(
     projectName: null,
     sharedBy: null,
     daysBefore: 1,
+    minutesBefore: 0,
+    atTime: null,
     createdAt: '2026-02-01T00:00:00Z',
     readAt: null,
     ...opts,
@@ -277,6 +281,8 @@ export function fakeBackend(options: Options = {}) {
         projectId?: string
         sharedWith?: string[]
         remindDays?: number[]
+        atTime?: string
+        remindMinutes?: number[]
       }
       const fields: Record<string, string> = {}
       const people = new Map(
@@ -303,6 +309,8 @@ export function fakeBackend(options: Options = {}) {
         projectName: p?.name ?? null,
         ownerId: p ? null : ME.id,
         remindDays: (body.remindDays ?? []) as CalendarEvent['remindDays'],
+        atTime: body.atTime || null,
+        remindMinutes: (body.remindMinutes ?? []) as CalendarEvent['remindMinutes'],
         sharedWith: p ? [] : shared.map((id) => people.get(id)!),
       })
       events.push(created)
@@ -312,7 +320,26 @@ export function fakeBackend(options: Options = {}) {
       const e = events.find((x) => x.id === req.params.id)
       if (!e) return err(404, 'not_found')
       if (!e.canEdit) return err(403, 'forbidden')
-      Object.assign(e, req.body as object)
+      // Like the real API: people come as ids and go back as people; "" takes the time (and its reminders) away.
+      const { sharedWith, atTime, ...rest } = req.body as Omit<
+        Partial<CalendarEvent>,
+        'sharedWith' | 'atTime'
+      > & {
+        sharedWith?: string[]
+        atTime?: string
+      }
+      Object.assign(e, rest)
+      if (atTime !== undefined) {
+        e.atTime = atTime || null
+        if (!atTime) e.remindMinutes = []
+      }
+      if (sharedWith !== undefined) {
+        const everyone = projects.flatMap((p) => p.members)
+        e.sharedWith = sharedWith.map((id) => {
+          const m = everyone.find((x) => x.userId === id)!
+          return { userId: m.userId, displayName: m.displayName, email: m.email }
+        })
+      }
       return { body: e }
     },
     'DELETE /events/:id': (req) => {

@@ -88,7 +88,10 @@
     "invalid_id": "ข้อมูลไม่ถูกต้อง",
     "personal_only": "แชร์ได้เฉพาะวันสำคัญส่วนตัว",
     "too_many_people": "เลือกได้ไม่เกิน 50 คน",
-    "choose_people": "เลือกอย่างน้อย 1 คน"
+    "choose_people": "เลือกอย่างน้อย 1 คน",
+    "invalid_time": "เลือกเวลาจากรายการ",
+    "invalid_remind_minutes": "เลือกจากตัวเลือกการแจ้งเตือน",
+    "needs_time": "เลือกเวลาก่อน ถึงจะเตือนก่อนเวลาได้"
   },
   "common": {
     "cancel": "ยกเลิก",
@@ -403,7 +406,14 @@
     "tasksHidden": "ไม่แสดงงาน",
     "viewTitle": "วันสำคัญ",
     "viewEvent": "เปิด {{title}}",
-    "viewOnlyNote": "ดูวันนี้ได้ แต่เจ้าของวันเท่านั้นที่แก้ไขได้"
+    "viewOnlyNote": "ดูวันนี้ได้ แต่เจ้าของวันเท่านั้นที่แก้ไขได้",
+    "timeLabel": "เวลา (ไม่บังคับ)",
+    "noTime": "ไม่ระบุเวลา",
+    "atTime": "เวลา {{time}} น.",
+    "remindMin_15": "15 นาทีก่อน",
+    "remindMin_30": "30 นาทีก่อน",
+    "remindMin_60": "1 ชั่วโมงก่อน",
+    "remindMin_120": "2 ชั่วโมงก่อน"
   },
   "notifications": {
     "label": "การแจ้งเตือน",
@@ -416,6 +426,7 @@
     "inDays": "อีก {{count}} วัน ({{date}})",
     "past": "ผ่านไปแล้ว ({{date}})",
     "readAll": "อ่านทั้งหมดแล้ว",
-    "openCalendar": "เปิดปฏิทิน"
+    "openCalendar": "เปิดปฏิทิน",
+    "dayAndTime": "{{day}} เวลา {{time}} น."
   }
 }

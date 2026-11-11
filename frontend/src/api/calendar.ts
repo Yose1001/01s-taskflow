@@ -1,5 +1,12 @@
 import type { RequestFn } from './client'
-import type { CalendarEvent, CalendarRange, NotificationList, Person, RemindDay } from './types'
+import type {
+  CalendarEvent,
+  CalendarRange,
+  NotificationList,
+  Person,
+  RemindDay,
+  RemindMinute,
+} from './types'
 
 // One function per calendar endpoint in docs/openapi.yaml.
 const id = encodeURIComponent
@@ -14,6 +21,10 @@ export interface EventInput {
   /** People a personal day is shared with: they see it and are reminded. Personal days only. */
   sharedWith?: string[]
   remindDays: RemindDay[]
+  /** "HH:MM"; leave out (or "" when changing) for a day without a time. */
+  atTime?: string
+  /** Reminders before the time; only with a time. */
+  remindMinutes?: RemindMinute[]
 }
 
 /** Where a day belongs cannot change. */
