@@ -2,8 +2,11 @@ package model
 
 import "time"
 
-// RemindDays are the only reminder choices: on the day, and 1, 3 or 7 days before.
+// RemindDays are the only reminder choices by day: on the day, and 1, 3 or 7 days before.
 var RemindDays = []int{0, 1, 3, 7}
+
+// RemindMinutes are the only reminder choices before a day's time: 15 or 30 minutes, 1 or 2 hours.
+var RemindMinutes = []int{15, 30, 60, 120}
 
 // Person is someone the signed-in person can share an important day with.
 type Person struct {
@@ -24,6 +27,10 @@ type Event struct {
 	OwnerID     *string
 	CreatedBy   string
 	RemindDays  []int
+	// AtTime is the time of day ("14:00", Thai time), or nil for a day without a time.
+	AtTime *string
+	// RemindMinutes are the reminders before AtTime, in minutes. Only a day with a time has them.
+	RemindMinutes []int
 	// SharedWith lists who a personal day is shared with. Only its owner is told; others get nil.
 	SharedWith []Person
 	// SharedBy is the owner's name when the day was shared with the person looking; nil otherwise.
@@ -36,21 +43,25 @@ type Event struct {
 
 // EventInput is a checked important day to store.
 type EventInput struct {
-	Title      string
-	Note       string
-	Day        time.Time
-	ProjectID  *string  // nil = a personal day of the creator
-	SharedWith []string // user ids; personal days only
-	RemindDays []int
+	Title         string
+	Note          string
+	Day           time.Time
+	ProjectID     *string  // nil = a personal day of the creator
+	SharedWith    []string // user ids; personal days only
+	RemindDays    []int
+	AtTime        *string // "HH:MM", or nil
+	RemindMinutes []int
 }
 
 // EventPatch is a checked change. Nil fields stay as they are; where it belongs never changes.
 type EventPatch struct {
-	Title      *string
-	Note       *string
-	Day        *time.Time
-	RemindDays *[]int
-	SharedWith *[]string // the whole new list; personal days only
+	Title         *string
+	Note          *string
+	Day           *time.Time
+	RemindDays    *[]int
+	SharedWith    *[]string // the whole new list; personal days only
+	AtTime        *string   // "HH:MM", or "" to take the time away
+	RemindMinutes *[]int
 }
 
 // CalendarTask is a task with a date, as the calendar shows it.
@@ -76,6 +87,9 @@ type Notification struct {
 	ProjectName *string
 	SharedBy    *string
 	DaysBefore  int
-	CreatedAt   time.Time
-	ReadAt      *time.Time
+	// MinutesBefore is set for a reminder before the day's time; 0 for one by day.
+	MinutesBefore int
+	AtTime        *string
+	CreatedAt     time.Time
+	ReadAt        *time.Time
 }

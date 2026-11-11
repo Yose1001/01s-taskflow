@@ -88,7 +88,10 @@
     "invalid_id": "ข้อมูลไม่ถูกต้อง",
     "personal_only": "แชร์ได้เฉพาะวันสำคัญส่วนตัว",
     "too_many_people": "เลือกได้ไม่เกิน 50 คน",
-    "choose_people": "เลือกอย่างน้อย 1 คน"
+    "choose_people": "เลือกอย่างน้อย 1 คน",
+    "invalid_time": "เลือกเวลาจากรายการ",
+    "invalid_remind_minutes": "เลือกจากตัวเลือกการแจ้งเตือน",
+    "needs_time": "เลือกเวลาก่อน ถึงจะเตือนก่อนเวลาได้"
   },
   "common": {
     "cancel": "ยกเลิก",
@@ -149,7 +152,19 @@
     "sort_newest": "สร้างล่าสุดก่อน",
     "sort_oldest": "สร้างเก่าสุดก่อน",
     "sort_progress_high": "คืบหน้ามากสุดก่อน",
-    "sort_progress_low": "คืบหน้าน้อยสุดก่อน"
+    "sort_progress_low": "คืบหน้าน้อยสุดก่อน",
+    "sort_updated": "อัปเดตล่าสุดก่อน",
+    "sort_name": "ชื่อ ก–ฮ",
+    "filterHeading": "แสดงโปรเจกต์",
+    "filterAll": "ทุกโปรเจกต์",
+    "filterMine": "ที่ฉันมีงาน",
+    "filterOf": "ที่ {{name}} มีงาน",
+    "filterLabel": "แสดง: {{choice}}",
+    "filterEmpty": "ไม่มีโปรเจกต์ที่ตรงกับตัวเลือกนี้",
+    "filterClear": "แสดงทุกโปรเจกต์",
+    "membersWord": "สมาชิก",
+    "membersTitle": "สมาชิก: {{names}}",
+    "moreMembers": "+{{count}} คน"
   },
   "members": {
     "title": "สมาชิก",
@@ -276,7 +291,9 @@
     "holdLabel": "สาเหตุที่พักงาน",
     "holdHint": "บอกทีมว่างานนี้รออะไรอยู่",
     "holdConfirm": "พักงาน",
-    "holdWord": "สาเหตุที่พัก"
+    "holdWord": "สาเหตุที่พัก",
+    "trashedNote": "งานนี้อยู่ในถังขยะ กู้คืนก่อนถึงจะแก้ไขได้",
+    "trashedTitle": "งานในถังขยะ"
   },
   "status": {
     "todo": "รอทำ",
@@ -357,7 +374,6 @@
     "belongsLabel": "เป็นของ",
     "noteLabel": "โน้ต (ไม่บังคับ)",
     "remindLabel": "แจ้งเตือน",
-    "remindHint": "เตือนเวลา 8:00 น. ที่กระดิ่งด้านบน เลือกได้มากกว่า 1 อัน",
     "remind_0": "วันนั้น",
     "remind_1": "1 วันก่อน",
     "remind_3": "3 วันก่อน",
@@ -387,7 +403,17 @@
     "peopleWord": "ผู้เกี่ยวข้อง",
     "peopleTitle": "ผู้เกี่ยวข้อง: {{names}}",
     "hideTasks": "ซ่อนงาน",
-    "tasksHidden": "ไม่แสดงงาน"
+    "tasksHidden": "ไม่แสดงงาน",
+    "viewTitle": "วันสำคัญ",
+    "viewEvent": "เปิด {{title}}",
+    "viewOnlyNote": "ดูวันนี้ได้ แต่เจ้าของวันเท่านั้นที่แก้ไขได้",
+    "timeLabel": "เวลา (ไม่บังคับ)",
+    "noTime": "ไม่ระบุเวลา",
+    "atTime": "เวลา {{time}} น.",
+    "remindMin_15": "15 นาทีก่อน",
+    "remindMin_30": "30 นาทีก่อน",
+    "remindMin_60": "1 ชั่วโมงก่อน",
+    "remindMin_120": "2 ชั่วโมงก่อน"
   },
   "notifications": {
     "label": "การแจ้งเตือน",
@@ -400,6 +426,7 @@
     "inDays": "อีก {{count}} วัน ({{date}})",
     "past": "ผ่านไปแล้ว ({{date}})",
     "readAll": "อ่านทั้งหมดแล้ว",
-    "openCalendar": "เปิดปฏิทิน"
+    "openCalendar": "เปิดปฏิทิน",
+    "dayAndTime": "{{day}} เวลา {{time}} น."
   }
 }

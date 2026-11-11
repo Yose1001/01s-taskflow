@@ -29,20 +29,22 @@ type Calendar struct{ svc CalendarService }
 func NewCalendar(svc CalendarService) *Calendar { return &Calendar{svc: svc} }
 
 type eventResponse struct {
-	ID          string           `json:"id"`
-	Title       string           `json:"title"`
-	Note        string           `json:"note"`
-	Day         string           `json:"day"`
-	ProjectID   *string          `json:"projectId"`
-	ProjectName *string          `json:"projectName"`
-	OwnerID     *string          `json:"ownerId"`
-	CreatedBy   string           `json:"createdBy"`
-	RemindDays  []int            `json:"remindDays"`
-	SharedWith  []personResponse `json:"sharedWith"`
-	SharedBy    *string          `json:"sharedBy"`
-	CanEdit     bool             `json:"canEdit"`
-	CreatedAt   time.Time        `json:"createdAt"`
-	UpdatedAt   time.Time        `json:"updatedAt"`
+	ID            string           `json:"id"`
+	Title         string           `json:"title"`
+	Note          string           `json:"note"`
+	Day           string           `json:"day"`
+	ProjectID     *string          `json:"projectId"`
+	ProjectName   *string          `json:"projectName"`
+	OwnerID       *string          `json:"ownerId"`
+	CreatedBy     string           `json:"createdBy"`
+	RemindDays    []int            `json:"remindDays"`
+	AtTime        *string          `json:"atTime"`
+	RemindMinutes []int            `json:"remindMinutes"`
+	SharedWith    []personResponse `json:"sharedWith"`
+	SharedBy      *string          `json:"sharedBy"`
+	CanEdit       bool             `json:"canEdit"`
+	CreatedAt     time.Time        `json:"createdAt"`
+	UpdatedAt     time.Time        `json:"updatedAt"`
 }
 
 type personResponse struct {
@@ -64,8 +66,12 @@ func toEventResponse(e model.Event) eventResponse {
 	if days == nil {
 		days = []int{}
 	}
+	minutes := e.RemindMinutes
+	if minutes == nil {
+		minutes = []int{}
+	}
 	return eventResponse{ID: e.ID, Title: e.Title, Note: e.Note, Day: e.Day.Format("2006-01-02"), ProjectID: e.ProjectID,
-		ProjectName: e.ProjectName, OwnerID: e.OwnerID, CreatedBy: e.CreatedBy, RemindDays: days, SharedWith: toPeople(e.SharedWith),
+		ProjectName: e.ProjectName, OwnerID: e.OwnerID, CreatedBy: e.CreatedBy, RemindDays: days, SharedWith: toPeople(e.SharedWith), AtTime: e.AtTime, RemindMinutes: minutes,
 		SharedBy: e.SharedBy, CanEdit: e.CanEdit,
 		CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt}
 }
@@ -82,16 +88,18 @@ type calendarTaskResponse struct {
 }
 
 type notificationResponse struct {
-	ID          string     `json:"id"`
-	EventID     string     `json:"eventId"`
-	Title       string     `json:"title"`
-	Day         string     `json:"day"`
-	ProjectID   *string    `json:"projectId"`
-	ProjectName *string    `json:"projectName"`
-	SharedBy    *string    `json:"sharedBy"`
-	DaysBefore  int        `json:"daysBefore"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	ReadAt      *time.Time `json:"readAt"`
+	ID            string     `json:"id"`
+	EventID       string     `json:"eventId"`
+	Title         string     `json:"title"`
+	Day           string     `json:"day"`
+	ProjectID     *string    `json:"projectId"`
+	ProjectName   *string    `json:"projectName"`
+	SharedBy      *string    `json:"sharedBy"`
+	DaysBefore    int        `json:"daysBefore"`
+	MinutesBefore int        `json:"minutesBefore"`
+	AtTime        *string    `json:"atTime"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	ReadAt        *time.Time `json:"readAt"`
 }
 
 // Range handles GET /calendar?from=YYYY-MM-DD&to=YYYY-MM-DD.
@@ -126,19 +134,21 @@ func (h *Calendar) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Title      string   `json:"title"`
-		Note       string   `json:"note"`
-		Day        string   `json:"day"`
-		ProjectID  *string  `json:"projectId"`
-		SharedWith []string `json:"sharedWith"`
-		RemindDays []int    `json:"remindDays"`
+		Title         string   `json:"title"`
+		Note          string   `json:"note"`
+		Day           string   `json:"day"`
+		ProjectID     *string  `json:"projectId"`
+		SharedWith    []string `json:"sharedWith"`
+		RemindDays    []int    `json:"remindDays"`
+		AtTime        *string  `json:"atTime"`
+		RemindMinutes []int    `json:"remindMinutes"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
 	ev, err := h.svc.Create(r.Context(), uid, service.EventCreate{
 		Title: in.Title, Note: in.Note, Day: in.Day, ProjectID: in.ProjectID, SharedWith: in.SharedWith,
-		RemindDays: in.RemindDays,
+		RemindDays: in.RemindDays, AtTime: in.AtTime, RemindMinutes: in.RemindMinutes,
 	})
 	if err != nil {
 		writeServiceError(w, r, err)
@@ -147,24 +157,27 @@ func (h *Calendar) CreateEvent(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, toEventResponse(ev))
 }
 
-// UpdateEvent handles PATCH /events/{eventId}. Where a day belongs cannot be changed.
+// UpdateEvent handles PATCH /events/{eventId}.
 func (h *Calendar) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(w, r)
 	if !ok {
 		return
 	}
 	var in struct {
-		Title      *string   `json:"title"`
-		Note       *string   `json:"note"`
-		Day        *string   `json:"day"`
-		RemindDays *[]int    `json:"remindDays"`
-		SharedWith *[]string `json:"sharedWith"`
+		Title         *string   `json:"title"`
+		Note          *string   `json:"note"`
+		Day           *string   `json:"day"`
+		RemindDays    *[]int    `json:"remindDays"`
+		SharedWith    *[]string `json:"sharedWith"`
+		AtTime        *string   `json:"atTime"`
+		RemindMinutes *[]int    `json:"remindMinutes"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
 	ev, err := h.svc.Update(r.Context(), uid, r.PathValue("eventId"), service.EventUpdate{
 		Title: in.Title, Note: in.Note, Day: in.Day, RemindDays: in.RemindDays, SharedWith: in.SharedWith,
+		AtTime: in.AtTime, RemindMinutes: in.RemindMinutes,
 	})
 	if err != nil {
 		writeServiceError(w, r, err)
@@ -215,7 +228,8 @@ func (h *Calendar) Notifications(w http.ResponseWriter, r *http.Request) {
 	for _, n := range list {
 		items = append(items, notificationResponse{ID: n.ID, EventID: n.EventID, Title: n.Title,
 			Day: n.Day.Format("2006-01-02"), ProjectID: n.ProjectID, ProjectName: n.ProjectName, SharedBy: n.SharedBy,
-			DaysBefore: n.DaysBefore, CreatedAt: n.CreatedAt, ReadAt: n.ReadAt})
+			DaysBefore: n.DaysBefore, MinutesBefore: n.MinutesBefore, AtTime: n.AtTime, CreatedAt: n.CreatedAt,
+			ReadAt: n.ReadAt})
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "unread": unread})
 }

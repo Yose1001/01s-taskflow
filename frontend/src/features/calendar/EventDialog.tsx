@@ -2,7 +2,14 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
 import type { EventInput, EventPatch } from '../../api/calendar'
-import { REMIND_DAYS, type CalendarEvent, type Person, type RemindDay } from '../../api/types'
+import {
+  REMIND_DAYS,
+  REMIND_MINUTES,
+  type CalendarEvent,
+  type Person,
+  type RemindDay,
+  type RemindMinute,
+} from '../../api/types'
 import { errorMessage, fieldErrorMessage } from '../../auth/errors'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { DatePicker } from '../../components/DatePicker'
@@ -21,7 +28,8 @@ const PEOPLE = '__people'
 /** A new day reminds on the day and the day before, unless the person changes it. */
 const DEFAULT_REMIND: RemindDay[] = [0, 1]
 
-type FieldName = 'title' | 'day' | 'projectId' | 'sharedWith' | 'note' | 'remindDays'
+type FieldName =
+  'title' | 'day' | 'atTime' | 'projectId' | 'sharedWith' | 'note' | 'remindDays' | 'remindMinutes'
 type Errors = Partial<Record<FieldName, string>>
 
 // Field ids in the order they appear, so the first mistake gets the focus.
@@ -31,11 +39,29 @@ const FIELD_IDS: Record<FieldName, string> = {
   projectId: 'event-project',
   sharedWith: 'event-people',
   note: 'event-note',
+  atTime: 'event-time',
   remindDays: 'event-remind-0',
+  // Reminders before a time need the time first: a mistake there goes to the time.
+  remindMinutes: 'event-time',
 }
-const FIELD_ORDER: FieldName[] = ['title', 'day', 'projectId', 'sharedWith', 'note', 'remindDays']
+const FIELD_ORDER: FieldName[] = [
+  'title',
+  'note',
+  'day',
+  'atTime',
+  'projectId',
+  'sharedWith',
+  'remindMinutes',
+  'remindDays',
+]
 
-const sameDays = (a: RemindDay[], b: RemindDay[]) =>
+// Every quarter of an hour, "00:00" to "23:45".
+const TIMES = Array.from({ length: 96 }, (_, i) => {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(Math.floor(i / 4))}:${pad((i % 4) * 15)}`
+})
+
+const sameNumbers = (a: readonly number[], b: readonly number[]) =>
   a.length === b.length && a.every((d) => b.includes(d))
 const sameIds = (a: string[], b: string[]) =>
   a.length === b.length && a.every((id) => b.includes(id))
@@ -115,10 +141,17 @@ export function EventDialog({
   const { t } = useTranslation()
   const toast = useToast()
   const editing = event !== undefined
+  // A day the person may not change (shared with them, or a project's day someone else added) opens to look at.
+  const viewOnly = event !== undefined && !event.canEdit
   const [title, setTitle] = useState(event?.title ?? '')
   const [note, setNote] = useState(event?.note ?? '')
   const [day, setDay] = useState(event?.day ?? initialDay)
-  const [projectId, setProjectId] = useState('')
+  // "Belongs to": personal, or shared with chosen people. The owner of a personal day can change it later.
+  const [projectId, setProjectId] = useState(
+    event !== undefined && event.sharedWith.length > 0 ? PEOPLE : '',
+  )
+  const [atTime, setAtTime] = useState(event?.atTime ?? '')
+  const [remindMinutes, setRemindMinutes] = useState<RemindMinute[]>(event?.remindMinutes ?? [])
   const [sharedWith, setSharedWith] = useState<string[]>(
     event?.sharedWith.map((p) => p.userId) ?? [],
   )
@@ -129,7 +162,12 @@ export function EventDialog({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const people = usePeople()
-  const choosingPeople = editing ? ownPersonal : projectId === PEOPLE
+  // A project's day (from before days could only be personal) stays where it is.
+  const choosingBelongs = !editing || ownPersonal
+  const choosingPeople = choosingBelongs && projectId === PEOPLE
+  // The time list has every quarter hour, and the day's own time if it is something else.
+  const times =
+    event?.atTime && !TIMES.includes(event.atTime) ? [...TIMES, event.atTime].sort() : TIMES
   const create = useCreateEvent()
   const update = useUpdateEvent()
   const remove = useDeleteEvent()
@@ -148,8 +186,20 @@ export function EventDialog({
     )
   }
 
+  function toggleMinutes(value: RemindMinute) {
+    setRemindMinutes((now) =>
+      now.includes(value) ? now.filter((m) => m !== value) : [...now, value].sort((a, b) => a - b),
+    )
+  }
+
+  function chooseTime(value: string) {
+    setAtTime(value)
+    if (value === '') setRemindMinutes([]) // no time: nothing to remind before
+  }
+
   function onSubmit(e: FormEvent) {
     e.preventDefault()
+    if (viewOnly) return
     const trimmed = title.trim()
     const next: Errors = {}
     const length = Array.from(trimmed).length
@@ -157,8 +207,7 @@ export function EventDialog({
     else if (length > MAX_TITLE) next.title = 'too_long'
     if (Array.from(note.trim()).length > MAX_NOTE) next.note = 'too_long'
     if (day === '') next.day = 'required'
-    if (!editing && projectId === PEOPLE && sharedWith.length === 0)
-      next.sharedWith = 'choose_people'
+    if (choosingPeople && sharedWith.length === 0) next.sharedWith = 'choose_people'
     if (Object.keys(next).length > 0) return showErrors(next)
     setErrors({})
 
@@ -181,6 +230,10 @@ export function EventDialog({
 
     if (!event) {
       const input: EventInput = { title: trimmed, note: note.trim(), day, remindDays }
+      if (atTime) {
+        input.atTime = atTime
+        input.remindMinutes = remindMinutes
+      }
       if (projectId === PEOPLE) input.sharedWith = sharedWith
       create.mutate(input, handlers)
       return
@@ -190,15 +243,21 @@ export function EventDialog({
     if (trimmed !== event.title) patch.title = trimmed
     if (note.trim() !== event.note) patch.note = note.trim()
     if (day !== event.day) patch.day = day
-    if (!sameDays(remindDays, event.remindDays)) patch.remindDays = remindDays
-    if (
-      ownPersonal &&
-      !sameIds(
-        sharedWith,
-        event.sharedWith.map((p) => p.userId),
+    if (!sameNumbers(remindDays, event.remindDays)) patch.remindDays = remindDays
+    if (atTime !== (event.atTime ?? '')) patch.atTime = atTime // "" takes the time away
+    const minutes = atTime ? remindMinutes : []
+    if (!sameNumbers(minutes, event.remindMinutes)) patch.remindMinutes = minutes
+    if (ownPersonal) {
+      // Back to personal: it is no longer shared with anyone.
+      const shared = projectId === PEOPLE ? sharedWith : []
+      if (
+        !sameIds(
+          shared,
+          event.sharedWith.map((p) => p.userId),
+        )
       )
-    )
-      patch.sharedWith = sharedWith
+        patch.sharedWith = shared
+    }
     if (Object.keys(patch).length === 0) return onClose()
     update.mutate({ id: event.id, patch }, handlers)
   }
@@ -212,36 +271,67 @@ export function EventDialog({
   return (
     <>
       <Modal
-        title={editing ? t('calendar.editTitle') : t('calendar.addTitle')}
+        title={
+          viewOnly
+            ? t('calendar.viewTitle')
+            : editing
+              ? t('calendar.editTitle')
+              : t('calendar.addTitle')
+        }
         onClose={pending ? () => {} : onClose}
       >
         <form onSubmit={onSubmit} noValidate className="space-y-4">
           {showBanner && <Alert>{errorMessage(t, serverError)}</Alert>}
-          <TextField
-            id={FIELD_IDS.title}
-            label={t('calendar.titleLabel')}
-            placeholder={t('calendar.titlePlaceholder')}
-            value={title}
-            maxLength={MAX_TITLE}
-            autoComplete="off"
-            onChange={(e) => setTitle(e.target.value)}
-            error={fieldMessage('title')}
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <DatePicker
-              id={FIELD_IDS.day}
-              label={t('calendar.dayLabel')}
-              value={day}
-              onChange={setDay}
-              error={fieldMessage('day')}
+          {viewOnly && (
+            <p className="rounded-xl bg-surface-2 p-3 text-sm text-muted">
+              {t('calendar.viewOnlyNote')}
+            </p>
+          )}
+          {/* Disabled as a whole when it is not theirs to change: everything shows, nothing changes. */}
+          <fieldset disabled={viewOnly} className="min-w-0 space-y-4">
+            <TextField
+              id={FIELD_IDS.title}
+              label={t('calendar.titleLabel')}
+              placeholder={t('calendar.titlePlaceholder')}
+              value={title}
+              maxLength={MAX_TITLE}
+              autoComplete="off"
+              onChange={(e) => setTitle(e.target.value)}
+              error={fieldMessage('title')}
             />
-            {editing ? (
-              // Where a day belongs is chosen once, when it is added.
-              <div>
-                <p className="mb-1 text-sm font-medium">{t('calendar.belongsLabel')}</p>
-                <p className="py-2 text-muted">{belongsText(t, event)}</p>
-              </div>
-            ) : (
+            <TextAreaField
+              id={FIELD_IDS.note}
+              label={t('calendar.noteLabel')}
+              value={note}
+              rows={2}
+              maxRows={6}
+              onChange={(e) => setNote(e.target.value)}
+              error={fieldMessage('note')}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <DatePicker
+                id={FIELD_IDS.day}
+                label={t('calendar.dayLabel')}
+                value={day}
+                onChange={setDay}
+                error={fieldMessage('day')}
+              />
+              <SelectField
+                id={FIELD_IDS.atTime}
+                label={t('calendar.timeLabel')}
+                value={atTime}
+                onChange={(e) => chooseTime(e.target.value)}
+                error={fieldMessage('atTime')}
+              >
+                <option value="">{t('calendar.noTime')}</option>
+                {times.map((time) => (
+                  <option key={time} value={time}>
+                    {time}
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+            {choosingBelongs ? (
               <SelectField
                 id={FIELD_IDS.projectId}
                 label={t('calendar.belongsLabel')}
@@ -252,61 +342,80 @@ export function EventDialog({
                 <option value="">{t('calendar.personal')}</option>
                 <option value={PEOPLE}>{t('calendar.belongsPeople')}</option>
               </SelectField>
+            ) : (
+              // Someone else's, or a project's day: where it belongs is only shown.
+              <div>
+                <p className="mb-1 text-sm font-medium">{t('calendar.belongsLabel')}</p>
+                <p className="py-2 text-muted">{belongsText(t, event!)}</p>
+              </div>
             )}
-          </div>
-          {choosingPeople && (
-            <PeoplePicker
-              people={people.data?.items ?? []}
-              selected={sharedWith}
-              onChange={setSharedWith}
-              error={fieldMessage('sharedWith')}
-            />
-          )}
-          <TextAreaField
-            id={FIELD_IDS.note}
-            label={t('calendar.noteLabel')}
-            value={note}
-            rows={2}
-            maxRows={6}
-            onChange={(e) => setNote(e.target.value)}
-            error={fieldMessage('note')}
-          />
-          <fieldset className="min-w-0">
-            <legend className="mb-1 text-sm font-medium">{t('calendar.remindLabel')}</legend>
-            <p className="mb-2 text-sm text-muted">{t('calendar.remindHint')}</p>
-            <div className="flex flex-wrap gap-2">
-              {REMIND_DAYS.map((value) => {
-                const checked = remindDays.includes(value)
-                return (
-                  <label
-                    key={value}
-                    className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${
-                      checked
-                        ? 'border-primary bg-primary-bg text-primary-fg'
-                        : 'border-border text-text hover:bg-primary-bg'
-                    }`}
-                  >
-                    <input
-                      id={`event-remind-${value}`}
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleDay(value)}
-                      className="h-4 w-4 accent-primary"
-                    />
-                    {t(`calendar.remind_${value}`)}
-                  </label>
-                )
-              })}
-            </div>
-            {fieldMessage('remindDays') && (
-              <p className="mt-1 text-sm font-medium text-danger-fg">
-                {fieldMessage('remindDays')}
-              </p>
+            {choosingPeople && (
+              <PeoplePicker
+                people={people.data?.items ?? []}
+                selected={sharedWith}
+                onChange={setSharedWith}
+                error={fieldMessage('sharedWith')}
+              />
             )}
+            <fieldset className="min-w-0">
+              <legend className="mb-2 text-sm font-medium">{t('calendar.remindLabel')}</legend>
+              <div className="flex flex-wrap gap-2">
+                {/* Before the time first, then by day; the minutes only once there is a time. */}
+                {(atTime ? REMIND_MINUTES : []).map((value) => {
+                  const checked = remindMinutes.includes(value)
+                  return (
+                    <label
+                      key={`m${value}`}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${
+                        checked
+                          ? 'border-primary bg-primary-bg text-primary-fg'
+                          : 'border-border text-text hover:bg-primary-bg'
+                      }`}
+                    >
+                      <input
+                        id={`event-remind-m${value}`}
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleMinutes(value)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      {t(`calendar.remindMin_${value}`)}
+                    </label>
+                  )
+                })}
+                {REMIND_DAYS.map((value) => {
+                  const checked = remindDays.includes(value)
+                  return (
+                    <label
+                      key={value}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${
+                        checked
+                          ? 'border-primary bg-primary-bg text-primary-fg'
+                          : 'border-border text-text hover:bg-primary-bg'
+                      }`}
+                    >
+                      <input
+                        id={`event-remind-${value}`}
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleDay(value)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      {t(`calendar.remind_${value}`)}
+                    </label>
+                  )
+                })}
+              </div>
+              {(fieldMessage('remindDays') ?? fieldMessage('remindMinutes')) && (
+                <p className="mt-1 text-sm font-medium text-danger-fg">
+                  {fieldMessage('remindDays') ?? fieldMessage('remindMinutes')}
+                </p>
+              )}
+            </fieldset>
           </fieldset>
           <div className="sticky -bottom-6 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-6 py-4">
             <div>
-              {editing && (
+              {editing && !viewOnly && (
                 <Button
                   type="button"
                   variant="danger-outline"
@@ -317,14 +426,24 @@ export function EventDialog({
                 </Button>
               )}
             </div>
-            <div className="flex flex-wrap justify-end gap-3">
-              <Button type="button" variant="soft" onClick={onClose} disabled={pending}>
-                {t('common.cancel')}
+            {viewOnly ? (
+              <Button type="button" variant="soft" onClick={onClose}>
+                {t('common.close')}
               </Button>
-              <Button type="submit" disabled={pending} aria-busy={pending}>
-                {pending ? t('calendar.saving') : editing ? t('calendar.save') : t('calendar.add')}
-              </Button>
-            </div>
+            ) : (
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button type="button" variant="soft" onClick={onClose} disabled={pending}>
+                  {t('common.cancel')}
+                </Button>
+                <Button type="submit" disabled={pending} aria-busy={pending}>
+                  {pending
+                    ? t('calendar.saving')
+                    : editing
+                      ? t('calendar.save')
+                      : t('calendar.add')}
+                </Button>
+              </div>
+            )}
           </div>
         </form>
       </Modal>

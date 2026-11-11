@@ -177,6 +177,8 @@ describe('project list', () => {
                       purgeAt: null,
                       taskCount: 0,
                       doneCount: 0,
+                      memberCount: 1,
+                      members: [],
                     },
                   ],
                   total: 1,
@@ -302,7 +304,7 @@ describe('sorting the project list', () => {
     await openSignedIn(user)
     await user.click(await screen.findByRole('button', { name: /^Sort projects/ }))
     const items = screen.getAllByRole('menuitemradio')
-    expect(items).toHaveLength(4)
+    expect(items).toHaveLength(6)
     for (const item of items)
       expect(item.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
   })
@@ -326,6 +328,8 @@ describe('sorting the project list', () => {
     expect(items.map((item) => item.textContent)).toEqual([
       'Newest first',
       'Oldest first',
+      'Recently changed first',
+      'Name A–Z',
       'Most progress first',
       'Least progress first',
     ])
@@ -945,5 +949,114 @@ describe('privacy between people on the same browser', () => {
     await screen.findByRole('heading', { name: 'Hello, Bob' })
     expect(screen.queryByText('Alice private plan')).not.toBeInTheDocument()
     release()
+  })
+})
+
+describe('who is in each project, and whose projects show', () => {
+  const headings = () =>
+    within(screen.getByRole('list'))
+      .getAllByRole('heading', { level: 3 })
+      .map((heading) => heading.textContent)
+
+  it('names the people on each card, the owner first', async () => {
+    fakeBackend({ projects: [project('p1', 'Website', { members: [BOB] })] })
+    await openSignedIn(userEvent.setup())
+    expect(await screen.findByTitle('Members: Alice, Bob')).toBeInTheDocument()
+  })
+
+  it('names the first five of a big team and counts the rest', async () => {
+    const team = Array.from({ length: 6 }, (_, i) => ({
+      userId: `4444444${i}-4444-4444-4444-444444444444`,
+      email: `p${i}@example.com`,
+      displayName: `P${i}`,
+    }))
+    fakeBackend({ projects: [project('p1', 'Website', { members: team })] })
+    await openSignedIn(userEvent.setup())
+    expect(await screen.findByTitle('Members: Alice, P0, P1, P2, P3 +2 more')).toBeInTheDocument()
+  })
+
+  it('shows the projects of the people ticked, and keeps them in the address', async () => {
+    const api = fakeBackend({
+      projects: [
+        project('p1', 'Website', { members: [BOB, CAROL] }),
+        project('p2', 'Shop'),
+        project('p3', 'Blog', { members: [CAROL] }),
+      ],
+      tasks: [
+        task('t1', 'Fix', { project: 'p1', assigneeIds: [BOB.userId] }),
+        task('t2', 'Sell', { project: 'p2', assigneeIds: [ME.id] }),
+        task('t3', 'Write', { project: 'p3', assigneeIds: [CAROL.userId] }),
+      ],
+    })
+    const user = userEvent.setup()
+    await openSignedIn(user)
+    await screen.findByRole('link', { name: /Website/ })
+    await user.click(screen.getByRole('button', { name: 'Show: All projects' }))
+    const bob = await screen.findByRole('menuitemcheckbox', {
+      name: 'Show projects: Where Bob has tasks · bob@example.com',
+    })
+    expect(screen.getAllByRole('menuitemcheckbox').map((item) => item.textContent)).toEqual([
+      'All projects',
+      'AWhere I have tasks',
+      'BBob',
+      'CCarol',
+    ])
+    await user.click(bob)
+    await waitFor(() => expect(headings()).toEqual(['Website']))
+    expect(api.hits('GET /projects').at(-1)!.query.get('person')).toBe(BOB.userId)
+
+    // The menu stays open for the next one: any of them with a task counts.
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'Show projects: Where I have tasks' }),
+    )
+    await waitFor(() => expect(headings()).toEqual(['Website', 'Shop']))
+    expect(api.hits('GET /projects').at(-1)!.query.get('person')).toBe(`${BOB.userId},${ME.id}`)
+    expect(screen.getByRole('button', { name: 'Show: Where I have tasks +1' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemcheckbox', { name: /Where Bob has tasks/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    // Taking one off, and a new order, keep the rest.
+    await user.click(screen.getByRole('menuitemcheckbox', { name: /Where Bob has tasks/ }))
+    await waitFor(() => expect(headings()).toEqual(['Shop']))
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: /^Sort projects/ }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Name A–Z' }))
+    await waitFor(() => expect(api.hits('GET /projects').at(-1)!.query.get('sort')).toBe('name'))
+    expect(api.hits('GET /projects').at(-1)!.query.get('person')).toBe(ME.id)
+
+    // "All projects" takes every tick off.
+    await user.click(screen.getByRole('button', { name: 'Show: Where I have tasks' }))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Show projects: All projects' }))
+    await waitFor(() => expect(headings()).toEqual(['Blog', 'Shop', 'Website']))
+  })
+
+  it('reads several people from the address, and leaves out what is not a person', async () => {
+    const api = fakeBackend({
+      projects: [project('p1', 'Website', { members: [BOB, CAROL] })],
+      tasks: [task('t1', 'Fix', { project: 'p1', assigneeIds: [CAROL.userId] })],
+    })
+    await openSignedIn(
+      userEvent.setup(),
+      `/?person=${BOB.userId},nobody,${CAROL.userId},${BOB.userId}`,
+    )
+    expect(await screen.findByRole('link', { name: /Website/ })).toBeInTheDocument()
+    expect(api.hits('GET /projects').at(-1)!.query.get('person')).toBe(
+      `${BOB.userId},${CAROL.userId}`,
+    )
+    expect(
+      await screen.findByRole('button', { name: 'Show: Where Bob has tasks +1' }),
+    ).toBeInTheDocument()
+  })
+
+  it('says when nobody chosen has a project, and offers them all again', async () => {
+    fakeBackend({ projects: [project('p1', 'Website', { members: [BOB] })] })
+    const user = userEvent.setup()
+    await openSignedIn(user, `/?person=${BOB.userId}`)
+    expect(await screen.findByText('No projects match this choice.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Welcome to TaskFlow' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show all projects' }))
+    expect(await screen.findByRole('link', { name: /Website/ })).toBeInTheDocument()
   })
 })

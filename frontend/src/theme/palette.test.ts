@@ -66,7 +66,14 @@ const PAIRS: [string, string][] = [
 ]
 
 // Controls that are not text (WCAG 1.4.11) need 3:1 against what they sit on.
-const CONTROL_PAIRS: [string, string][] = [['handle', 'surface']]
+const CONTROL_PAIRS: [string, string][] = [
+  ['handle', 'surface'],
+  // The colored page pictures in the top bar: Calendar and the bell, plain and when hovered or open.
+  ['sky-fg', 'surface'],
+  ['sky-fg', 'primary-bg'],
+  ['peach-fg', 'surface'],
+  ['peach-fg', 'primary-bg'],
+]
 
 describe('palette', () => {
   it('defines exactly the same color names in light and dark', () => {

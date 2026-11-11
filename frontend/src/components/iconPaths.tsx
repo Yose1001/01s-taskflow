@@ -196,6 +196,14 @@ export const ICON_PATHS = {
       <path d="M10 18h4" />
     </>
   ),
+  az: (
+    <>
+      <path d="M3 18l4-12 4 12" />
+      <path d="M4.5 14h5" />
+      <path d="M17 5v14" />
+      <path d="M14 16l3 3 3-3" />
+    </>
+  ),
   bell: (
     <>
       <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />

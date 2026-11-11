@@ -115,6 +115,7 @@ export function SubtaskList({
   onRename,
   onRemove,
   error,
+  adding = true,
 }: {
   /** The box for a new line. A mistake in this section moves the focus there. */
   inputId: string
@@ -129,6 +130,8 @@ export function SubtaskList({
   onRename: (item: Subtask, title: string) => void
   onRemove: (item: Subtask) => void
   error?: string | undefined
+  /** False hides the box for a new line, for a task that cannot be changed. */
+  adding?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -173,32 +176,34 @@ export function SubtaskList({
           ))}
         </ul>
       )}
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <TextField
-            id={inputId}
-            label={t('tasks.subtaskAddLabel')}
-            placeholder={t('tasks.subtaskPlaceholder')}
-            value={draft}
-            maxLength={MAX_TITLE}
-            autoComplete="off"
-            onChange={(event) => onDraftChange(event.target.value)}
-            onKeyDown={onDraftKeyDown}
-            error={error}
-          />
+      {adding && (
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <TextField
+              id={inputId}
+              label={t('tasks.subtaskAddLabel')}
+              placeholder={t('tasks.subtaskPlaceholder')}
+              value={draft}
+              maxLength={MAX_TITLE}
+              autoComplete="off"
+              onChange={(event) => onDraftChange(event.target.value)}
+              onKeyDown={onDraftKeyDown}
+              error={error}
+            />
+          </div>
+          {/* mt-6 lines the button up with the box, under the box's label. */}
+          <Button
+            type="button"
+            variant="soft"
+            className="mt-6 shrink-0"
+            disabled={draft.trim() === ''}
+            onClick={onAdd}
+          >
+            <Icon name="plus" size={16} />
+            {t('tasks.subtaskAdd')}
+          </Button>
         </div>
-        {/* mt-6 lines the button up with the box, under the box's label. */}
-        <Button
-          type="button"
-          variant="soft"
-          className="mt-6 shrink-0"
-          disabled={draft.trim() === ''}
-          onClick={onAdd}
-        >
-          <Icon name="plus" size={16} />
-          {t('tasks.subtaskAdd')}
-        </Button>
-      </div>
+      )}
     </fieldset>
   )
 }

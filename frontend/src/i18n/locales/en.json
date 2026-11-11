@@ -88,7 +88,10 @@
     "invalid_id": "Something in the request is not valid.",
     "personal_only": "Only a personal day can be shared.",
     "too_many_people": "Choose 50 people at most.",
-    "choose_people": "Choose at least one person."
+    "choose_people": "Choose at least one person.",
+    "invalid_time": "Choose a time from the list.",
+    "invalid_remind_minutes": "Choose from the reminder options.",
+    "needs_time": "Choose a time first, to be reminded before it."
   },
   "common": {
     "cancel": "Cancel",
@@ -149,7 +152,19 @@
     "sort_newest": "Newest first",
     "sort_oldest": "Oldest first",
     "sort_progress_high": "Most progress first",
-    "sort_progress_low": "Least progress first"
+    "sort_progress_low": "Least progress first",
+    "sort_updated": "Recently changed first",
+    "sort_name": "Name A–Z",
+    "filterHeading": "Show projects",
+    "filterAll": "All projects",
+    "filterMine": "Where I have tasks",
+    "filterOf": "Where {{name}} has tasks",
+    "filterLabel": "Show: {{choice}}",
+    "filterEmpty": "No projects match this choice.",
+    "filterClear": "Show all projects",
+    "membersWord": "Members",
+    "membersTitle": "Members: {{names}}",
+    "moreMembers": "+{{count}} more"
   },
   "members": {
     "title": "Members",
@@ -276,7 +291,9 @@
     "holdLabel": "Why is it on hold?",
     "holdHint": "Tell the team what it is waiting for.",
     "holdConfirm": "Put on hold",
-    "holdWord": "On hold because"
+    "holdWord": "On hold because",
+    "trashedNote": "This task is in the trash. Restore it to change it.",
+    "trashedTitle": "Task in the trash"
   },
   "status": {
     "todo": "To do",
@@ -357,7 +374,6 @@
     "belongsLabel": "Belongs to",
     "noteLabel": "Note (optional)",
     "remindLabel": "Remind me",
-    "remindHint": "At 8:00 (Thai time), by the bell at the top. Choose any.",
     "remind_0": "On the day",
     "remind_1": "1 day before",
     "remind_3": "3 days before",
@@ -387,7 +403,17 @@
     "peopleWord": "People",
     "peopleTitle": "People: {{names}}",
     "hideTasks": "Hide tasks",
-    "tasksHidden": "Tasks hidden"
+    "tasksHidden": "Tasks hidden",
+    "viewTitle": "Important day",
+    "viewEvent": "Open {{title}}",
+    "viewOnlyNote": "You can look at this day, but only its owner can change it.",
+    "timeLabel": "Time (optional)",
+    "noTime": "No time",
+    "atTime": "At {{time}}",
+    "remindMin_15": "15 minutes before",
+    "remindMin_30": "30 minutes before",
+    "remindMin_60": "1 hour before",
+    "remindMin_120": "2 hours before"
   },
   "notifications": {
     "label": "Notifications",
@@ -400,6 +426,7 @@
     "inDays": "In {{count}} days ({{date}})",
     "past": "Passed ({{date}})",
     "readAll": "Mark all as read",
-    "openCalendar": "Open the calendar"
+    "openCalendar": "Open the calendar",
+    "dayAndTime": "{{day}}, {{time}}"
   }
 }

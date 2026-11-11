@@ -2,8 +2,9 @@ import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 're
 import { createPortal } from 'react-dom'
 import { Icon } from './Icon'
 
+// :disabled, not [disabled]: a field inside a disabled <fieldset> is disabled too, without the attribute.
 const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  'a[href], button:not(:disabled), textarea:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"]):not(:disabled)'
 
 // A dialog can open on top of another one (a confirmation over the members panel), so the page stays
 // inert until the last of them has closed.

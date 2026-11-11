@@ -36,6 +36,10 @@ export interface Project {
   taskCount: number
   /** Of those, how many are done. */
   doneCount: number
+  /** Everyone in the project. */
+  memberCount: number
+  /** The first few of them (up to 5): the owner, then by when they joined. */
+  members: Person[]
 }
 
 export interface Page<T> {
@@ -96,6 +100,9 @@ export interface SettingsPatch {
 /** How many days before an important day to remind: 0 = on the day itself. */
 export type RemindDay = 0 | 1 | 3 | 7
 export const REMIND_DAYS: readonly RemindDay[] = [0, 1, 3, 7]
+/** Reminders before a day's time, in minutes. */
+export type RemindMinute = 15 | 30 | 60 | 120
+export const REMIND_MINUTES: readonly RemindMinute[] = [15, 30, 60, 120]
 
 /** Someone in a project with the signed-in person: who an important day can be shared with. */
 export interface Person {
@@ -117,6 +124,10 @@ export interface CalendarEvent {
   ownerId: string | null
   createdBy: string
   remindDays: RemindDay[]
+  /** The time of day, "HH:MM" (Thai time), or null for a day without a time. */
+  atTime: string | null
+  /** Reminders before the time. Only a day with a time has them. */
+  remindMinutes: RemindMinute[]
   /** Who a personal day is shared with. Only its owner is told; for anyone else it is empty. */
   sharedWith: Person[]
   /** The owner's name, when the day was shared with the person looking. */
@@ -155,6 +166,10 @@ export interface AppNotification {
   projectName: string | null
   sharedBy: string | null
   daysBefore: RemindDay
+  /** Set for a reminder before the day's time; 0 for one by day. */
+  minutesBefore: 0 | RemindMinute
+  /** The day's time, if it has one. */
+  atTime: string | null
   createdAt: string
   readAt: string | null
 }

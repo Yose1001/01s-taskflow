@@ -82,6 +82,8 @@ erDiagram
         uuid owner_id FK "เจ้าของวันส่วนตัว; null = วันของโปรเจกต์"
         uuid created_by FK
         int_array remind_days "เลือกจาก 0, 1, 3, 7"
+        time at_time "เวลาของวัน เวลาไทย; null = ไม่ระบุ"
+        int_array remind_minutes "เลือกจาก 15, 30, 60, 120; ต้องมี at_time"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -94,6 +96,7 @@ erDiagram
         uuid user_id FK
         uuid event_id FK
         int days_before
+        int minutes_before "0 = เตือนตามวัน"
         timestamptz created_at
         timestamptz read_at "null = ยังไม่อ่าน"
     }
@@ -108,7 +111,7 @@ erDiagram
 - ดัชนีที่ควรมี: `users(email)`, `tasks(project_id, status, position) WHERE deleted_at IS NULL` (partial index), `task_assignees(project_id, user_id)`, `project_members(user_id)`, `tasks(deleted_at) WHERE deleted_at IS NOT NULL` และ `projects(deleted_at) WHERE deleted_at IS NOT NULL` (ให้งานลบถาวรหาแถวหมดอายุได้เร็ว)
 - วันสำคัญใน `events` เป็นของคนเดียว (`owner_id`) หรือของโปรเจกต์ (`project_id`) อย่างใดอย่างหนึ่งเท่านั้น (CHECK) วันของโปรเจกต์สมาชิกทุกคนเห็น เพิ่มได้ทุกคน แต่แก้หรือลบได้เฉพาะคนที่เพิ่มกับเจ้าของโปรเจกต์ ลบแล้วหายถาวรพร้อมการแจ้งเตือน (ไม่มีถังขยะ)
 - วันส่วนตัวแชร์ให้คนอื่นได้ผ่าน `event_shares` (เฉพาะคนที่อยู่โปรเจกต์เดียวกับเจ้าของ ตรวจใน service) คนที่ถูกแชร์เห็นและได้รับการแจ้งเตือน แต่แก้ไม่ได้ และรายชื่อคนที่ถูกแชร์บอกเฉพาะเจ้าของ เพื่อไม่ให้อีเมลรั่วไปหาคนที่ไม่รู้จักกัน
-- `notifications` มี unique key (`user_id`, `event_id`, `days_before`) งานสร้างการแจ้งเตือนจึงรันซ้ำหรือรันพร้อมกันหลายเครื่องได้โดยไม่เตือนซ้ำ เตือนเวลา 08:00 น. เวลาไทย และไม่เตือนย้อนหลังเมื่อเลยวันแล้ว เลื่อนวันแล้วการแจ้งเตือนเดิมของวันนั้นถูกลบ
+- `notifications` มี unique key (`user_id`, `event_id`, `days_before`, `minutes_before`) งานสร้างการแจ้งเตือนจึงรันซ้ำหรือรันพร้อมกันหลายเครื่องได้โดยไม่เตือนซ้ำ เตือนตามวันเวลา 08:00 น. เวลาไทย เตือนก่อนเวลาตาม `remind_minutes` และไม่เตือนย้อนหลังเมื่อเลยวันหรือเลยเวลาแล้ว เลื่อนวันแล้วการแจ้งเตือนเดิมของวันนั้นถูกลบ เลื่อนเวลาแล้วการเตือนก่อนเวลาเดิมถูกลบ งานนี้รันทุก 1 นาที
 - ใช้ CHECK constraint กับ `status`, `priority`, `role`, `locale`, `theme`
 
 ## ถังขยะ (soft delete 30 วัน)

@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { errorMessage } from '../auth/errors'
 import type { Project } from '../api/types'
+import { Avatar } from '../components/Avatar'
 import { ChoiceSwitch } from '../components/ChoiceSwitch'
 import { Button } from '../components/forms'
 import { Icon, type IconName } from '../components/Icon'
-import { Menu } from '../components/Menu'
+import { Menu, type MenuItem } from '../components/Menu'
+import { PageIcon } from '../components/PageIcon'
 import { Pagination } from '../components/Pagination'
+import { PeopleRow } from '../components/PeopleRow'
 import { RoleBadge } from '../components/RoleBadge'
 import { ErrorState, LoadingState } from '../components/states'
 import { TrashLink } from '../components/TrashLink'
+import { usePeople } from '../features/calendar/hooks'
 import { PAGE_SIZE, useProjects } from '../features/projects/hooks'
 import { ProjectFormDialog } from '../features/projects/ProjectFormDialog'
 import {
@@ -57,6 +61,24 @@ function Progress({ done, total }: { done: number; total: number }) {
 
 const projectPath = (p: Project) => `/projects/${encodeURIComponent(p.id)}`
 
+/** Who is in a project: names and pictures on a card, or just the pictures in a list row. */
+function ProjectPeople({ project: p, compact = false }: { project: Project; compact?: boolean }) {
+  const { t } = useTranslation()
+  const people = p.members.map((m) => ({ id: m.userId, name: personName(m) }))
+  if (people.length === 0) return null
+  const others = p.memberCount - people.length
+  return (
+    <PeopleRow
+      people={people}
+      word={t('projects.membersWord')}
+      describe={(names) => t('projects.membersTitle', { names })}
+      more={others > 0 ? t('projects.moreMembers', { count: others }) : undefined}
+      compact={compact}
+      className={compact ? 'shrink-0' : 'mt-3'}
+    />
+  )
+}
+
 function ProjectCard({ project: p }: { project: Project }) {
   const { t, i18n } = useTranslation()
   return (
@@ -76,6 +98,7 @@ function ProjectCard({ project: p }: { project: Project }) {
       <div className="mt-3">
         <Progress done={p.doneCount} total={p.taskCount} />
       </div>
+      <ProjectPeople project={p} />
       <p className="mt-3 text-sm text-muted">
         {t('projects.created', { date: formatDate(p.createdAt, i18n.language) })}
       </p>
@@ -102,6 +125,7 @@ function ProjectRow({ project: p }: { project: Project }) {
       <div className="w-48 shrink-0 max-md:w-full">
         <Progress done={p.doneCount} total={p.taskCount} />
       </div>
+      <ProjectPeople project={p} compact />
       <span className="shrink-0">
         <RoleBadge role={p.myRole} />
       </span>
@@ -138,9 +162,123 @@ function ViewSwitch({
 const PROJECT_SORT_ICON: Record<ProjectSort, IconName> = {
   newest: 'clock',
   oldest: 'clock',
+  updated: 'pencil',
+  name: 'az',
   progress_high: 'progress',
   progress_low: 'progress',
 }
+
+/**
+ * Which projects show: all of them, or those where any of the ticked people (me among them) has a task,
+ * like the person filter on the board. The menu stays open while people are ticked.
+ */
+function ProjectsFilterMenu({
+  chosen,
+  onChange,
+}: {
+  chosen: string[]
+  onChange: (next: string[]) => void
+}) {
+  const { t } = useTranslation()
+  const { user } = useAuth()
+  const people = usePeople().data?.items ?? []
+  // The ticks live in the address, which the page reads a moment later. A second tick in that moment
+  // must build on the first, not on what the page still shows, or the first would be lost.
+  const latest = useRef<string[] | null>(null)
+  const shown = chosen.join(',')
+  useEffect(() => {
+    latest.current = null // the page has caught up
+  }, [shown])
+  if (!user) return null
+  const heading = t('projects.filterHeading')
+  const choose = (next: string[]) => {
+    latest.current = next
+    onChange(next)
+  }
+  const toggle = (id: string) => {
+    const now = latest.current ?? chosen
+    choose(now.includes(id) ? now.filter((x) => x !== id) : [...now, id])
+  }
+  const words = (id: string) => {
+    if (id === user.id) return t('projects.filterMine')
+    const person = people.find((p) => p.userId === id)
+    return t('projects.filterOf', { name: person ? personName(person) : '…' })
+  }
+  // In the menu's order: "Where I have tasks", then "Where Bob has tasks +1" for more.
+  const order = [user.id, ...people.map((p) => p.userId)]
+  const ticked = [...chosen].sort(
+    (a, b) =>
+      (order.indexOf(a) + 1 || order.length + 1) - (order.indexOf(b) + 1 || order.length + 1),
+  )
+  const choice =
+    ticked.length === 0
+      ? t('projects.filterAll')
+      : ticked.length === 1
+        ? words(ticked[0]!)
+        : `${words(ticked[0]!)} +${ticked.length - 1}`
+  const label = t('projects.filterLabel', { choice })
+  const items: MenuItem[] = [
+    {
+      key: 'all',
+      heading,
+      icon: 'grid',
+      label: t('projects.filterAll'),
+      ariaLabel: `${heading}: ${t('projects.filterAll')}`,
+      checked: chosen.length === 0,
+      onSelect: () => choose([]),
+    },
+    {
+      key: user.id,
+      leading: <Avatar id={user.id} name={personName(user)} size={20} />,
+      label: t('projects.filterMine'),
+      ariaLabel: `${heading}: ${t('projects.filterMine')}`,
+      checked: chosen.includes(user.id),
+      onSelect: () => toggle(user.id),
+    },
+    ...people.map((p) => ({
+      key: p.userId,
+      leading: <Avatar id={p.userId} name={personName(p)} size={20} />,
+      label: personName(p),
+      // Two people may share a name: the email tells them apart for a screen reader.
+      ariaLabel: `${heading}: ${t('projects.filterOf', { name: personName(p) })} · ${p.email}`,
+      checked: chosen.includes(p.userId),
+      onSelect: () => toggle(p.userId),
+    })),
+  ]
+  return (
+    <Menu
+      multiple
+      floating // on a phone the button sits near the left edge, and the menu must stay on screen
+      label={label}
+      trigger={
+        <>
+          <Icon name="users" />
+          <span className="max-w-48 truncate max-sm:hidden">{label}</span>
+        </>
+      }
+      triggerClassName="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 text-sm font-medium text-text hover:bg-primary-bg"
+      items={items}
+    />
+  )
+}
+
+/** Nothing matches the chosen people: say so, and offer every project again. */
+function FilterEmpty({ onClear }: { onClear: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+      <p className="text-muted">{t('projects.filterEmpty')}</p>
+      <Button type="button" variant="soft" className="mt-4" onClick={onClear}>
+        {t('projects.filterClear')}
+      </Button>
+    </div>
+  )
+}
+
+// A user id, as the address may carry one: anything else is ignored.
+const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// As many people as the API takes at once.
+const MAX_PEOPLE = 50
 
 /** Chooses the order of the list. On phones the button shows only its icon. */
 function SortMenu({
@@ -264,8 +402,19 @@ export function ProjectsPage() {
   const [params, setParams] = useSearchParams()
   const page = parsePage(params.get('page'))
   const [sort, setSort] = useState(loadProjectSort)
+  // Whose projects: everyone's (empty), or those of the people in the address (?person=<id>,<id>).
+  // Anything that is not a user id is left out, and so is a second copy of one.
+  const chosen = [
+    ...new Set((params.get('person') ?? '').split(',').filter((id) => USER_ID.test(id))),
+  ].slice(0, MAX_PEOPLE)
+  const person = chosen.join(',')
   // The newest first is the server's own order, so the address stays plain unless the person chose another.
-  const projects = useProjects(page, false, sort === 'newest' ? undefined : sort)
+  const projects = useProjects(
+    page,
+    false,
+    sort === 'newest' ? undefined : sort,
+    person || undefined,
+  )
   const [creating, setCreating] = useState(false)
   const [view, setView] = useState(loadProjectsView)
   useDocumentTitle(t('projects.title'))
@@ -274,9 +423,13 @@ export function ProjectsPage() {
   const total = projects.data?.total ?? 0
   const empty = projects.data !== undefined && projects.data.items.length === 0
   useEffect(() => {
-    if (empty && total > 0 && page > 1)
-      setParams({ page: String(lastPage(total, PAGE_SIZE)) }, { replace: true })
-  }, [empty, total, page, setParams])
+    if (empty && total > 0 && page > 1) {
+      const last = String(lastPage(total, PAGE_SIZE))
+      setParams(person ? { person, page: last } : { page: last }, { replace: true })
+    }
+  }, [empty, total, page, person, setParams])
+  // The controls stay while a person is chosen, even when none of their projects is left.
+  const listed = projects.data !== undefined && (projects.data.total > 0 || person !== '')
 
   if (!user) return null
   return (
@@ -288,16 +441,25 @@ export function ProjectsPage() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">{t('projects.title')}</h2>
+        <h2 className="flex items-center gap-2 text-xl font-semibold">
+          <PageIcon page="projects" size="sm" />
+          {t('projects.title')}
+        </h2>
         <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
-          {projects.data && projects.data.total > 0 && (
+          {listed && (
+            <ProjectsFilterMenu
+              chosen={chosen}
+              onChange={(next) => setParams(next.length > 0 ? { person: next.join(',') } : {})}
+            />
+          )}
+          {listed && (
             <div className="flex items-center gap-2 max-sm:hidden">
               <SortMenu
                 sort={sort}
                 onChange={(next) => {
                   setSort(next)
                   saveProjectSort(next)
-                  setParams({}) // a new order starts from the first page
+                  setParams(person ? { person } : {}) // a new order starts from the first page
                 }}
               />
               <ViewSwitch
@@ -309,16 +471,21 @@ export function ProjectsPage() {
               />
             </div>
           )}
-          <TrashLink to="/projects/trash" label={t('projects.trash')} ghostOnPhone />
+          <TrashLink
+            to="/projects/trash"
+            label={t('projects.trash')}
+            iconOnlyOnPhone
+            ghostOnPhone
+          />
           <div className="flex items-center gap-2 max-sm:ml-auto">
-            {projects.data && projects.data.total > 0 && (
+            {listed && (
               <PhoneListOptions
                 sort={sort}
                 view={view}
                 onSort={(next) => {
                   setSort(next)
                   saveProjectSort(next)
-                  setParams({})
+                  setParams(person ? { person } : {})
                 }}
                 onView={(next) => {
                   setView(next)
@@ -328,7 +495,7 @@ export function ProjectsPage() {
             )}
             {/* A new person has one big button in the welcome panel instead: one primary button per page.
                 Waiting for the list means the button never flashes up and disappears again. */}
-            {projects.data && projects.data.total > 0 && (
+            {listed && (
               <Button type="button" onClick={() => setCreating(true)}>
                 <Icon name="plus" />
                 {t('projects.new')}
@@ -346,7 +513,11 @@ export function ProjectsPage() {
           onRetry={() => void projects.refetch()}
         />
       ) : projects.data.total === 0 ? (
-        <Welcome onCreate={() => setCreating(true)} />
+        person ? (
+          <FilterEmpty onClear={() => setParams({})} />
+        ) : (
+          <Welcome onCreate={() => setCreating(true)} />
+        )
       ) : (
         <>
           <ul
@@ -364,7 +535,7 @@ export function ProjectsPage() {
             page={page}
             total={projects.data.total}
             pageSize={PAGE_SIZE}
-            onPage={(p) => setParams({ page: String(p) })}
+            onPage={(p) => setParams(person ? { person, page: String(p) } : { page: String(p) })}
           />
         </>
       )}

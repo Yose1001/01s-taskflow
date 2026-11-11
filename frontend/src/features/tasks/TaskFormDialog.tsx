@@ -6,6 +6,7 @@ import type { Member, Subtask, Task, TaskPriority, TaskStatus } from '../../api/
 import { errorMessage, fieldErrorMessage } from '../../auth/errors'
 import { DatePicker } from '../../components/DatePicker'
 import { Alert, Button, SelectField, TextAreaField, TextField } from '../../components/forms'
+import { Icon } from '../../components/Icon'
 import { Modal } from '../../components/Modal'
 import { AssigneePicker } from './AssigneePicker'
 import { PRIORITIES, STATUSES, holdReasonError } from './boardLogic'
@@ -68,6 +69,10 @@ interface Props {
   onSaved: () => void
   /** Editing only: the person asked to delete this task. */
   onDelete?: (task: Task) => void
+  /**
+   * A task in the trash: the same form, every field as it was but locked, with Restore instead of Save.
+   */
+  trashed?: { restoring: boolean; onRestore: () => void }
 }
 
 /** The create / edit form for a task, in a dialog. */
@@ -80,9 +85,11 @@ export function TaskFormDialog({
   onClose,
   onSaved,
   onDelete,
+  trashed,
 }: Props) {
   const { t } = useTranslation()
   const editing = task !== undefined
+  const locked = trashed !== undefined
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'medium')
@@ -133,6 +140,7 @@ export function TaskFormDialog({
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
+    if (locked) return // nothing to save: it has to be restored first
     const trimmed = title.trim()
     const next: Errors = {}
     const length = Array.from(trimmed).length
@@ -225,133 +233,149 @@ export function TaskFormDialog({
 
   return (
     <Modal
-      title={editing ? t('tasks.editTitle') : t('tasks.createTitle')}
-      onClose={pending ? () => {} : onClose}
+      title={
+        locked ? t('tasks.trashedTitle') : editing ? t('tasks.editTitle') : t('tasks.createTitle')
+      }
+      onClose={pending || trashed?.restoring ? () => {} : onClose}
     >
       <form onSubmit={onSubmit} noValidate className="space-y-4">
         {showBanner && <Alert>{errorMessage(t, serverError)}</Alert>}
-        <TextField
-          id={FIELD_IDS.title}
-          label={t('tasks.titleLabel')}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          error={fieldMessage('title')}
-          autoComplete="off"
-        />
-        <TextAreaField
-          id={FIELD_IDS.description}
-          label={t('tasks.descriptionLabel')}
-          hint={t('tasks.descriptionHint')}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          error={fieldMessage('description')}
-          rows={3}
-          maxRows={8}
-        />
-        <SubtaskList
-          inputId={FIELD_IDS.subtasks}
-          items={lines}
-          tickable={editing}
-          draft={subtaskDraft}
-          onDraftChange={setSubtaskDraft}
-          onAdd={() => addLine()}
-          onToggle={(item) =>
-            // A failure is shown from the mutation's own state, so nothing more to do with it here.
-            subtasks.update
-              .mutateAsync({ id: item.id, patch: { done: !item.done } })
-              .catch(() => undefined)
-          }
-          onRename={(item, newTitle) => {
-            if (editing) subtasks.update.mutate({ id: item.id, patch: { title: newTitle } })
-            else
-              setNewLines(
-                newLines.map((line) => (line.id === item.id ? { ...line, title: newTitle } : line)),
-              )
-          }}
-          onRemove={(item) => {
-            if (editing) subtasks.remove.mutate(item.id)
-            else setNewLines(newLines.filter((line) => line.id !== item.id))
-          }}
-          error={subtaskMessage()}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <SelectField
-            id={FIELD_IDS.priority}
-            label={t('tasks.priorityLabel')}
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as TaskPriority)}
-            error={fieldMessage('priority')}
-          >
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {t(`priority.${p}`)}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            id={FIELD_IDS.status}
-            label={t('tasks.statusLabel')}
-            hint={editing ? t('tasks.statusMoveHint') : undefined}
-            value={status}
-            onChange={(e) => setStatus(e.target.value as TaskStatus)}
-            error={fieldMessage('status')}
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {t(`status.${s}`)}
-              </option>
-            ))}
-          </SelectField>
-          {/*
+        {locked && (
+          <p className="flex items-start gap-2 rounded-xl bg-surface-2 p-3 text-sm text-muted">
+            <span className="mt-0.5 shrink-0">
+              <Icon name="trash" />
+            </span>
+            {t('tasks.trashedNote')}
+          </p>
+        )}
+        {/* Disabled as a whole while in the trash: every field shows what was there, none can change. */}
+        <fieldset disabled={locked} className="min-w-0 space-y-4 disabled:cursor-not-allowed">
+          <TextField
+            id={FIELD_IDS.title}
+            label={t('tasks.titleLabel')}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            error={fieldMessage('title')}
+            autoComplete="off"
+          />
+          <TextAreaField
+            id={FIELD_IDS.description}
+            label={t('tasks.descriptionLabel')}
+            hint={t('tasks.descriptionHint')}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            error={fieldMessage('description')}
+            rows={3}
+            maxRows={8}
+          />
+          <SubtaskList
+            inputId={FIELD_IDS.subtasks}
+            items={lines}
+            tickable={editing}
+            draft={subtaskDraft}
+            onDraftChange={setSubtaskDraft}
+            onAdd={() => addLine()}
+            onToggle={(item) =>
+              // A failure is shown from the mutation's own state, so nothing more to do with it here.
+              subtasks.update
+                .mutateAsync({ id: item.id, patch: { done: !item.done } })
+                .catch(() => undefined)
+            }
+            onRename={(item, newTitle) => {
+              if (editing) subtasks.update.mutate({ id: item.id, patch: { title: newTitle } })
+              else
+                setNewLines(
+                  newLines.map((line) =>
+                    line.id === item.id ? { ...line, title: newTitle } : line,
+                  ),
+                )
+            }}
+            onRemove={(item) => {
+              if (editing) subtasks.remove.mutate(item.id)
+              else setNewLines(newLines.filter((line) => line.id !== item.id))
+            }}
+            error={subtaskMessage()}
+            adding={!locked}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SelectField
+              id={FIELD_IDS.priority}
+              label={t('tasks.priorityLabel')}
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as TaskPriority)}
+              error={fieldMessage('priority')}
+            >
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>
+                  {t(`priority.${p}`)}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField
+              id={FIELD_IDS.status}
+              label={t('tasks.statusLabel')}
+              hint={editing ? t('tasks.statusMoveHint') : undefined}
+              value={status}
+              onChange={(e) => setStatus(e.target.value as TaskStatus)}
+              error={fieldMessage('status')}
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`status.${s}`)}
+                </option>
+              ))}
+            </SelectField>
+            {/*
             Only for "On hold". It stays in the page while hidden, so what was typed is still there when the
             person comes back to "On hold"; while hidden it is inert (not reachable, not read out).
           */}
-          <div
-            inert={status !== 'on_hold'}
-            data-testid="hold-reason"
-            className={`grid transition-[grid-template-rows,opacity,margin] duration-150 ease-out motion-reduce:transition-none sm:col-span-2 ${
-              status === 'on_hold'
-                ? 'grid-rows-[1fr] opacity-100'
-                : '-mt-4 grid-rows-[0fr] opacity-0'
-            }`}
-          >
-            <div className="min-h-0 overflow-hidden">
-              <TextAreaField
-                id={FIELD_IDS.holdReason}
-                label={t('tasks.holdLabel')}
-                hint={t('tasks.holdHint')}
-                value={holdReason}
-                onChange={(e) => setHoldReason(e.target.value)}
-                error={fieldMessage('holdReason')}
-                rows={2}
-              />
+            <div
+              inert={status !== 'on_hold'}
+              data-testid="hold-reason"
+              className={`grid transition-[grid-template-rows,opacity,margin] duration-150 ease-out motion-reduce:transition-none sm:col-span-2 ${
+                status === 'on_hold'
+                  ? 'grid-rows-[1fr] opacity-100'
+                  : '-mt-4 grid-rows-[0fr] opacity-0'
+              }`}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <TextAreaField
+                  id={FIELD_IDS.holdReason}
+                  label={t('tasks.holdLabel')}
+                  hint={t('tasks.holdHint')}
+                  value={holdReason}
+                  onChange={(e) => setHoldReason(e.target.value)}
+                  error={fieldMessage('holdReason')}
+                  rows={2}
+                />
+              </div>
             </div>
+            {/* Each calendar stops at the other date, so the two can never end up in the wrong order. */}
+            <DatePicker
+              id={FIELD_IDS.startDate}
+              label={t('tasks.startLabel')}
+              value={startDate}
+              onChange={setStartDate}
+              max={dueDate || undefined}
+              error={fieldMessage('startDate')}
+            />
+            <DatePicker
+              id={FIELD_IDS.dueDate}
+              label={t('tasks.dueLabel')}
+              value={dueDate}
+              onChange={setDueDate}
+              min={startDate || undefined}
+              error={fieldMessage('dueDate')}
+            />
           </div>
-          {/* Each calendar stops at the other date, so the two can never end up in the wrong order. */}
-          <DatePicker
-            id={FIELD_IDS.startDate}
-            label={t('tasks.startLabel')}
-            value={startDate}
-            onChange={setStartDate}
-            max={dueDate || undefined}
-            error={fieldMessage('startDate')}
+          <AssigneePicker
+            id={FIELD_IDS.assigneeIds}
+            members={members}
+            selected={assigneeIds}
+            onChange={setAssigneeIds}
+            error={fieldMessage('assigneeIds')}
           />
-          <DatePicker
-            id={FIELD_IDS.dueDate}
-            label={t('tasks.dueLabel')}
-            value={dueDate}
-            onChange={setDueDate}
-            min={startDate || undefined}
-            error={fieldMessage('dueDate')}
-          />
-        </div>
-        <AssigneePicker
-          id={FIELD_IDS.assigneeIds}
-          members={members}
-          selected={assigneeIds}
-          onChange={setAssigneeIds}
-          error={fieldMessage('assigneeIds')}
-        />
+        </fieldset>
         {/* Always in view at the bottom of the dialog, however long the form gets. */}
         <div className="sticky -bottom-6 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-6 py-4">
           <div>
@@ -366,20 +390,37 @@ export function TaskFormDialog({
               </Button>
             )}
           </div>
-          <div className="flex flex-wrap justify-end gap-3">
-            <Button type="button" variant="soft" onClick={onClose} disabled={pending}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={pending} aria-busy={pending}>
-              {pending
-                ? editing
-                  ? t('tasks.saving')
-                  : t('tasks.creating')
-                : editing
-                  ? t('tasks.save')
-                  : t('tasks.create')}
-            </Button>
-          </div>
+          {trashed ? (
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button type="button" variant="soft" onClick={onClose} disabled={trashed.restoring}>
+                {t('common.close')}
+              </Button>
+              <Button
+                type="button"
+                onClick={trashed.onRestore}
+                disabled={trashed.restoring}
+                aria-busy={trashed.restoring}
+              >
+                <Icon name="restore" />
+                {trashed.restoring ? t('trash.restoring') : t('trash.restore')}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button type="button" variant="soft" onClick={onClose} disabled={pending}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit" disabled={pending} aria-busy={pending}>
+                {pending
+                  ? editing
+                    ? t('tasks.saving')
+                    : t('tasks.creating')
+                  : editing
+                    ? t('tasks.save')
+                    : t('tasks.create')}
+              </Button>
+            </div>
+          )}
         </div>
       </form>
     </Modal>

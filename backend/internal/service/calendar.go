@@ -62,21 +62,25 @@ func NewCalendar(store EventStore, projects ProjectAccess, opts ...CalendarOptio
 
 // EventCreate is the raw request to add an important day.
 type EventCreate struct {
-	Title      string
-	Note       string
-	Day        string  // "YYYY-MM-DD"
-	ProjectID  *string // nil = personal
-	SharedWith []string
-	RemindDays []int
+	Title         string
+	Note          string
+	Day           string  // "YYYY-MM-DD"
+	ProjectID     *string // nil = personal
+	SharedWith    []string
+	RemindDays    []int
+	AtTime        *string // "HH:MM"; nil or "" for a day without a time
+	RemindMinutes []int
 }
 
 // EventUpdate is the raw request to change one. Nil fields stay as they are.
 type EventUpdate struct {
-	Title      *string
-	Note       *string
-	Day        *string
-	RemindDays *[]int
-	SharedWith *[]string
+	Title         *string
+	Note          *string
+	Day           *string
+	RemindDays    *[]int
+	SharedWith    *[]string
+	AtTime        *string // "" takes the time away, and the reminders before it with it
+	RemindMinutes *[]int
 }
 
 // CalendarPage is what one calendar view shows.
@@ -137,6 +141,20 @@ func (c *Calendar) Create(ctx context.Context, userID string, in EventCreate) (m
 	if code != "" {
 		fields["remindDays"] = code
 	}
+	at := ""
+	if in.AtTime != nil {
+		at = strings.TrimSpace(*in.AtTime)
+	}
+	if !validTime(at) {
+		fields["atTime"] = "invalid_time"
+	}
+	minutes, code := checkRemindMinutes(in.RemindMinutes)
+	switch {
+	case code != "":
+		fields["remindMinutes"] = code
+	case len(minutes) > 0 && at == "":
+		fields["remindMinutes"] = "needs_time" // minutes before what? a day needs a time for these
+	}
 	if in.ProjectID != nil {
 		if _, err := c.activeProject(ctx, userID, *in.ProjectID); err != nil {
 			// Someone else's project, or one in the trash, is simply not a place to put a day.
@@ -165,8 +183,13 @@ func (c *Calendar) Create(ctx context.Context, userID string, in EventCreate) (m
 		id := strings.ToLower(*in.ProjectID)
 		project = &id
 	}
+	var atTime *string
+	if at != "" {
+		atTime = &at
+	}
 	return c.store.CreateEvent(ctx, userID, model.EventInput{
 		Title: title, Note: note, Day: day, ProjectID: project, SharedWith: shared, RemindDays: days,
+		AtTime: atTime, RemindMinutes: minutes,
 	}, c.now())
 }
 
@@ -205,6 +228,35 @@ func (c *Calendar) Update(ctx context.Context, userID, eventID string, in EventU
 			fields["remindDays"] = code
 		}
 		patch.RemindDays = &days
+	}
+	// The time and the reminders before it are checked together, as they will be once saved.
+	at := ""
+	if ev.AtTime != nil {
+		at = *ev.AtTime
+	}
+	if in.AtTime != nil {
+		at = strings.TrimSpace(*in.AtTime)
+		if !validTime(at) {
+			fields["atTime"] = "invalid_time"
+		}
+		patch.AtTime = &at
+	}
+	minutes := ev.RemindMinutes
+	if in.RemindMinutes != nil {
+		var code string
+		minutes, code = checkRemindMinutes(*in.RemindMinutes)
+		if code != "" {
+			fields["remindMinutes"] = code
+		}
+		patch.RemindMinutes = &minutes
+	}
+	if at == "" && len(minutes) > 0 {
+		if in.RemindMinutes != nil {
+			fields["remindMinutes"] = "needs_time"
+		} else {
+			none := []int{} // the time was taken away: so are the reminders before it
+			patch.RemindMinutes = &none
+		}
 	}
 	if in.SharedWith != nil {
 		// Only the owner of a personal day says who it is shared with.
@@ -330,6 +382,28 @@ func checkEventTitle(title string) string {
 }
 
 // checkRemindDays returns the choices sorted and without repeats, or an error code. Never nil.
+// checkRemindMinutes keeps the minute reminders sorted and without repeats, or says one is not offered.
+func checkRemindMinutes(minutes []int) ([]int, string) {
+	out := make([]int, 0, len(minutes))
+	for _, m := range minutes {
+		if !slices.Contains(model.RemindMinutes, m) {
+			return nil, "invalid_remind_minutes"
+		}
+		out = append(out, m)
+	}
+	slices.Sort(out)
+	return slices.Compact(out), ""
+}
+
+// validTime says whether s is a time of day as "HH:MM" (24 hours), or empty for no time.
+func validTime(s string) bool {
+	if s == "" {
+		return true
+	}
+	t, err := time.Parse("15:04", s)
+	return err == nil && t.Format("15:04") == s
+}
+
 func checkRemindDays(days []int) ([]int, string) {
 	out := make([]int, 0, len(days))
 	for _, d := range days {

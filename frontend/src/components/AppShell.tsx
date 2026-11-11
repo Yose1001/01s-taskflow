@@ -7,6 +7,7 @@ import { Avatar } from './Avatar'
 import { Icon } from './Icon'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { Menu } from './Menu'
+import { PAGE_ICONS } from './pageIcons'
 import { ThemeSwitcher } from './ThemeSwitcher'
 
 /** The frame around every page: the app name, then language, theme and the account, on every screen size. */
@@ -57,7 +58,9 @@ function Account() {
             }`
           }
         >
-          <Icon name="calendar" size={20} />
+          <span className={PAGE_ICONS.calendar.ink}>
+            <Icon name="calendar" size={20} />
+          </span>
           <span className="max-sm:sr-only">{t('nav.calendar')}</span>
         </NavLink>
         <NotificationBell />

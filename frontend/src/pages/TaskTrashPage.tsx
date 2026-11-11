@@ -1,15 +1,19 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
+import type { Task } from '../api/types'
 import { errorMessage } from '../auth/errors'
 import { BackLink } from '../components/BackLink'
+import { PageIcon } from '../components/PageIcon'
 import { Alert, Button } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { EmptyState, ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
 import { useToast } from '../components/toast'
-import { useProject } from '../features/projects/hooks'
+import { useMembers, useProject } from '../features/projects/hooks'
 import { useRestoreTask, useTrashedTasks } from '../features/tasks/hooks'
+import { TaskFormDialog } from '../features/tasks/TaskFormDialog'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { daysUntil, formatDate } from '../lib/format'
 
@@ -21,7 +25,20 @@ export function TaskTrashPage() {
   const project = useProject(projectId)
   const trashed = useTrashedTasks(projectId)
   const restore = useRestoreTask(projectId)
+  // The task open for reading, if any.
+  const [viewing, setViewing] = useState<Task | null>(null)
+  // Names for the people on the open task. Asked for only once a task is open.
+  const members = useMembers(projectId, viewing !== null)
   useDocumentTitle(t('tasks.trashTitle'))
+
+  function restoreTask(task: Task) {
+    restore.mutate(task.id, {
+      onSuccess: () => {
+        setViewing(null)
+        toast.show({ message: t('tasks.restored', { title: task.title }) })
+      },
+    })
+  }
 
   const notFound =
     (project.error instanceof ApiError && project.error.status === 404) ||
@@ -51,7 +68,10 @@ export function TaskTrashPage() {
     <div className="space-y-6">
       {back}
       <div>
-        <h1 className="text-3xl font-bold">{t('tasks.trashTitle')}</h1>
+        <h1 className="flex items-center gap-3 text-3xl font-bold">
+          <PageIcon page="trash" />
+          {t('tasks.trashTitle')}
+        </h1>
         {project.data && <p className="mt-1 break-words text-muted">{project.data.name}</p>}
         <p className="mt-1 text-muted">{t('tasks.trashIntro')}</p>
       </div>
@@ -74,10 +94,19 @@ export function TaskTrashPage() {
             return (
               <li
                 key={task.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-5"
+                className="relative flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-5 transition-colors hover:border-primary"
               >
                 <div className="min-w-0 space-y-1">
-                  <h2 className="break-words text-lg font-semibold">{task.title}</h2>
+                  <h2 className="break-words text-lg font-semibold">
+                    {/* The whole card opens the task; its button is the title, so the name stays the title. */}
+                    <button
+                      type="button"
+                      onClick={() => setViewing(task)}
+                      className="text-left after:absolute after:inset-0 after:rounded-2xl after:content-['']"
+                    >
+                      {task.title}
+                    </button>
+                  </h2>
                   <StatusBadge status={task.status} />
                   {task.purgeAt && (
                     <p className="text-sm text-muted">
@@ -89,15 +118,11 @@ export function TaskTrashPage() {
                 <Button
                   type="button"
                   variant="soft"
+                  className="relative z-10" // above the card's own click area
                   disabled={restore.isPending}
                   aria-busy={restoring}
                   aria-label={`${t('trash.restore')}: ${task.title}`}
-                  onClick={() =>
-                    restore.mutate(task.id, {
-                      onSuccess: () =>
-                        toast.show({ message: t('tasks.restored', { title: task.title }) }),
-                    })
-                  }
+                  onClick={() => restoreTask(task)}
                 >
                   <Icon name="restore" />
                   {restoring ? t('trash.restoring') : t('trash.restore')}
@@ -106,6 +131,21 @@ export function TaskTrashPage() {
             )
           })}
         </ul>
+      )}
+
+      {viewing && (
+        <TaskFormDialog
+          projectId={projectId}
+          members={members.data ?? []}
+          task={viewing}
+          subtasks={viewing.subtasks}
+          onClose={() => setViewing(null)}
+          onSaved={() => setViewing(null)}
+          trashed={{
+            restoring: restore.isPending && restore.variables === viewing.id,
+            onRestore: () => restoreTask(viewing),
+          }}
+        />
       )}
     </div>
   )

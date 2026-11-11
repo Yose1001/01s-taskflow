@@ -11,12 +11,15 @@ export function listProjects(
     pageSize: number
     trashed: boolean
     sort?: string | undefined
+    /** Only the projects where this person (a user id) has a task. */
+    person?: string | undefined
     signal?: AbortSignal | undefined
   },
 ): Promise<Page<Project>> {
   const params = new URLSearchParams({ page: String(query.page), pageSize: String(query.pageSize) })
   if (query.trashed) params.set('trashed', 'true')
   if (query.sort) params.set('sort', query.sort)
+  if (query.person) params.set('person', query.person)
   return request<Page<Project>>(`/projects?${params}`, query.signal ? { signal: query.signal } : {})
 }
 

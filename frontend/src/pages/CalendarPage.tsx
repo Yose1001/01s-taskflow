@@ -9,6 +9,8 @@ import { BackLink } from '../components/BackLink'
 import { Button } from '../components/forms'
 import { Icon } from '../components/Icon'
 import { Menu, type MenuItem } from '../components/Menu'
+import { PageIcon } from '../components/PageIcon'
+import { PeopleRow } from '../components/PeopleRow'
 import { ErrorState, LoadingState } from '../components/states'
 import { StatusBadge } from '../components/StatusBadge'
 import { CalendarTaskDialog } from '../features/calendar/CalendarTaskDialog'
@@ -144,7 +146,10 @@ export function CalendarPage() {
       {/* Back to the projects, the same way as on every other page. */}
       <BackLink to="/">{t('projects.myProjects')}</BackLink>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold sm:text-3xl">{t('calendar.pageTitle')}</h1>
+        <h1 className="flex items-center gap-3 text-2xl font-bold sm:text-3xl">
+          <PageIcon page="calendar" />
+          {t('calendar.pageTitle')}
+        </h1>
         <Button type="button" onClick={() => setDialog({ day: selected })}>
           <Icon name="plus" />
           {t('calendar.addButton')}
@@ -262,7 +267,7 @@ export function CalendarPage() {
             title={text.fullDay(selected)}
             items={chosen}
             nameOf={nameOf}
-            onEdit={(event) => setDialog({ event, day: event.day })}
+            onOpen={(event) => setDialog({ event, day: event.day })}
             onOpenTask={setOpenTask}
           />
         </div>
@@ -501,34 +506,6 @@ function TasksMenu({
   )
 }
 
-/** Names, then small pictures of the first three, on one line of a card. */
-function PeopleRow({
-  people,
-  word,
-  describe,
-}: {
-  people: Named[]
-  word: string
-  describe: (names: string) => string
-}) {
-  const names = people.map((p) => p.name).join(', ')
-  return (
-    <span className="mt-2 flex min-h-[22px] items-center justify-between gap-2 text-sm text-muted">
-      <span className="min-w-0 truncate" title={describe(names)}>
-        <span className="sr-only">{word} </span>
-        {names}
-      </span>
-      <span className="flex shrink-0 -space-x-1.5" aria-hidden="true">
-        {people.slice(0, 3).map((p) => (
-          <span key={p.id} className="rounded-full ring-2 ring-surface">
-            <Avatar id={p.id} name={p.name} size={22} />
-          </span>
-        ))}
-      </span>
-    </span>
-  )
-}
-
 function EventPeople({ people }: { people: Named[] }) {
   const { t } = useTranslation()
   if (people.length === 0) return null
@@ -546,13 +523,13 @@ function DayPanel({
   title,
   items,
   nameOf,
-  onEdit,
+  onOpen,
   onOpenTask,
 }: {
   title: string
   items: DayItems
   nameOf: Map<string, string>
-  onEdit: (event: CalendarEvent) => void
+  onOpen: (event: CalendarEvent) => void
   onOpenTask: (task: CalendarTask) => void
 }) {
   const { t } = useTranslation()
@@ -578,19 +555,40 @@ function DayPanel({
           {items.events.map((event) => (
             <li
               key={event.id}
-              className="rounded-xl border border-border bg-surface p-3 shadow-card"
+              className="relative rounded-xl border border-border bg-surface p-3 shadow-card transition-colors hover:border-primary"
             >
               <div className="flex items-start gap-2">
                 <span className="mt-0.5 shrink-0 text-primary">
                   <Icon name="bookmark" size={18} />
                 </span>
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="break-words font-semibold">{event.title}</p>
+                  <p className="break-words font-semibold">
+                    {/* The whole card opens the day: to change it when it is the person's to change, else to look. */}
+                    <button
+                      type="button"
+                      onClick={() => onOpen(event)}
+                      aria-label={t(event.canEdit ? 'calendar.editEvent' : 'calendar.viewEvent', {
+                        title: event.title,
+                      })}
+                      className="text-left after:absolute after:inset-0 after:rounded-xl after:content-['']"
+                    >
+                      {event.title}
+                    </button>
+                  </p>
                   <p className="text-sm text-muted">{belongsText(t, event)}</p>
-                  {event.remindDays.length > 0 && (
+                  {event.atTime && (
+                    <p className="flex items-center gap-1 text-sm text-muted">
+                      <Icon name="clock" size={14} />
+                      {t('calendar.atTime', { time: event.atTime })}
+                    </p>
+                  )}
+                  {event.remindMinutes.length + event.remindDays.length > 0 && (
                     <p className="flex items-center gap-1 text-sm text-muted">
                       <Icon name="bell" size={14} />
-                      {event.remindDays.map((d) => t(`calendar.remind_${d}`)).join(', ')}
+                      {[
+                        ...event.remindMinutes.map((m) => t(`calendar.remindMin_${m}`)),
+                        ...event.remindDays.map((d) => t(`calendar.remind_${d}`)),
+                      ].join(', ')}
                     </p>
                   )}
                   {event.note && (
@@ -598,16 +596,6 @@ function DayPanel({
                   )}
                   <EventPeople people={eventPeople(event, me, nameOf)} />
                 </div>
-                {event.canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => onEdit(event)}
-                    aria-label={t('calendar.editEvent', { title: event.title })}
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-primary-bg hover:text-text"
-                  >
-                    <Icon name="pencil" size={16} />
-                  </button>
-                )}
               </div>
             </li>
           ))}

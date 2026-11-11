@@ -284,6 +284,118 @@ describe('the calendar page', () => {
     ).not.toBeInTheDocument()
   })
 
+  it("opens someone else's day to look at, with nothing to change", async () => {
+    const user = userEvent.setup()
+    const api = await openCalendar(user, {
+      events: [
+        calendarEvent('s1', 'Bob party', '2099-03-15', {
+          sharedBy: 'Bob',
+          canEdit: false,
+          note: 'Bring cake',
+          remindDays: [1],
+        }),
+      ],
+    })
+    await user.click(within(panel()).getByRole('button', { name: 'Open Bob party' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Important day' })
+    expect(
+      within(dialog).getByText('You can look at this day, but only its owner can change it.'),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Bob party')
+    expect(within(dialog).getByLabelText('Name')).toBeDisabled()
+    expect(within(dialog).getByLabelText('Note (optional)')).toHaveValue('Bring cake')
+    expect(within(dialog).getByRole('checkbox', { name: '1 day before' })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: '1 day before' })).toBeDisabled()
+    expect(within(dialog).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+    // The first thing that works gets the focus, and Escape closes.
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(api.hits('PATCH /events/s1')).toHaveLength(0)
+  })
+
+  it('adds a day with a time, and reminders before it once there is a time', async () => {
+    const user = userEvent.setup()
+    const api = await openCalendar(user)
+    await user.click(screen.getByRole('button', { name: 'Add an important day' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add an important day' })
+    await user.type(within(dialog).getByLabelText('Name'), 'Pitch')
+    expect(
+      within(dialog).queryByRole('checkbox', { name: '15 minutes before' }),
+    ).not.toBeInTheDocument()
+    await user.selectOptions(within(dialog).getByLabelText('Time (optional)'), '14:00')
+    await user.click(within(dialog).getByRole('checkbox', { name: '15 minutes before' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: '1 hour before' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(api.hits('POST /events')).toHaveLength(1))
+    expect(api.hits('POST /events')[0]!.body).toMatchObject({
+      title: 'Pitch',
+      atTime: '14:00',
+      remindMinutes: [15, 60],
+    })
+    expect(await within(panel()).findByText('At 14:00')).toBeInTheDocument()
+    expect(
+      within(panel()).getByText('15 minutes before, 1 hour before, On the day, 1 day before'),
+    ).toBeInTheDocument()
+  })
+
+  it('takes the time away, and its reminders with it', async () => {
+    const user = userEvent.setup()
+    const api = await openCalendar(user, {
+      events: [
+        calendarEvent('e1', 'Pitch', '2099-03-15', { atTime: '14:00', remindMinutes: [15] }),
+      ],
+    })
+    await user.click(within(panel()).getByRole('button', { name: 'Edit Pitch' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Edit important day' })
+    expect(within(dialog).getByRole('checkbox', { name: '15 minutes before' })).toBeChecked()
+    await user.selectOptions(within(dialog).getByLabelText('Time (optional)'), 'No time')
+    expect(
+      within(dialog).queryByRole('checkbox', { name: '15 minutes before' }),
+    ).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.hits('PATCH /events/e1')).toHaveLength(1))
+    expect(api.hits('PATCH /events/e1')[0]!.body).toEqual({ atTime: '', remindMinutes: [] })
+  })
+
+  it('lets the owner change who a day belongs to later', async () => {
+    const user = userEvent.setup()
+    // A personal day of the person's own: a project's day stays where it is.
+    const api = await openCalendar(user, {
+      events: [calendarEvent('e9', 'Lunch', '2099-03-15')],
+    })
+    await user.click(within(panel()).getByRole('button', { name: 'Edit Lunch' }))
+    let dialog = await screen.findByRole('dialog', { name: 'Edit important day' })
+    await user.selectOptions(within(dialog).getByLabelText('Belongs to'), 'Chosen people')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(within(dialog).getByText('Choose at least one person.')).toBeInTheDocument()
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Bob/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.hits('PATCH /events/e9')).toHaveLength(1))
+    expect(api.hits('PATCH /events/e9')[0]!.body).toEqual({ sharedWith: [BOB.userId] })
+    expect(await within(panel()).findByText('Shared with people: 1')).toBeInTheDocument()
+
+    // And back to personal: it is shared with nobody again.
+    await user.click(within(panel()).getByRole('button', { name: 'Edit Lunch' }))
+    dialog = await screen.findByRole('dialog', { name: 'Edit important day' })
+    expect(within(dialog).getByLabelText('Belongs to')).toHaveValue('__people')
+    await user.selectOptions(within(dialog).getByLabelText('Belongs to'), 'Personal')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.hits('PATCH /events/e9')).toHaveLength(2))
+    expect(api.hits('PATCH /events/e9')[1]!.body).toEqual({ sharedWith: [] })
+  })
+
+  it('puts the note right under the name, with no hint under the reminders', async () => {
+    const user = userEvent.setup()
+    await openCalendar(user)
+    await user.click(screen.getByRole('button', { name: 'Add an important day' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add an important day' })
+    const labels = [...dialog.querySelectorAll('label, legend')].map((l) => l.textContent)
+    expect(labels.indexOf('Note (optional)')).toBe(labels.indexOf('Name') + 1)
+    expect(within(dialog).queryByText(/by the bell at the top/)).not.toBeInTheDocument()
+  })
+
   it('changes only what was changed, and deletes after asking', async () => {
     const user = userEvent.setup()
     const api = await openCalendar(user)

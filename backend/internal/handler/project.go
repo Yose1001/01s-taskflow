@@ -15,7 +15,7 @@ import (
 // ProjectService is what the project handlers need from the service layer.
 type ProjectService interface {
 	Create(ctx context.Context, userID, name, description string) (model.Project, error)
-	List(ctx context.Context, userID string, trashed bool, sort string, page, pageSize int) (service.Page, error)
+	List(ctx context.Context, userID string, trashed bool, sort, person string, page, pageSize int) (service.Page, error)
 	Get(ctx context.Context, userID, projectID string) (model.Project, error)
 	Update(ctx context.Context, userID, projectID string, patch model.ProjectPatch) (model.Project, error)
 	Delete(ctx context.Context, userID, projectID string) error
@@ -32,23 +32,25 @@ type Projects struct{ svc ProjectService }
 func NewProjects(svc ProjectService) *Projects { return &Projects{svc: svc} }
 
 type projectResponse struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	OwnerID     string     `json:"ownerId"`
-	MyRole      string     `json:"myRole"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
-	DeletedAt   *time.Time `json:"deletedAt"`
-	PurgeAt     *time.Time `json:"purgeAt"`
-	TaskCount   int        `json:"taskCount"`
-	DoneCount   int        `json:"doneCount"`
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	OwnerID     string           `json:"ownerId"`
+	MyRole      string           `json:"myRole"`
+	CreatedAt   time.Time        `json:"createdAt"`
+	UpdatedAt   time.Time        `json:"updatedAt"`
+	DeletedAt   *time.Time       `json:"deletedAt"`
+	PurgeAt     *time.Time       `json:"purgeAt"`
+	TaskCount   int              `json:"taskCount"`
+	DoneCount   int              `json:"doneCount"`
+	MemberCount int              `json:"memberCount"`
+	Members     []personResponse `json:"members"`
 }
 
 func toProjectResponse(p model.Project) projectResponse {
 	return projectResponse{ID: p.ID, Name: p.Name, Description: p.Description, OwnerID: p.OwnerID, MyRole: p.MyRole,
 		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt, DeletedAt: p.DeletedAt, PurgeAt: p.PurgeAt,
-		TaskCount: p.TaskCount, DoneCount: p.DoneCount}
+		TaskCount: p.TaskCount, DoneCount: p.DoneCount, MemberCount: p.MemberCount, Members: toPeople(p.Members)}
 }
 
 type memberResponse struct {
@@ -93,7 +95,7 @@ func (h *Projects) Create(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, toProjectResponse(p))
 }
 
-// List handles GET /projects?trashed=&sort=&page=&pageSize=.
+// List handles GET /projects?trashed=&sort=&person=&page=&pageSize=.
 func (h *Projects) List(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(w, r)
 	if !ok {
@@ -117,7 +119,7 @@ func (h *Projects) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.svc.List(r.Context(), uid, trashed, q.Get("sort"), page, size)
+	res, err := h.svc.List(r.Context(), uid, trashed, q.Get("sort"), q.Get("person"), page, size)
 	if err != nil {
 		writeServiceError(w, r, err)
 		return
